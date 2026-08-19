@@ -1,0 +1,82 @@
+# ==========================================
+# 1. Залежності (Dependencies)
+# ==========================================
+node_modules/
+.pnpm-store/
+
+.agents/
+.claude/
+.windsurf/
+
+AGENTS.md
+CLAUDE.md
+skills-lock.json
+
+
+# ==========================================
+# 2. Змінні оточення та секрети (Secrets & Env)
+# ==========================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ==========================================
+# 3. Білди та збірки (Build Outputs)
+# ==========================================
+# Turborepo
+.turbo/
+
+# Backend (NestJS / TypeScript)
+dist/
+*.tsbuildinfo
+
+# Web (Next.js)
+.next/
+out/
+build/
+
+# Mobile (Expo & React Native)
+.expo/
+.metro/
+web-build/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+
+# Scraper (Rust / Cargo)
+apps/scraper/target/
+target/
+**/*.rs.bk
+
+# ==========================================
+# 4. Локальні бази даних та Docker томи
+# ==========================================
+pgdata/
+redisdata/
+meilidata/
+meili_data/
+
+# ==========================================
+# 5. Логи та тимчасові файли
+# ==========================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun.lockb.log
+
+# ==========================================
+# 6. IDE та файли операційних систем
+# ==========================================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo

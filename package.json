@@ -1,0 +1,35 @@
+{
+  "name": "OnniMart",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "dev:api": "bun --filter api start:dev",
+    "dev:web": "bun --filter web dev",
+    "dev:mobile": "bun --filter mobile start",
+    "dev:scraper": "cd apps/scraper && cargo run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.22.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "turbo": "^2.10.11",
+    "typescript": "^7.0.2"
+  }
+}
