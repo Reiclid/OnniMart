@@ -11,7 +11,7 @@ node_modules/
 AGENTS.md
 CLAUDE.md
 skills-lock.json
-
+Rule.md
 
 # ==========================================
 # 2. Змінні оточення та секрети (Secrets & Env)
