@@ -1,6 +1,6 @@
 'use client';
 import { useState } from "react";
-import { scraperControllerTrigger  } from "../api/generated/scraper/scraper";
+import { triggerScrape  } from "../api/generated/scraper/scraper";
 
 export default function Home() {
 
@@ -11,7 +11,9 @@ export default function Home() {
     setLoading(true);
     setError(null);
 
+    const data = await triggerScrape({ store: 'atb' });
 
+    console.log(data.message);
   };
 
   return (

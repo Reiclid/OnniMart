@@ -12,19 +12,19 @@ import type {
 
 import { customFetch } from '../../custom-fetch';
 
-export type scraperControllerTriggerResponse200 = {
+export type triggerScrapeResponse200 = {
   data: TriggerScraperResponseDto
   status: 200
 }
 
-export type scraperControllerTriggerResponseSuccess = (scraperControllerTriggerResponse200) & {
+export type triggerScrapeResponseSuccess = (triggerScrapeResponse200) & {
   headers: Headers;
 };
 ;
 
-export type scraperControllerTriggerResponse = (scraperControllerTriggerResponseSuccess)
+export type triggerScrapeResponse = (triggerScrapeResponseSuccess)
 
-export const getScraperControllerTriggerUrl = () => {
+export const getTriggerScrapeUrl = () => {
 
 
 
@@ -35,9 +35,9 @@ export const getScraperControllerTriggerUrl = () => {
 /**
  * @summary Запустити скрейпінг магазину
  */
-export const scraperControllerTrigger = async (triggerScraperDto: TriggerScraperDto, options?: Parameters<typeof customFetch>[1]): Promise<scraperControllerTriggerResponse> => {
+export const triggerScrape = async (triggerScraperDto: TriggerScraperDto, options?: Parameters<typeof customFetch>[1]): Promise<triggerScrapeResponse> => {
 
-  return customFetch<scraperControllerTriggerResponse>(getScraperControllerTriggerUrl(),
+  return customFetch<triggerScrapeResponse>(getTriggerScrapeUrl(),
   {
     ...options,
     method: 'POST',

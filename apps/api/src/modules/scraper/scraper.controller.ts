@@ -8,7 +8,7 @@ export class ScraperController {
   constructor(private readonly scraperService: ScraperService) {}
 
   @Post('trigger')
-  @ApiOperation({ summary: 'Запустити скрейпінг магазину' })
+  @ApiOperation({ summary: 'Запустити скрейпінг магазину', operationId: 'triggerScrape' })
   @ApiResponse({ status: 200, type: TriggerScraperResponseDto })
   async trigger(@Body() dto: TriggerScraperDto): Promise<TriggerScraperResponseDto> {
     const data = await this.scraperService.triggerScrape(dto.store)
