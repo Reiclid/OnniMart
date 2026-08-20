@@ -14,7 +14,8 @@
     "dev:api": "bun --filter api start:dev",
     "dev:web": "bun --filter web dev",
     "dev:mobile": "bun --filter mobile start",
-    "dev:scraper": "cd apps/scraper && cargo run"
+    "dev:scraper": "cd apps/scraper && cargo run",
+    "dev:orval": "bun --filter web generate:api"
   },
   "keywords": [],
   "author": "",
@@ -29,7 +30,9 @@
   "type": "module",
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "api": "workspace:*",
+    "dotenv": "^17.4.2",
     "turbo": "^2.10.11",
-    "typescript": "^7.0.2"
+    "typescript": "^6.0.0"
   }
 }

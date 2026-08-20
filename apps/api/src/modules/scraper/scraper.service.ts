@@ -40,7 +40,7 @@ export class ScraperService implements OnModuleInit, OnModuleDestroy {
 
         return {
             status: 'queued',
-            messege: `Завдання для ${store} успішно поставлено в чергу`,
+            message: `Завдання для ${store} успішно поставлено в чергу`,
         };
     }
 
