@@ -1,39 +1,17 @@
 'use client';
-import Image from "next/image";
 import { useState } from "react";
+import { scraperControllerTrigger  } from "../api/generated/scraper/scraper";
 
 export default function Home() {
 
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleParse = async () => {
     setLoading(true);
     setError(null);
-    setResult(null);
 
-    try {
-      const response = await fetch('http://localhost:3001/scraper/atb', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
 
-        // body: JSON.stringify({ url: 'https://www.atbmarket.com/' }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setResult(data);
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
