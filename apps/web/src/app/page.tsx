@@ -1,18 +1,21 @@
 'use client';
 import { useState } from "react";
-import { triggerScrape  } from "../api/generated/scraper/scraper";
+import { triggerScrape } from "../api/generated/scraper/scraper";
+import { TriggerScraperResponseDto } from "@/api/generated/model";
 
 export default function Home() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<TriggerScraperResponseDto | null>(null);
 
   const handleParse = async () => {
     setLoading(true);
     setError(null);
 
-    const data = await triggerScrape({ store: 'atb' });
+    const { data } = await triggerScrape({ store: 'atb' });
 
+    setResult(data);
     console.log(data.message);
   };
 
