@@ -11,3 +11,136 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// --products_full
+// name                     - Coca-Cola
+// brand                    - Coca-Cola
+// manufacturer             - Coca-Cola
+// type                     - clasic
+// categories               - gas-water
+// tags                     - [gas-water, water, sweet, ...]
+// barcode                  - 987szbdfgd
+// value                    - 1.75
+// country                  - Ukraine
+// description              - Very jucy water
+// price                    - 50
+// unit                     - l
+// сurrency                 - hrn
+// images                   - []
+
+// max_temp                 - 30
+// min_temp                 - -10
+// recommend_temp           - 10
+// shelf_life               - 17
+// opened_shelf_life        - 7
+// humidity_max             - 60
+// humidity_min             - 10
+// is_ready_to_eat          - true
+// certifications           - []
+
+// alcohol                  - 0
+// sugar                    - 100
+// salt                     - 20
+// vitamin                  - [B, A, ...]
+// calories                 - 300
+// proteins                 - 0
+// fat                      - 0
+// saturated_fat            - 0
+// trans_fat                - 0 
+// carbohydrates            - 0
+// fiber                    - null
+// ingredients              - []
+// allergens                - []
+// minerals                 - [kaliu, fosfor, ...]
+// caffeine                 - null
+// natural_aromats          - null
+
+// Glycemic_index(GI)       - 60
+// health_rating            - 1/10 
+// food_additives           - [E290, E150d, E338, ...]
+// packaging_materials      - [PET, glass, ...]
+
+// products_raw
+
+enum Units {
+  l
+  ml
+  kg
+  g
+  pcs
+}
+
+enum Currencies {
+  uah
+  usd
+  eur
+  jpy
+  gbp
+  chf
+}
+
+model Country {
+  id   String @id @default(uuid())
+  name String
+  code String @unique
+
+  @@map("countries")
+}
+
+model Brand {
+  id           String  @id @default(uuid())
+  name         String
+  manufacturer String?
+
+  products     Product[]
+
+  @@map("brands")
+}
+
+model Product {
+  id          String  @id @default(uuid())
+  name        String
+  value       Decimal
+  price       Decimal
+  description String
+  tags        String?
+  type        String?
+  unit        Units?
+  сurrency    Currencies?
+  images      String?
+
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+
+  brandId     String
+  brand       Brand  @relation(fields: [brandId], references: [id])
+
+  @@map("products")
+}
+
+model Product_raw {
+  id String @id @default(uuid())
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String
+  
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product_variant {
+  id String @id @default(uuid())
+}
