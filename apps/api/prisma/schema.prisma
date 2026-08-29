@@ -89,10 +89,43 @@ enum Currencies {
   chf
 }
 
+model Sale {
+  id   String @id @default(uuid())
+  type String
+
+  @@map("sales")
+}
+
+model StoreChain {
+  id     String  @id @default(uuid())
+  name   String
+  stores Store[]
+
+  @@map("store_chains")
+}
+
+model Store {
+  id      String  @id @default(uuid())
+  name    String
+  website String?
+
+  offers Offer[]
+
+  countryId String
+  country   Country @relation(fields: [countryId], references: [id])
+
+  chainId String
+  chain   StoreChain @relation(fields: [chainId], references: [id])
+
+  @@map("stores")
+}
+
 model Country {
   id   String @id @default(uuid())
   name String
   code String @unique
+
+  stores Store[]
 
   @@map("countries")
 }
@@ -102,45 +135,87 @@ model Brand {
   name         String
   manufacturer String?
 
-  products     Product[]
+  products Product[]
 
   @@map("brands")
 }
 
-model Product {
-  id          String  @id @default(uuid())
-  name        String
-  value       Decimal
-  price       Decimal
-  description String
-  tags        String?
-  type        String?
-  unit        Units?
-  сurrency    Currencies?
-  images      String?
-
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id])
-
-  brandId     String
-  brand       Brand  @relation(fields: [brandId], references: [id])
-
-  @@map("products")
-}
-
-model Product_raw {
-  id String @id @default(uuid())
-}
-
 model Category {
-  id       String    @id @default(uuid())
-  name     String
-  
+  id   String @id @default(uuid())
+  name String
+
   products Product[]
 
   @@map("categories")
 }
 
-model Product_variant {
-  id String @id @default(uuid())
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  tags        String?
+  type        String?
+  images      String?
+  barcode     String?
+  createdAt   DateTime @default(now())
+
+  productVariants ProductVariant[]
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id])
+
+  @@map("products")
+}
+
+model ProductVariant {
+  id      String  @id @default(uuid())
+  value   Decimal @db.Decimal(10, 3)
+  units   Units?
+  barcode String?
+
+  offers Offer[]
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([value, units, productId])
+  @@map("product_variants")
+}
+
+model Offer {
+  id         String      @id @default(uuid())
+  externalId String?
+  url        String?
+  currency   Currencies?
+  price      Decimal     @db.Decimal(12, 2)
+  inStock    Boolean     @default(true)
+  updatedAt  DateTime    @default(now())
+
+  productVariantId String
+  variant          ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  @@map("offers")
+}
+
+model OfferRaw {
+  id          String   @id @default(uuid())
+  name        String
+  url         String
+  brand       String
+  externalId  String?
+  description String?
+  Information String?
+  price       Decimal  @db.Decimal(12, 2)
+  price_sale  Decimal? @db.Decimal(12, 2)
+  value       Decimal  @db.Decimal(10, 3)
+  units       String
+  inStock     Boolean  @default(true)
+
+   @@map("offers_raw")
 }
