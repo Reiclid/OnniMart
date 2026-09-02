@@ -11,3 +11,211 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// --products_full
+// name                     - Coca-Cola
+// brand                    - Coca-Cola
+// manufacturer             - Coca-Cola
+// type                     - clasic
+// categories               - gas-water
+// tags                     - [gas-water, water, sweet, ...]
+// barcode                  - 987szbdfgd
+// value                    - 1.75
+// country                  - Ukraine
+// description              - Very jucy water
+// price                    - 50
+// unit                     - l
+// сurrency                 - hrn
+// images                   - []
+
+// max_temp                 - 30
+// min_temp                 - -10
+// recommend_temp           - 10
+// shelf_life               - 17
+// opened_shelf_life        - 7
+// humidity_max             - 60
+// humidity_min             - 10
+// is_ready_to_eat          - true
+// certifications           - []
+
+// alcohol                  - 0
+// sugar                    - 100
+// salt                     - 20
+// vitamin                  - [B, A, ...]
+// calories                 - 300
+// proteins                 - 0
+// fat                      - 0
+// saturated_fat            - 0
+// trans_fat                - 0 
+// carbohydrates            - 0
+// fiber                    - null
+// ingredients              - []
+// allergens                - []
+// minerals                 - [kaliu, fosfor, ...]
+// caffeine                 - null
+// natural_aromats          - null
+
+// Glycemic_index(GI)       - 60
+// health_rating            - 1/10 
+// food_additives           - [E290, E150d, E338, ...]
+// packaging_materials      - [PET, glass, ...]
+
+// products_raw
+
+enum Units {
+  l
+  ml
+  kg
+  g
+  pcs
+}
+
+enum Currencies {
+  uah
+  usd
+  eur
+  jpy
+  gbp
+  chf
+}
+
+model Sale {
+  id   String @id @default(uuid())
+  type String
+
+  @@map("sales")
+}
+
+model StoreChain {
+  id     String  @id @default(uuid())
+  name   String
+  stores Store[]
+
+  @@map("store_chains")
+}
+
+model Store {
+  id      String  @id @default(uuid())
+  name    String
+  website String?
+
+  offers Offer[]
+
+  countryId String
+  country   Country @relation(fields: [countryId], references: [id])
+
+  chainId String
+  chain   StoreChain @relation(fields: [chainId], references: [id])
+
+  @@map("stores")
+}
+
+model Country {
+  id   String @id @default(uuid())
+  name String
+  code String @unique
+
+  stores Store[]
+
+  @@map("countries")
+}
+
+model Brand {
+  id           String  @id @default(uuid())
+  name         String
+  manufacturer String?
+
+  products Product[]
+
+  @@map("brands")
+}
+
+model Category {
+  id   String @id @default(uuid())
+  name String
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  tags        String?
+  type        String?
+  images      String?
+  barcode     String?
+  createdAt   DateTime @default(now())
+
+  productVariants ProductVariant[]
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id])
+
+  @@map("products")
+}
+
+model ProductVariant {
+  id      String  @id @default(uuid())
+  value   Decimal @db.Decimal(10, 3)
+  units   Units?
+  barcode String?
+
+  offers Offer[]
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([value, units, productId])
+  @@map("product_variants")
+}
+
+model Offer {
+  id         String      @id @default(uuid())
+  externalId String?
+  url        String?
+  currency   Currencies?
+  price      Decimal     @db.Decimal(12, 2)
+  inStock    Boolean     @default(true)
+  updatedAt  DateTime    @default(now())
+
+  productVariantId String
+  variant          ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  @@map("offers")
+}
+
+model OfferRaw {
+  id          String   @id @default(uuid())
+  name        String
+  url         String
+  brand       String
+  externalId  String?
+  description String?
+  Information String?
+  price       Decimal  @db.Decimal(12, 2)
+  price_sale  Decimal? @db.Decimal(12, 2)
+  value       Decimal  @db.Decimal(10, 3)
+  units       String
+  inStock     Boolean  @default(true)
+
+   @@map("offers_raw")
+}
