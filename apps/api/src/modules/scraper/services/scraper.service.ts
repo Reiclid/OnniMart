@@ -5,15 +5,15 @@ import {
   Logger,
 } from '@nestjs/common';
 import Redis from 'ioredis';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { ScrapedProductDto } from '../dto/scraped-product.dto';
 
 @Injectable()
 export class ScraperService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ScraperService.name);
 
   private redisClient: Redis;
-
   private redisSubscriber: Redis;
-
   private isListening = false;
 
   constructor() {
@@ -23,7 +23,7 @@ export class ScraperService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-    this.startIngestionWorker();
+    await this.startIngestionWorker();
   }
 
   async onModuleDestroy() {
