@@ -9,4 +9,6 @@
 export interface TriggerScraperResponseDto {
   status: string;
   message: string;
+  /** ScrapeRun.id — за ним видно перебіг запуску */
+  runId: string;
 }

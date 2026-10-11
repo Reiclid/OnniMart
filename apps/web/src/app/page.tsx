@@ -1,58 +1,164 @@
-'use client';
-import { useState } from "react";
-import { triggerScrape } from "../api/generated/scraper/scraper";
-import { TriggerScraperResponseDto } from "@/api/generated/model";
+import Link from 'next/link';
+import {
+  getChains,
+  getScrapeRuns,
+  getStats,
+} from '@/api/generated/monitoring/monitoring';
+import { AutoRefresh } from '@/components/AutoRefresh';
+import { StatusBadge } from '@/components/StatusBadge';
+import { TriggerButton } from '@/components/TriggerButton';
+import {
+  formatDateTime,
+  formatDuration,
+  formatNumber,
+} from '@/lib/format';
 
-export default function Home() {
+export const dynamic = 'force-dynamic';
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<TriggerScraperResponseDto | null>(null);
+export default async function DashboardPage() {
+  const [{ data: stats }, { data: chains }, { data: runs }] = await Promise.all([
+    getStats(),
+    getChains(),
+    getScrapeRuns({ limit: 15 }),
+  ]);
+  const active = runs.some(
+    (run) => run.status === 'QUEUED' || run.status === 'RUNNING',
+  );
 
-  const handleParse = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const { data } = await triggerScrape({ store: 'atb' });
-      setResult(data);
-    } catch (e) {
-      setResult(null);
-      setError(e instanceof Error ? e.message : 'Невідома помилка');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const cards = [
+    { label: 'Мережі', value: `${stats.enabledChains} / ${stats.chains}`, hint: 'увімкнено / усього' },
+    { label: 'Картки товарів', value: formatNumber(stats.listings) },
+    { label: 'Зі штрихкодом', value: formatNumber(stats.listingsWithBarcode) },
+    { label: 'Зіставлено з каталогом', value: formatNumber(stats.matchedListings) },
+    { label: 'З акцією', value: formatNumber(stats.promoListings) },
+    { label: 'Записи історії цін', value: formatNumber(stats.priceSnapshots) },
+  ];
 
   return (
-    <main className="p-8 max-w-xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold">OnniMart Scraper</h1>
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Огляд</h1>
+        <AutoRefresh active={active} />
+      </div>
 
-      <button
-        onClick={handleParse}
-        disabled={loading}
-        className={`px-6 py-3 rounded-lg font-bold text-white transition ${loading
-            ? 'bg-gray-400 cursor-not-allowed'
-            : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
-          }`}
-      >
-        {loading ? 'Йде парсинг...' : 'Parse ATB'}
-      </button>
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        {cards.map((card) => (
+          <div key={card.label} className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="text-xs text-slate-500">{card.label}</div>
+            <div className="mt-1 text-2xl font-semibold">{card.value}</div>
+            {card.hint && <div className="text-xs text-slate-400">{card.hint}</div>}
+          </div>
+        ))}
+      </section>
 
-      {error && (
-        <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded-md">
-          {error}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Мережі</h2>
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-2">Мережа</th>
+                <th className="px-4 py-2 text-right">Товарів</th>
+                <th className="px-4 py-2 text-right">Акцій</th>
+                <th className="px-4 py-2">Останній запуск</th>
+                <th className="px-4 py-2 text-right">Парсинг</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {chains.map((chain) => (
+                <tr key={chain.id}>
+                  <td className="px-4 py-3">
+                    <div className="font-medium">
+                      <span className="mr-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">
+                        {chain.countryCode}
+                      </span>
+                      {chain.name}
+                    </div>
+                    <a href={chain.website} className="text-xs text-slate-500 hover:underline">
+                      {chain.website.replace('https://', '')}
+                    </a>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link href={`/listings?chain=${chain.slug}`} className="text-blue-700 hover:underline">
+                      {formatNumber(chain.listingsCount)}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link href={`/listings?chain=${chain.slug}&promo=true`} className="text-blue-700 hover:underline">
+                      {formatNumber(chain.promoCount)}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    {chain.lastRun ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge status={chain.lastRun.status} />
+                        <span className="text-xs text-slate-500">
+                          {formatDateTime(chain.lastRun.startedAt)} · {chain.lastRun.itemsSeen} тов.
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400">ще не запускався</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {chain.scrapeEnabled ? (
+                      <TriggerButton store={chain.slug} />
+                    ) : (
+                      <div className="text-right text-xs text-slate-400">вимкнено</div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      </section>
 
-      {result && (
-        <div className="p-4 bg-gray-100 rounded-md">
-          <h2 className="font-semibold mb-2">Отримані дані:</h2>
-          <pre className="text-sm overflow-auto">
-            {JSON.stringify(result, null, 2)}
-          </pre>
-        </div>
-      )}
-    </main>
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Останні запуски парсера</h2>
+        {runs.length === 0 ? (
+          <p className="text-sm text-slate-500">
+            Запусків ще не було — натисніть «Запустити» біля мережі.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-4 py-2">Мережа</th>
+                  <th className="px-4 py-2">Статус</th>
+                  <th className="px-4 py-2">Початок</th>
+                  <th className="px-4 py-2">Тривалість</th>
+                  <th className="px-4 py-2 text-right">Сторінок</th>
+                  <th className="px-4 py-2 text-right">Товарів</th>
+                  <th className="px-4 py-2 text-right">Змінено</th>
+                  <th className="px-4 py-2">Помилки</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {runs.map((run) => (
+                  <tr key={run.id}>
+                    <td className="px-4 py-2 font-medium">{run.chainName}</td>
+                    <td className="px-4 py-2">
+                      <StatusBadge status={run.status} />
+                    </td>
+                    <td className="px-4 py-2 text-slate-600">{formatDateTime(run.startedAt)}</td>
+                    <td className="px-4 py-2 text-slate-600">
+                      {formatDuration(run.startedAt, run.finishedAt)}
+                    </td>
+                    <td className="px-4 py-2 text-right">{run.pagesFetched}</td>
+                    <td className="px-4 py-2 text-right">{run.itemsSeen}</td>
+                    <td className="px-4 py-2 text-right">{run.itemsChanged}</td>
+                    <td className="max-w-xs truncate px-4 py-2 text-xs text-red-700" title={run.error ?? ''}>
+                      {run.error ?? ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }

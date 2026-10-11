@@ -3,7 +3,8 @@ import { defineConfig } from 'orval';
 export default defineConfig({
   onnimart: {
     input: {
-      target: 'http://localhost:3001/api/docs-json',
+      // Без запущеного API: OPENAPI_SPEC=../api/openapi.json (див. apps/api/scripts/generate-openapi.ts)
+      target: process.env.OPENAPI_SPEC ?? 'http://localhost:3001/api/docs-json',
     },
     output: {
       mode: 'tags-split',
@@ -12,6 +13,7 @@ export default defineConfig({
       client: 'fetch',
       httpClient: 'fetch',
       baseUrl: 'http://localhost:3001',
+      clean: true,
       override: {
         mutator: {
           path: './src/api/custom-fetch.ts',

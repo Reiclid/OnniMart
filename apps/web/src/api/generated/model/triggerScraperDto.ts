@@ -7,6 +7,8 @@
  */
 
 export interface TriggerScraperDto {
-  /** Name market for parcing */
+  /** StoreChain.slug мережі */
   store: string;
+  /** Не більше N сторінок на категорію (для тестового запуску) */
+  maxPages?: number;
 }

@@ -12,12 +12,12 @@ import type {
 
 import { customFetch } from '../../custom-fetch';
 
-export type triggerScrapeResponse200 = {
+export type triggerScrapeResponse201 = {
   data: TriggerScraperResponseDto
-  status: 200
+  status: 201
 }
 
-export type triggerScrapeResponseSuccess = (triggerScrapeResponse200) & {
+export type triggerScrapeResponseSuccess = (triggerScrapeResponse201) & {
   headers: Headers;
 };
 ;
