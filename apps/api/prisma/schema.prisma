@@ -1,221 +1,456 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// OnniMart — схема бази даних.
+// Пояснення до моделей, ER-діаграма та алгоритм зіставлення товарів: docs/02-database.md
+//
+// Ключова ідея — три рівні каталогу + окремий рівень "картки мережі":
+//
+//   ProductLine     Coca-Cola                      (лінійка бренду)
+//   └─ Product      Coca-Cola Zero                 (смак / різновид)
+//      └─ ProductVariant  Coca-Cola Zero 0,5 л     (фасування, має штрихкоди)
+//         └─ Listing      АТБ: "Напій Coca-Cola Zero 0,5л"  (картка товару на сайті мережі)
+//            └─ PriceSnapshot  49.90 грн, 2026-10-11 10:00   (історія цін)
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ============================================================
+// Довідники
+// ============================================================
 
-  @@map("users")
+/// ISO 4217
+enum Currency {
+  UAH
+  EUR
+  PLN
+  USD
 }
 
-// --products_full
-// name                     - Coca-Cola
-// brand                    - Coca-Cola
-// manufacturer             - Coca-Cola
-// type                     - clasic
-// categories               - gas-water
-// tags                     - [gas-water, water, sweet, ...]
-// barcode                  - 987szbdfgd
-// value                    - 1.75
-// country                  - Ukraine
-// description              - Very jucy water
-// price                    - 50
-// unit                     - l
-// сurrency                 - hrn
-// images                   - []
-
-// max_temp                 - 30
-// min_temp                 - -10
-// recommend_temp           - 10
-// shelf_life               - 17
-// opened_shelf_life        - 7
-// humidity_max             - 60
-// humidity_min             - 10
-// is_ready_to_eat          - true
-// certifications           - []
-
-// alcohol                  - 0
-// sugar                    - 100
-// salt                     - 20
-// vitamin                  - [B, A, ...]
-// calories                 - 300
-// proteins                 - 0
-// fat                      - 0
-// saturated_fat            - 0
-// trans_fat                - 0 
-// carbohydrates            - 0
-// fiber                    - null
-// ingredients              - []
-// allergens                - []
-// minerals                 - [kaliu, fosfor, ...]
-// caffeine                 - null
-// natural_aromats          - null
-
-// Glycemic_index(GI)       - 60
-// health_rating            - 1/10 
-// food_additives           - [E290, E150d, E338, ...]
-// packaging_materials      - [PET, glass, ...]
-
-// products_raw
-
-enum Units {
-  l
-  ml
-  kg
-  g
-  pcs
+/// Що саме вимірюємо. Кількість завжди зберігається в базових одиницях:
+/// MASS — грами, VOLUME — мілілітри, COUNT — штуки.
+enum Measure {
+  MASS
+  VOLUME
+  COUNT
 }
 
-enum Currencies {
-  uah
-  usd
-  eur
-  jpy
-  gbp
-  chf
-}
+model Country {
+  /// ISO 3166-1 alpha-2: UA, DE, PL
+  code     String   @id @db.Char(2)
+  name     String
+  currency Currency
 
-model Sale {
-  id   String @id @default(uuid())
-  type String
+  chains StoreChain[]
 
-  @@map("sales")
+  @@map("countries")
 }
 
 model StoreChain {
-  id     String  @id @default(uuid())
-  name   String
-  stores Store[]
+  id          String   @id @default(uuid())
+  /// Ключ мережі, збігається з назвою парсера: "atb", "silpo", "novus", "lidl-de"
+  slug        String   @unique
+  name        String
+  website     String
+  logoUrl     String?
+  countryCode String   @db.Char(2)
+  currency    Currency
+
+  // Параметри збору даних (див. docs/01-data-sources.md)
+  scrapeEnabled   Boolean   @default(false)
+  /// Пауза між запитами до сайту, мс (не менше Crawl-delay з robots.txt)
+  crawlDelayMs    Int       @default(3000)
+  robotsCheckedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  country    Country     @relation(fields: [countryCode], references: [code])
+  stores     Store[]
+  listings   Listing[]
+  scrapeRuns ScrapeRun[]
 
   @@map("store_chains")
 }
 
+/// Фізичний магазин або регіон ціноутворення. Потрібен, коли ціни відрізняються
+/// між містами (наприклад, на zakaz.ua ціна прив'язана до конкретного магазину).
 model Store {
-  id      String  @id @default(uuid())
-  name    String
-  website String?
+  id         String   @id @default(uuid())
+  chainId    String
+  /// ID магазину на сайті мережі
+  externalId String?
+  name       String
+  city       String?
+  address    String?
+  latitude   Decimal? @db.Decimal(9, 6)
+  longitude  Decimal? @db.Decimal(9, 6)
 
-  offers Offer[]
+  chain          StoreChain      @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  priceSnapshots PriceSnapshot[]
 
-  countryId String
-  country   Country @relation(fields: [countryId], references: [id])
-
-  chainId String
-  chain   StoreChain @relation(fields: [chainId], references: [id])
-
+  @@unique([chainId, externalId])
   @@map("stores")
-}
-
-model Country {
-  id   String @id @default(uuid())
-  name String
-  code String @unique
-
-  stores Store[]
-
-  @@map("countries")
 }
 
 model Brand {
   id           String  @id @default(uuid())
   name         String
+  /// Нормалізована назва для пошуку та зіставлення: "coca-cola"
+  slug         String  @unique
   manufacturer String?
 
+  lines    ProductLine[]
   products Product[]
 
   @@map("brands")
 }
 
+/// Канонічне дерево категорій (у кожної мережі своє дерево — воно зберігається
+/// в Listing.rawCategory і мапиться сюди).
 model Category {
-  id   String @id @default(uuid())
-  name String
+  id       String  @id @default(uuid())
+  slug     String  @unique
+  name     String
+  parentId String?
 
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryTree")
   products Product[]
 
+  @@index([parentId])
   @@map("categories")
 }
 
+// ============================================================
+// Канонічний каталог
+// ============================================================
+
+/// Лінійка бренду: "Coca-Cola", "Галичина Молоко". Групує смаки/різновиди.
+model ProductLine {
+  id      String  @id @default(uuid())
+  name    String
+  slug    String  @unique
+  brandId String?
+
+  brand    Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  products Product[]
+
+  @@map("product_lines")
+}
+
+/// Конкретний смак / різновид: "Coca-Cola Zero", "Coca-Cola Cherry".
+/// На цьому рівні користувач зазвичай підписується ("будь-яке фасування").
 model Product {
-  id          String   @id @default(uuid())
-  name        String
-  description String
-  tags        String?
-  type        String?
-  images      String?
-  barcode     String?
-  createdAt   DateTime @default(now())
+  id           String  @id @default(uuid())
+  name         String
+  slug         String  @unique
+  /// Що відрізняє продукт у межах лінійки: "Zero", "Cherry", "Класична"
+  variantLabel String?
+  description  String?
+  imageUrl     String?
+  /// Склад, КБЖВ на 100 г, алергени, харчові добавки тощо (напр. з Open Food Facts)
+  attributes   Json?
+  lineId       String?
+  brandId      String?
+  categoryId   String?
 
-  productVariants ProductVariant[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
+  line          ProductLine?     @relation(fields: [lineId], references: [id], onDelete: SetNull)
+  brand         Brand?           @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  category      Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  variants      ProductVariant[]
+  subscriptions Subscription[]
 
-  brandId String
-  brand   Brand  @relation(fields: [brandId], references: [id])
-
+  @@index([lineId])
+  @@index([brandId])
+  @@index([categoryId])
   @@map("products")
 }
 
+/// Фасування (SKU): "Coca-Cola Zero 0,5 л", "Coca-Cola Zero 6 × 0,33 л".
+/// Саме варіанти порівнюються між мережами і мають штрихкоди.
 model ProductVariant {
-  id      String  @id @default(uuid())
-  value   Decimal @db.Decimal(10, 3)
-  units   Units?
-  barcode String?
+  id          String   @id @default(uuid())
+  productId   String
+  measure     Measure
+  /// Загальна кількість у базових одиницях (г / мл / шт): 6 × 330 мл → 1980
+  netQuantity Decimal  @db.Decimal(12, 3)
+  /// Кількість одиниць в упаковці (мультипак), для звичайного товару — 1
+  packCount   Int      @default(1)
+  /// Ваговий товар — ціна на сайті вказана за 1 кг
+  isWeighted  Boolean  @default(false)
+  /// Тип упаковки, довідково: "ПЕТ", "скло", "з/б"
+  packaging   String?
+  /// Підпис для інтерфейсу: "0,5 л", "6 × 0,33 л"
+  label       String
 
-  offers Offer[]
+  createdAt DateTime @default(now())
 
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  barcodes      Barcode[]
+  listings      Listing[]
+  subscriptions Subscription[]
 
-  @@unique([value, units, productId])
+  @@unique([productId, measure, netQuantity, packCount])
   @@map("product_variants")
 }
 
-model Offer {
-  id         String      @id @default(uuid())
-  externalId String?
-  url        String?
-  currency   Currencies?
-  price      Decimal     @db.Decimal(12, 2)
-  inStock    Boolean     @default(true)
-  updatedAt  DateTime    @default(now())
+/// Штрихкод (GTIN). В одного фасування їх може бути кілька
+/// (різні заводи / країни імпорту), тому це окрема таблиця.
+model Barcode {
+  /// Нормалізовано до 14 цифр з ведучими нулями (EAN-8/UPC-A/EAN-13/GTIN-14)
+  gtin      String   @id @db.VarChar(14)
+  variantId String
+  /// Звідки дізналися: "silpo", "novus", "openfoodfacts", "user-scan"
+  source    String?
+  createdAt DateTime @default(now())
 
-  productVariantId String
-  variant          ProductVariant @relation(fields: [productVariantId], references: [id])
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
-  storeId String
-  store   Store  @relation(fields: [storeId], references: [id])
-
-  @@map("offers")
+  @@index([variantId])
+  @@map("barcodes")
 }
 
-model OfferRaw {
-  id          String   @id @default(uuid())
-  name        String
-  url         String
-  brand       String
-  externalId  String?
-  description String?
-  Information String?
-  price       Decimal  @db.Decimal(12, 2)
-  price_sale  Decimal? @db.Decimal(12, 2)
-  value       Decimal  @db.Decimal(10, 3)
-  units       String
-  inStock     Boolean  @default(true)
+// ============================================================
+// Дані мереж
+// ============================================================
 
-   @@map("offers_raw")
+enum MatchStatus {
+  /// Ще не зіставлено з каталогом
+  PENDING
+  /// Зіставлено автоматично (штрихкод або висока схожість)
+  AUTO_MATCHED
+  /// Підтверджено модератором
+  CONFIRMED
+  /// Модератор відхилив запропонований варіант
+  REJECTED
+}
+
+enum MatchMethod {
+  BARCODE
+  FUZZY
+  MANUAL
+}
+
+/// Картка товару на сайті конкретної мережі ("як є") + посилання на канонічний варіант.
+/// Замінює колишні Offer / OfferRaw.
+model Listing {
+  id          String   @id @default(uuid())
+  chainId     String
+  /// ID / артикул товару на сайті мережі
+  externalId  String
+  url         String?
+  rawName     String
+  rawBrand    String?
+  rawCategory String?
+  imageUrl    String?
+  /// Валідні GTIN-14, знайдені на сторінці (до зіставлення)
+  barcodes    String[]
+  /// Сирі дані парсера — щоб можна було перепарсити без повторного скрейпінгу
+  rawData     Json?
+
+  // Розпізнана кількість (нормалізація назви, див. catalog/normalization)
+  measure     Measure?
+  netQuantity Decimal? @db.Decimal(12, 3)
+  packCount   Int?
+  isWeighted  Boolean  @default(false)
+
+  // Зіставлення з каталогом
+  variantId   String?
+  matchStatus MatchStatus  @default(PENDING)
+  matchMethod MatchMethod?
+  /// Впевненість 0..1
+  matchScore  Float?
+  matchedAt   DateTime?
+
+  // Поточний стан — денормалізовано з останнього PriceSnapshot для швидких запитів
+  currentPrice Decimal? @db.Decimal(12, 2)
+  regularPrice Decimal? @db.Decimal(12, 2)
+  /// Ціна за 1 кг / 1 л / 1 шт
+  unitPrice    Decimal? @db.Decimal(12, 2)
+  isOnPromo    Boolean  @default(false)
+  inStock      Boolean  @default(true)
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  chain          StoreChain      @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  priceSnapshots PriceSnapshot[]
+
+  @@unique([chainId, externalId])
+  @@index([variantId])
+  @@index([matchStatus])
+  @@map("listings")
+}
+
+enum PromoType {
+  /// Звичайна знижка (закреслена стара ціна)
+  DISCOUNT
+  /// "1+1", "2+1", "-30% на другий"
+  MULTIBUY
+  /// Ціна з карткою лояльності / у застосунку
+  LOYALTY
+}
+
+/// Історія цін. Новий запис додається лише тоді, коли змінилась ціна,
+/// акція або наявність, — інакше оновлюється тільки Listing.lastSeenAt.
+model PriceSnapshot {
+  id           BigInt     @id @default(autoincrement())
+  listingId    String
+  /// Регіональна ціна конкретного магазину; null — ціна мережі за замовчуванням
+  storeId      String?
+  /// Ціна, яку платить покупець
+  price        Decimal    @db.Decimal(12, 2)
+  /// Закреслена ціна до знижки
+  regularPrice Decimal?   @db.Decimal(12, 2)
+  unitPrice    Decimal?   @db.Decimal(12, 2)
+  promoType    PromoType?
+  /// Як акцію підписано на сайті: "-25%", "2+1", "Ціна з карткою"
+  promoLabel   String?
+  promoEndsAt  DateTime?
+  inStock      Boolean    @default(true)
+  capturedAt   DateTime   @default(now())
+  scrapeRunId  String?
+
+  listing   Listing    @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  store     Store?     @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  scrapeRun ScrapeRun? @relation(fields: [scrapeRunId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, capturedAt(sort: Desc)])
+  @@map("price_snapshots")
+}
+
+enum ScrapeStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+/// Журнал запусків парсера — для моніторингу та розділу "аналіз роботи системи" у дипломі.
+model ScrapeRun {
+  id           String       @id @default(uuid())
+  chainId      String
+  status       ScrapeStatus @default(QUEUED)
+  /// "cron" | "manual"
+  trigger      String       @default("manual")
+  startedAt    DateTime     @default(now())
+  finishedAt   DateTime?
+  pagesFetched Int          @default(0)
+  itemsSeen    Int          @default(0)
+  itemsChanged Int          @default(0)
+  error        String?
+
+  chain          StoreChain      @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  priceSnapshots PriceSnapshot[]
+
+  @@index([chainId, startedAt(sort: Desc)])
+  @@map("scrape_runs")
+}
+
+// ============================================================
+// Користувачі, підписки, сповіщення
+// ============================================================
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String?
+  name         String?
+  locale       String   @default("uk")
+  countryCode  String?  @db.Char(2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subscriptions Subscription[]
+  notifications Notification[]
+  devices       PushDevice[]
+
+  @@map("users")
+}
+
+/// Підписка на товар. Заповнюється рівно одне з полів productId / variantId:
+/// productId — будь-яке фасування ("Coca-Cola Zero"), variantId — конкретне ("1 л").
+model Subscription {
+  id            String   @id @default(uuid())
+  userId        String
+  productId     String?
+  variantId     String?
+  /// Обмеження по мережах (StoreChain.id); порожній масив — усі мережі
+  chainIds      String[]
+  /// Повідомити, коли ціна стане ≤ цієї суми
+  targetPrice   Decimal? @db.Decimal(12, 2)
+  /// Повідомляти про будь-яку нову акцію
+  notifyOnPromo Boolean  @default(true)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@unique([userId, variantId])
+  @@index([productId])
+  @@index([variantId])
+  @@map("subscriptions")
+}
+
+enum NotificationType {
+  PRICE_DROP
+  PROMO_STARTED
+  TARGET_PRICE_REACHED
+  BACK_IN_STOCK
+}
+
+enum NotificationChannel {
+  PUSH
+  EMAIL
+  IN_APP
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  type      NotificationType
+  channel   NotificationChannel @default(PUSH)
+  title     String
+  body      String
+  /// { listingId, variantId, oldPrice, newPrice, chain }
+  payload   Json?
+  /// Захист від дублікатів: "<subscriptionId>:<priceSnapshotId>"
+  dedupeKey String?             @unique
+  createdAt DateTime            @default(now())
+  sentAt    DateTime?
+  readAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+/// Expo push-токен мобільного застосунку
+model PushDevice {
+  id            String   @id @default(uuid())
+  userId        String
+  expoPushToken String   @unique
+  /// "ios" | "android" | "web"
+  platform      String
+  createdAt     DateTime @default(now())
+  lastSeenAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_devices")
 }

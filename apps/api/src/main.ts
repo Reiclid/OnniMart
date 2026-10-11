@@ -1,14 +1,14 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { ScraperModule } from './modules/scraper/scraper.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const scraper = await NestFactory.create(ScraperModule);
 
   app.enableCors();
-  scraper.enableCors();
+  // Потрібно, щоб IngestionWorker коректно зупиняв цикл читання з Redis
+  app.enableShutdownHooks();
 
   const config = new DocumentBuilder()
     .setTitle('OnniMart API')
@@ -22,4 +22,4 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT ?? 3001);
 }
-bootstrap();
+void bootstrap();

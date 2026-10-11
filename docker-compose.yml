@@ -1,14 +1,12 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: onnimart-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
-      POSTGRES_DB: onnimart
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      POSTGRES_DB: ${POSTGRES_DB:-onnimart}
     ports:
       - "5432:5432"
     volumes:
@@ -37,7 +35,7 @@ services:
     container_name: onnimart-meilisearch
     restart: unless-stopped
     environment:
-      MEILI_MASTER_KEY: masterKey123
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterKey123}
       MEILI_ENV: development
     ports:
       - "7700:7700"
@@ -48,17 +46,3 @@ volumes:
   postgres_data:
   redis_data:
   meili_data:
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -13,10 +13,15 @@ export default function Home() {
     setLoading(true);
     setError(null);
 
-    const { data } = await triggerScrape({ store: 'atb' });
-
-    setResult(data);
-    console.log(data.message);
+    try {
+      const { data } = await triggerScrape({ store: 'atb' });
+      setResult(data);
+    } catch (e) {
+      setResult(null);
+      setError(e instanceof Error ? e.message : 'Невідома помилка');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
