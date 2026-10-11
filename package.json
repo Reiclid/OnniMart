@@ -6,8 +6,8 @@
     "apps/*",
     "packages/*"
   ],
-  "description": "",
-  "main": "index.js",
+  "description": "Вебсистема моніторингу, агрегації та аналізу цін на споживчі товари",
+  "packageManager": "bun@1.3.14",
   "scripts": {
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
@@ -16,21 +16,15 @@
     "dev:mobile": "bun --filter mobile start",
     "dev:scraper": "cd apps/scraper && cargo run",
     "dev:orval": "bun --filter web generate:api",
-    "dev:migrate": "cd apps/api && bunx prisma migrate dev --name init_schema",
+    "dev:migrate": "cd apps/api && bunx prisma migrate dev",
     "dev:generate": "cd apps/api && bunx prisma generate",
-    "dev:studio": "cd apps/api && bunx prisma studio"
-
+    "dev:seed": "cd apps/api && bunx prisma db seed",
+    "dev:studio": "cd apps/api && bunx prisma studio",
+    "test:api": "bun --filter api test"
   },
   "keywords": [],
-  "author": "",
+  "author": "Reiclid",
   "license": "ISC",
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "^11.22.0",
-      "onFail": "download"
-    }
-  },
   "type": "module",
   "devDependencies": {
     "@types/node": "^26.2.0",
