@@ -96,7 +96,7 @@ export default async function ListingsPage(props: PageProps<'/listings'>) {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
-              <th className="px-3 py-2" />
+              <th className="w-16 px-3 py-2" />
               <th className="px-3 py-2">Товар</th>
               <th className="px-3 py-2">Мережа</th>
               <th className="px-3 py-2 text-right">Ціна</th>
@@ -112,9 +112,9 @@ export default async function ListingsPage(props: PageProps<'/listings'>) {
                 <td className="px-3 py-2">
                   {item.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- зображення з десятків доменів мереж
-                    <img src={item.imageUrl} alt="" className="h-10 w-10 rounded object-contain" loading="lazy" />
+                    <img src={item.imageUrl} alt="" className="h-10 w-10 min-w-10 rounded object-contain" loading="lazy" />
                   ) : (
-                    <div className="h-10 w-10 rounded bg-slate-100" />
+                    <div className="h-10 w-10 min-w-10 rounded bg-slate-100" />
                   )}
                 </td>
                 <td className="px-3 py-2">
