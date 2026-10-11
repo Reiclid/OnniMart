@@ -30,6 +30,15 @@ services:
     volumes:
       - redis_data:/data
 
+  scraper:
+    build: ./apps/scraper
+    container_name: onnimart-scraper
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+
   meilisearch:
     image: getmeili/meilisearch:latest
     container_name: onnimart-meilisearch
