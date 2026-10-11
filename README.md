@@ -14,8 +14,8 @@
 | Шлях | Що це |
 |---|---|
 | `apps/api` | NestJS + Prisma 7 (PostgreSQL): REST API, прийом даних від парсера, каталог |
-| `apps/scraper` | Rust-парсер: бере завдання з Redis (`scraper:tasks`) і повертає товари (`scraper:results`) |
-| `apps/web` | Next.js: вебклієнт |
+| `apps/scraper` | Rust-парсер (7 мереж UA/DE): бере завдання з Redis (`scraper:tasks`) і повертає товари та події запуску (`scraper:results`) |
+| `apps/web` | Next.js: адмін-UI для перевірки зібраних даних (далі — вебклієнт) |
 | `apps/mobile` | Expo: мобільний застосунок зі сканером штрихкодів |
 | `packages/shared` | Спільні TypeScript-типи |
 | `docs/` | Документація до диплома |
@@ -28,21 +28,35 @@
 
 ## Запуск
 
-Потрібні [Bun](https://bun.sh) 1.3+, Docker і Rust (для парсера).
+Потрібні [Bun](https://bun.sh) 1.3+ і Docker Desktop (з WSL 2 на Windows). Rust локально не обов'язковий — парсер збирається в Docker.
 
 ```bash
 bun install
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env
-bun run infra:up        # PostgreSQL, Redis, Meilisearch
+bun run infra:up        # PostgreSQL, Redis, Meilisearch і Rust-парсер (воркер)
 bun run dev:generate    # Prisma Client
 bun run dev:migrate     # міграції
 bun run dev:seed        # мережі, категорії, демо-товари
-bun run dev:api         # http://localhost:3001/api/docs
-bun run dev:web         # http://localhost:3000
-bun run dev:scraper
+bun run dev:api         # API: http://localhost:3001/api/docs
+bun run dev:web         # UI:  http://localhost:3000
 ```
 
-Тести: `bun run test:api`.
+У UI на сторінці «Огляд» біля кожної мережі є кнопка «Запустити». Режим «1 стор./категорію» — швидка перевірка за кілька хвилин; «Усе» — повний обхід із паузою 3 с між запитами.
+
+Парсер без API (вивід у консоль):
+
+```bash
+bun run scraper:cli silpo --max-pages 1 --category napoi
+```
+
+Тести:
+
+```bash
+bun run test:api        # API (bun test)
+bun run scraper:test    # Rust-парсер (cargo test у Docker)
+```
+
+Після змін в API-контрактах оновіть клієнт для web: `bun run dev:openapi && bun run dev:orval`.
 
 > Якщо локальна БД уже має стару міграцію `20260829154028_init_schema`, Prisma запропонує скинути базу. Скиньте її командою `cd apps/api && bunx prisma migrate reset` — локальні дані буде видалено.
