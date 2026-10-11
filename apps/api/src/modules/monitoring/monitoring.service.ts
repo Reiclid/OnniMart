@@ -156,6 +156,19 @@ export class MonitoringService {
       throw new NotFoundException(`Товар ${id} не знайдено`);
     }
 
+    // Той самий товар в інших мережах — збіг хоча б одного штрихкоду
+    const sameBarcode = listing.barcodes.length
+      ? await this.prisma.listing.findMany({
+          where: {
+            id: { not: listing.id },
+            barcodes: { hasSome: listing.barcodes },
+          },
+          include: listingInclude,
+          orderBy: { unitPrice: 'asc' },
+          take: 50,
+        })
+      : [];
+
     return {
       ...toListingDto(listing),
       firstSeenAt: listing.firstSeenAt.toISOString(),
@@ -177,6 +190,7 @@ export class MonitoringService {
         inStock: snapshot.inStock,
         capturedAt: snapshot.capturedAt.toISOString(),
       })),
+      sameBarcode: sameBarcode.map(toListingDto),
       rawData: (listing.rawData as Record<string, unknown> | null) ?? null,
     };
   }

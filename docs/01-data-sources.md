@@ -22,10 +22,28 @@ OnniMartBot/0.1 (+https://github.com/Reiclid/OnniMart; diploma project)
 | ⚠️ | Дозволено, але з умовами: пагінація заборонена (лише sitemap), великий Crawl-delay або є лише акційні сторінки | Lidl (без `?offset=`), Watsons (без `?page=`), edeka24 (Crawl-delay 20 с), Kaufland (лише акції), EVA / Prostor (див. таблицю) |
 | ❌ | Чесного бота блокує антибот-захист (403 / Cloudflare challenge / Akamai) або потрібна авторизація. **Обходити захист не можна.** | REWE, Netto Marken-Discount, EVA, хаб zakaz.ua, Glovo, Rozetka, Kaufland.de (маркетплейс), Picnic |
 
-**Висновок для MVP:**
+## Що реально парситься (перевірено наживо 11.10.2026)
 
-- Україна: **АТБ + Сільпо + NOVUS (zakaz.ua)**. Інші вітрини zakaz.ua (Ашан, METRO, ЕКО) мають той самий формат, тож парсер повторно використовується майже без змін.
-- Німеччина: **Lidl + ALDI Nord + PENNY** (за потреби — dm як дрогері).
+| Мережа | Джерело | Як отримуємо дані | EAN | Обсяг |
+|---|---|---|---|---|
+| 🇺🇦 Сільпо | silpo.ua | JSON у `<script id="serverApp-state">` на сторінках категорій, `?page=N` | на сторінці товару (поки не беремо) | 47 товарів на сторінку, ~28 кореневих категорій |
+| 🇺🇦 NOVUS, Ашан | novus.zakaz.ua, auchan.zakaz.ua | `__NEXT_DATA__` на сторінках категорій, `?page=N` | ✅ | 30 товарів на сторінку |
+| 🇩🇪 ALDI SÜD | aldi-sued.de | HTML-плитки (Nuxt SSR), `?page=N` | ❌ | ~5 000 товарів |
+| 🇩🇪 ALDI Nord | aldi-nord.de | результати Algolia в `__NEXT_DATA__` сторінок підкатегорій; список підкатегорій — з sitemap | ❌ | усі товари підкатегорії на одній сторінці |
+| 🇩🇪 Globus | produkte.globus.de | HTML-плитки Shopware (`data-product-gtin`), `?p=N` | ✅ | 24 товари на сторінку |
+| 🇩🇪 Lidl | prices.openfoodfacts.org | **Open Prices API** — ціни з чеків покупців, ліцензія ODbL | ✅ | сотні цін за пів року, оновлюється спільнотою |
+| 🇺🇦 АТБ | atbmarket.com | HTML, `?page=N` | ❌ | парсер готовий, вимкнено — сайт на технічних роботах |
+
+**Чому Lidl через Open Prices.** Lidl Німеччина не публікує ціни на продукти онлайн:
+
+- на lidl.de продається лише непродовольчий асортимент і вино: «Obst & Gemüse» там — це саджанці, «Bier» — 5-літрові бочки;
+- продуктові ціни є лише в листівці-картинці та в застосунку Lidl Plus (потрібен вхід);
+- API листівки (`endpoints.leaflets.schwarz`) віддає структуровані дані тільки для товарів онлайн-магазину;
+- пагінацію каталогу (`?offset=`) забороняє robots.txt.
+
+Тому для Lidl беремо відкриту базу Open Prices від Open Food Facts: її API дозволено використовувати з власним User-Agent. Обмеження: дані покривають лише те, що купили та відсканували учасники проєкту, і прив'язані до конкретного магазину та дати. Ціни мережі в Німеччині переважно однакові по країні, тому беремо найсвіжішу ціну кожного штрихкоду за останні 180 днів.
+
+**Чому ALDI Nord працює без JavaScript.** Сторінка `/sortiment.html` сама товарів не містить — їх підвантажує JavaScript. Але сторінки підкатегорій (`/sortiment/<розділ>/<підкатегорія>.html`) Next.js рендерить на сервері: у `__NEXT_DATA__` уже лежать усі товари з ціною, старою ціною, міткою знижки й датою її закінчення. Список таких сторінок є в `/sitemaps/.aldi-nord-sitemap-pages.xml`.
 
 ## Україна
 
@@ -57,8 +75,8 @@ OnniMartBot/0.1 (+https://github.com/Reiclid/OnniMart; diploma project)
 
 | Мережа | Домен | Ключові правила для `*` | Crawl-delay | Чесний бот | Примітка | Оцінка |
 |---|---|---|---|---|---|---|
-| **Lidl** | www.lidl.de | `Disallow: *?offset=*`, `*sort=*`, `*id=*`, `*search?q=*`, `/user-api/*` | — | 200 | пагінація через `offset` заборонена → URL товарів брати з `static/sitemap.xml` | ⚠️/✅ |
-| **ALDI Nord** | www.aldi-nord.de | `Disallow: /*?*filters`, кілька службових сторінок | — | 200 | — | ✅ |
+| **Lidl** | www.lidl.de | `Disallow: *?offset=*`, `*sort=*`, `*id=*`, `*search?q=*`, `/user-api/*` | — | 200 | продуктів онлайн немає (лише листівка-картинка й застосунок) → ціни з **Open Prices** | ⚠️ → Open Prices |
+| **ALDI Nord** | www.aldi-nord.de | `Disallow: /*?*filters`, кілька службових сторінок | — | 200 | товари в `__NEXT_DATA__` сторінок підкатегорій | ✅ |
 | **ALDI SÜD** | www.aldi-sued.de | `Disallow: /tools`, `/*?q=`; `Allow: /*?page=*`; є `sitemap_products.xml` | — | 200 (curl з UA Chrome — Akamai 403) | явно дозволяє AI-ботів | ✅ |
 | **PENNY** | www.penny.de | `Allow: /` | — | 200 | — | ✅ |
 | EDEKA | www.edeka.de | `Disallow: /EDEKA/`, `/lieferservice/`, `/xml/` | — | 200 | ціни залежать від конкретного маркету | ✅ |

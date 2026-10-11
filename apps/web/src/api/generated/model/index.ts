@@ -6,5 +6,19 @@
  * OpenAPI spec version: 1.0
  */
 
+export * from './chainSummaryDto';
+export * from './getListingsParams';
+export * from './getScrapeRunsParams';
+export * from './listingDetailsDto';
+export * from './listingDetailsDtoMatchStatus';
+export * from './listingDetailsDtoRawData';
+export * from './listingPageDto';
+export * from './listingSummaryDto';
+export * from './listingSummaryDtoMatchStatus';
+export * from './matchedVariantDto';
+export * from './priceSnapshotDto';
+export * from './scrapeRunDto';
+export * from './scrapeRunDtoStatus';
+export * from './statsDto';
 export * from './triggerScraperDto';
 export * from './triggerScraperResponseDto';

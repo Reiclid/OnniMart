@@ -118,6 +118,45 @@ describe('MonitoringService', () => {
     expect(details.firstSeenAt).toBe('2026-10-10T08:00:00.000Z');
     expect(details.rawData).toEqual({ store: 'silpo' });
   });
+
+  it('знаходить той самий товар в інших мережах за штрихкодом', async () => {
+    prisma.listing.findUnique.mockResolvedValue({
+      ...LISTING,
+      variant: null,
+      priceSnapshots: [],
+    });
+    prisma.listing.findMany.mockResolvedValue([
+      {
+        ...LISTING,
+        id: 'listing-2',
+        chain: { slug: 'novus', name: 'NOVUS', currency: 'UAH' },
+      },
+    ]);
+
+    const details = await service.getListing('listing-1');
+    expect(prisma.listing.findMany.mock.calls[0][0].where).toEqual({
+      id: { not: 'listing-1' },
+      barcodes: { hasSome: ['05000112552218'] },
+    });
+    expect(details.sameBarcode).toHaveLength(1);
+    expect(details.sameBarcode[0]).toMatchObject({
+      id: 'listing-2',
+      chainName: 'NOVUS',
+    });
+  });
+
+  it('не шукає збігів, якщо в картки немає штрихкоду', async () => {
+    prisma.listing.findUnique.mockResolvedValue({
+      ...LISTING,
+      barcodes: [],
+      variant: null,
+      priceSnapshots: [],
+    });
+
+    const details = await service.getListing('listing-1');
+    expect(prisma.listing.findMany).not.toHaveBeenCalled();
+    expect(details.sameBarcode).toEqual([]);
+  });
 });
 
 describe('buildWhere', () => {

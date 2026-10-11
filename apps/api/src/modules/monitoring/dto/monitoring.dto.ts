@@ -120,6 +120,12 @@ export class ListingDetailsDto extends ListingSummaryDto {
   variant!: MatchedVariantDto | null;
   @ApiProperty({ type: [PriceSnapshotDto] }) history!: PriceSnapshotDto[];
   @ApiProperty({
+    type: [ListingSummaryDto],
+    description:
+      'Картки з тим самим штрихкодом в інших мережах, дешевші першими',
+  })
+  sameBarcode!: ListingSummaryDto[];
+  @ApiProperty({
     type: 'object',
     additionalProperties: true,
     nullable: true,
