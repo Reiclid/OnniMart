@@ -1,77 +1,52 @@
 import {
+  BadRequestException,
   Injectable,
-  OnModuleInit,
-  OnModuleDestroy,
   Logger,
+  NotFoundException,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { ScrapedProductDto } from '../dto/scraped-product.dto';
+import { DEFAULT_REDIS_URL, SCRAPER_TASKS_QUEUE } from '../scraper.constants';
 
 @Injectable()
-export class ScraperService implements OnModuleInit, OnModuleDestroy {
+export class ScraperService implements OnModuleDestroy {
   private readonly logger = new Logger(ScraperService.name);
+  private readonly redis = new Redis(
+    process.env.REDIS_URL ?? DEFAULT_REDIS_URL,
+  );
 
-  private redisClient: Redis;
-  private redisSubscriber: Redis;
-  private isListening = false;
-
-  constructor() {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    this.redisClient = new Redis(redisUrl);
-    this.redisSubscriber = new Redis(redisUrl);
-  }
-
-  async onModuleInit() {
-    await this.startIngestionWorker();
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   async onModuleDestroy() {
-    this.isListening = false;
-    await this.redisClient.quit();
-    await this.redisSubscriber.quit();
+    await this.redis.quit();
   }
 
   async triggerScrape(store: string) {
+    const chain = await this.prisma.storeChain.findUnique({
+      where: { slug: store },
+    });
+    if (!chain) {
+      throw new NotFoundException(`Мережу "${store}" не знайдено`);
+    }
+    if (!chain.scrapeEnabled) {
+      throw new BadRequestException(
+        `Збір даних для "${chain.name}" вимкнено (див. docs/01-data-sources.md)`,
+      );
+    }
+
     const task = {
-      store,
-      createdAt: new Date().toISOString(),
+      store: chain.slug,
+      created_at: new Date().toISOString(),
     };
 
-    await this.redisClient.lpush('scraper:tasks', JSON.stringify(task));
+    await this.redis.lpush(SCRAPER_TASKS_QUEUE, JSON.stringify(task));
 
-    this.logger.log(`Задача на Скрейпінг магазину [${store}] додана в чергу.`);
+    this.logger.log(`Задача на скрейпінг мережі [${store}] додана в чергу.`);
 
     return {
       status: 'queued',
-      message: `Завдання для ${store} успішно поставлено в чергу`,
+      message: `Завдання для ${chain.name} успішно поставлено в чергу`,
     };
-  }
-
-  private async startIngestionWorker() {
-    this.isListening = true;
-    this.logger.log('IngestionWorker запущено, очікування данних від RUST...');
-
-    while (this.isListening) {
-      try {
-        const result = await this.redisSubscriber.brpop('scraper:results', 5);
-
-        if (result) {
-          const [_queueName, rawData] = result;
-          const productData = JSON.parse(rawData);
-
-          await this.processIncomingProduct(productData);
-        }
-      } catch (error: any) {
-        this.logger.error(`Помилка обробки з черги: ${error.message}`);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
-    }
-  }
-
-  private async processIncomingProduct(product: any) {
-    this.logger.log(
-      `Отримано товар від Rust: ${product.name} - ${product.price} грн`,
-    );
   }
 }
