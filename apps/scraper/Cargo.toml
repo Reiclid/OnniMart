@@ -1,13 +1,16 @@
 [package]
 name = "scraper_worker"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1.38", features = ["full"] }
-reqwest = { version = "0.12", features = ["json", "cookies"] }
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+dotenv = "0.15"
+redis = { version = "0.25", features = ["tokio-comp"] }
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "brotli"] }
 scraper = "0.19"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-redis = { version = "0.25", features = ["tokio-comp"] }
-dotenv = "0.15"
+tokio = { version = "1.38", features = ["full"] }
