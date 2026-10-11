@@ -5,7 +5,7 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import Redis from 'ioredis';
-import { ScrapedProductDto } from '../dto/scraped-product.dto';
+import { isRunEvent, ScraperMessage } from '../dto/scraped-product.dto';
 import { DEFAULT_REDIS_URL, SCRAPER_RESULTS_QUEUE } from '../scraper.constants';
 import { IngestionService } from './ingestion.service';
 
@@ -17,10 +17,11 @@ export class IngestionWorker
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
   private readonly logger = new Logger(IngestionWorker.name);
-  // Окреме з'єднання: BRPOP блокує його, поки чекає на дані
+  // Окреме з'єднання: BRPOP блокує його, поки чекає на дані.
+  // lazyConnect — щоб генерація OpenAPI і тести не намагались підключитись до Redis
   private readonly redis = new Redis(
     process.env.REDIS_URL ?? DEFAULT_REDIS_URL,
-    { maxRetriesPerRequest: null },
+    { maxRetriesPerRequest: null, lazyConnect: true },
   );
   private running = false;
   private loop?: Promise<void>;
@@ -49,8 +50,13 @@ export class IngestionWorker
         if (!result) continue;
 
         const [, raw] = result;
-        await this.ingestion.ingest(JSON.parse(raw) as ScrapedProductDto);
+        const message = JSON.parse(raw) as ScraperMessage;
+        if (isRunEvent(message)) {
+          await this.ingestion.handleRunEvent(message);
+          continue;
+        }
 
+        await this.ingestion.ingest(message);
         processed += 1;
         if (processed % 100 === 0) {
           this.logger.log(`Оброблено товарів: ${processed}`);

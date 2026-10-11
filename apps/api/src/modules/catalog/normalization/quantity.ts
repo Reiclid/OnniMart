@@ -44,17 +44,19 @@ const NUMBER = '(\\d+(?:[.,]\\d+)?)';
 const UNIT_END = '(?![\\p{L}])';
 // Латинська x, кирилична х, знак множення, зірочка
 const TIMES = '\\s*[xх×*]\\s*';
+// Між числом і одиницею буває дефіс: "1,5-L-Flasche", "1-Liter-Flasche"
+const GAP = '\\s*-?\\s*';
 
 const MULTIPACK = new RegExp(
-  `(?<![\\p{L}\\d])(\\d+)${TIMES}${NUMBER}\\s*${UNIT}${UNIT_END}`,
+  `(?<![\\p{L}\\d])(\\d+)${TIMES}${NUMBER}${GAP}${UNIT}${UNIT_END}`,
   'iu',
 );
 const MULTIPACK_REVERSED = new RegExp(
-  `(?<![\\p{L}\\d.,])${NUMBER}\\s*${UNIT}${TIMES}(\\d+)(?:\\s*шт)?${UNIT_END}`,
+  `(?<![\\p{L}\\d.,])${NUMBER}${GAP}${UNIT}${TIMES}(\\d+)(?:\\s*шт)?${UNIT_END}`,
   'iu',
 );
 const SINGLE = new RegExp(
-  `(?<![\\p{L}\\d.,])${NUMBER}\\s*${UNIT}${UNIT_END}`,
+  `(?<![\\p{L}\\d.,])${NUMBER}${GAP}${UNIT}${UNIT_END}`,
   'giu',
 );
 const WEIGHTED =
@@ -156,9 +158,8 @@ function formatSingle(measure: Measure, value: number): string {
       ? `${decimal(value / 1000)} кг`
       : `${decimal(value)} г`;
   }
-  return value >= 100 && value % 10 === 0
-    ? `${decimal(value / 1000)} л`
-    : `${decimal(value)} мл`;
+  // Напої від 250 мл мережі підписують у літрах: "0,355 л", "1,98 л"
+  return value >= 250 ? `${decimal(value / 1000)} л` : `${decimal(value)} мл`;
 }
 
 function round2(n: number): number {

@@ -1,9 +1,10 @@
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { ScrapedProductDto } from '../dto/scraped-product.dto';
+import { RunEventDto, ScrapedProductDto } from '../dto/scraped-product.dto';
 import { IngestionService } from './ingestion.service';
 
 const ATB = { id: 'chain-atb', slug: 'atb', name: 'АТБ' };
+const RUN_ID = 'run-1';
 
 // Аргументи Prisma-викликів у тестах перевіряємо через toMatchObject
 type Args = any;
@@ -30,6 +31,12 @@ function createPrismaMock() {
         Promise.resolve(null),
       ),
     },
+    scrapeRun: {
+      findUnique: jest.fn((args: Args) =>
+        Promise.resolve(args.where.id === RUN_ID ? { id: RUN_ID } : null),
+      ),
+      update: jest.fn((_args: Args) => Promise.resolve({})),
+    },
   };
   return {
     ...delegates,
@@ -38,6 +45,14 @@ function createPrismaMock() {
     ),
   };
 }
+
+/** Картка, що вже є в базі з ціною 25 без акції */
+const EXISTING = {
+  currentPrice: '25.00',
+  regularPrice: null,
+  isOnPromo: false,
+  inStock: true,
+};
 
 function product(
   overrides: Partial<ScrapedProductDto> = {},
@@ -48,6 +63,18 @@ function product(
     name: 'Напій Coca-Cola Zero 0,5л',
     price: 25,
     scraper_at: '2026-10-11T10:00:00Z',
+    ...overrides,
+  };
+}
+
+function event(overrides: Partial<RunEventDto> = {}): RunEventDto {
+  return {
+    kind: 'run_started',
+    run_id: RUN_ID,
+    store: 'atb',
+    pages_fetched: 0,
+    items_seen: 0,
+    at: '2026-10-11T10:00:00Z',
     ...overrides,
   };
 }
@@ -106,31 +133,31 @@ describe('IngestionService', () => {
       regularPrice: null,
       unitPrice: 50,
       promoType: null,
+      scrapeRunId: null,
       capturedAt: new Date('2026-10-11T10:00:00Z'),
     });
   });
 
   it('не дублює історію, якщо ціна не змінилась', async () => {
-    prisma.listing.findUnique.mockResolvedValue({
-      currentPrice: '25.00',
-      regularPrice: null,
-      inStock: true,
-    });
+    prisma.listing.findUnique.mockResolvedValue(EXISTING);
 
     await expect(service.ingest(product())).resolves.toBe('unchanged');
     expect(prisma.listing.upsert).toHaveBeenCalled();
     expect(prisma.priceSnapshot.create).not.toHaveBeenCalled();
   });
 
-  it('записує знижку, коли стара ціна більша за поточну', async () => {
-    prisma.listing.findUnique.mockResolvedValue({
-      currentPrice: '25.00',
-      regularPrice: null,
-      inStock: true,
-    });
+  it('записує знижку і дату закінчення акції', async () => {
+    prisma.listing.findUnique.mockResolvedValue(EXISTING);
 
     await expect(
-      service.ingest(product({ price: 19.9, old_price: 25 })),
+      service.ingest(
+        product({
+          price: 19.9,
+          old_price: 25,
+          promo_label: '-20%',
+          promo_ends_at: '2026-10-14',
+        }),
+      ),
     ).resolves.toBe('changed');
 
     const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
@@ -138,9 +165,35 @@ describe('IngestionService', () => {
       price: 19.9,
       regularPrice: 25,
       promoType: 'DISCOUNT',
+      promoLabel: '-20%',
+      promoEndsAt: new Date('2026-10-14'),
     });
     const upsert = prisma.listing.upsert.mock.calls[0][0];
     expect(upsert.update.isOnPromo).toBe(true);
+  });
+
+  it('позначає ціну з карткою лояльності як LOYALTY', async () => {
+    await service.ingest(
+      product({ old_price: 29, promo_label: 'Ціна з карткою лояльності' }),
+    );
+    const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
+    expect(snapshot.data.promoType).toBe('LOYALTY');
+  });
+
+  it('бере фасування з поля size, якщо його немає в назві', async () => {
+    await service.ingest(
+      product({
+        name: 'Cola Zero / Light',
+        size: '1,5-L-Flasche',
+        price: 0.49,
+      }),
+    );
+    const upsert = prisma.listing.upsert.mock.calls[0][0];
+    expect(upsert.create).toMatchObject({
+      measure: 'VOLUME',
+      netQuantity: 1500,
+      unitPrice: 0.33,
+    });
   });
 
   it('вважає товар ваговим, якщо ціна вказана за кг', async () => {
@@ -155,6 +208,27 @@ describe('IngestionService', () => {
       isWeighted: true,
       unitPrice: 64.9,
     });
+  });
+
+  it('прив’язує історію до запуску і рахує змінені товари', async () => {
+    await service.ingest(product({ run_id: RUN_ID }));
+    await service.ingest(product({ run_id: RUN_ID, external: '777' }));
+
+    const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
+    expect(snapshot.data.scrapeRunId).toBe(RUN_ID);
+    expect(prisma.scrapeRun.update).toHaveBeenCalledWith({
+      where: { id: RUN_ID },
+      data: { itemsChanged: { increment: 1 } },
+    });
+    // Існування запуску перевіряється один раз
+    expect(prisma.scrapeRun.findUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it('ігнорує run_id, якого немає в базі', async () => {
+    await service.ingest(product({ run_id: 'missing' }));
+    const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
+    expect(snapshot.data.scrapeRunId).toBeNull();
+    expect(prisma.scrapeRun.update).not.toHaveBeenCalled();
   });
 
   it('зіставляє товар з каталогом за штрихкодом', async () => {
@@ -192,5 +266,54 @@ describe('IngestionService', () => {
 
     await service.ingest(product({ barcodes: ['5449000132499'] }));
     expect(prisma.barcode.findFirst).not.toHaveBeenCalled();
+  });
+
+  describe('handleRunEvent', () => {
+    it('позначає запуск як RUNNING на старті', async () => {
+      await service.handleRunEvent(event());
+      expect(prisma.scrapeRun.update).toHaveBeenCalledWith({
+        where: { id: RUN_ID },
+        data: {
+          status: 'RUNNING',
+          startedAt: new Date('2026-10-11T10:00:00Z'),
+        },
+      });
+    });
+
+    it('зберігає лічильники та статус SUCCESS або PARTIAL', async () => {
+      await service.handleRunEvent(
+        event({ kind: 'run_finished', pages_fetched: 12, items_seen: 340 }),
+      );
+      expect(prisma.scrapeRun.update.mock.calls[0][0].data).toMatchObject({
+        status: 'SUCCESS',
+        pagesFetched: 12,
+        itemsSeen: 340,
+        error: null,
+      });
+
+      await service.handleRunEvent(
+        event({ kind: 'run_finished', error: 'https://x → HTTP 500' }),
+      );
+      expect(prisma.scrapeRun.update.mock.calls[1][0].data).toMatchObject({
+        status: 'PARTIAL',
+        error: 'https://x → HTTP 500',
+      });
+    });
+
+    it('зберігає помилку збою', async () => {
+      await service.handleRunEvent(
+        event({ kind: 'run_failed', error: 'сайт заблокував запит (403)' }),
+      );
+      expect(prisma.scrapeRun.update.mock.calls[0][0].data).toMatchObject({
+        status: 'FAILED',
+        error: 'сайт заблокував запит (403)',
+      });
+    });
+
+    it('ігнорує події без запуску в базі', async () => {
+      await service.handleRunEvent(event({ run_id: null }));
+      await service.handleRunEvent(event({ run_id: 'missing' }));
+      expect(prisma.scrapeRun.update).not.toHaveBeenCalled();
+    });
   });
 });
