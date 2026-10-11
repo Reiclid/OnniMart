@@ -1,0 +1,32 @@
+{
+ "items": [
+  {
+   "id": 204,
+   "type": "OSM",
+   "osm_name": "Lidl",
+   "osm_address_city": "Münster",
+   "osm_address_country": "Deutschland",
+   "price_count": 288
+  },
+  {
+   "id": 2602,
+   "type": "OSM",
+   "osm_name": "Lidl",
+   "osm_address_city": "Berlin",
+   "osm_address_country": "Deutschland",
+   "price_count": 187
+  },
+  {
+   "id": 999999,
+   "type": "OSM",
+   "osm_name": "Lidl",
+   "osm_address_city": "Dahme/Mark",
+   "osm_address_country": "Deutschland",
+   "price_count": 0
+  }
+ ],
+ "total": 135,
+ "page": 1,
+ "size": 100,
+ "pages": 2
+}

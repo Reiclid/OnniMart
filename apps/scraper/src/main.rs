@@ -1,208 +1,198 @@
+mod crawler;
+mod http;
+mod model;
+mod robots;
+mod sources;
+mod text;
+
+use std::time::Duration;
+
+use anyhow::{Context, Result, bail};
 use redis::AsyncCommands;
-use scraper::{Html, Selector};
-use serde::{Deserialize, Serialize};
-use std::error::Error;
+use redis::aio::MultiplexedConnection;
 
-#[derive(Debug, Deserialize)]
-struct ScraperTask {
-    store: String,
-    #[serde(default)]
-    created_at: Option<String>,
-}
+use crate::crawler::{CrawlOptions, CrawlStats, Sink, crawl};
+use crate::http::Fetcher;
+use crate::model::{
+    ProductMessage, RESULTS_QUEUE, RunEvent, ScrapedProduct, ScraperTask, TASKS_QUEUE,
+};
+use crate::sources::{SUPPORTED, Source};
+use crate::text::now_iso;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct ScrapedProduct {
-    store: String,
-    external: String,
-    name: String,
-    price: f64,
-    old_price: Option<f64>,
-    image_url: Option<String>,
-    scraper_at: String,
-}
+const DEFAULT_DELAY_MS: u64 = 3000;
 
-async fn scrape_atb() -> Result<Vec<ScrapedProduct>, Box<dyn Error>> {
-    println!("[Rust] Завантаження сторінки каталогу АТБ...");
+const HELP: &str = "\
+OnniMart scraper
 
-    let url = "https://www.atbmarket.com/catalog/292-alkogol-i-tyutyun";
-
-    let output = tokio::process::Command::new("curl.exe")
-        .args([
-            "-s",
-            url,
-            // Чесно представляємось ботом (див. docs/01-data-sources.md): АТБ блокує лише стандартний UA curl
-            "-H", "User-Agent: OnniMartBot/0.1 (+https://github.com/Reiclid/OnniMart; diploma project)",
-            "-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "-H", "Accept-Language: uk-UA,uk;q=0.9,en;q=0.8",
-        ])
-        .output()
-        .await?;
-
-    let html_content = String::from_utf8_lossy(&output.stdout).to_string();
-    println!("[Rust] Отримано HTML: {} байт", html_content.len());
-
-    let document = Html::parse_document(&html_content);
-
-    // 1. Пагінація
-    let page_link_selector = Selector::parse(".product-pagination__link").unwrap();
-    let mut total_pages: u32 = 1;
-
-    for el in document.select(&page_link_selector) {
-        let text = el.text().collect::<String>();
-        if let Ok(num) = text.trim().parse::<u32>() {
-            if num > total_pages {
-                total_pages = num;
-            }
-        }
-    }
-    println!("[Rust] Всього сторінок у категорії: {}", total_pages);
-
-    let item_selector = Selector::parse(".catalog-item, article.catalog-item, div.catalog-item").unwrap();
-    let title_selector = Selector::parse(".catalog-item__title a").unwrap();
-    let price_selector = Selector::parse(".product-price__top").unwrap();
-    let old_price_selector = Selector::parse(".product-price__bottom").unwrap();
-    let img_selector = Selector::parse("img.catalog-item__img").unwrap();
-    let cart_selector = Selector::parse(".b-addToCart").unwrap();
-
-    let mut products = Vec::new();
-
-    for (index, element) in document.select(&item_selector).enumerate() {
-        let name = element
-            .select(&title_selector)
-            .next()
-            .map(|el| el.text().collect::<String>().trim().to_string())
-            .unwrap_or_default();
-
-        if name.is_empty() {
-            continue;
-        }
-
-        // Ціна
-        let price = element
-            .select(&price_selector)
-            .next()
-            .and_then(|el| {
-                el.value()
-                    .attr("value")
-                    .and_then(|v| v.parse::<f64>().ok())
-                    .or_else(|| {
-                        let text = el.text().collect::<String>();
-                        text.replace("грн", "")
-                            .replace("грн/шт", "")
-                            .replace(' ', "")
-                            .replace(',', ".")
-                            .trim()
-                            .parse::<f64>()
-                            .ok()
-                    })
-            })
-            .unwrap_or(0.0);
-
-        // Стара ціна
-        let old_price = element
-            .select(&old_price_selector)
-            .next()
-            .and_then(|el| {
-                el.value()
-                    .attr("value")
-                    .and_then(|v| v.parse::<f64>().ok())
-            });
-
-        // Картинка
-        let image_url = element
-            .select(&img_selector)
-            .next()
-            .and_then(|el| {
-                el.value()
-                    .attr("src")
-                    .or_else(|| el.value().attr("data-src"))
-            })
-            .map(|s| s.to_string());
-
-        // ID товару
-        let external_id = element
-            .select(&cart_selector)
-            .next()
-            .and_then(|el| el.value().attr("data-productid").or_else(|| el.value().attr("data-itemid")))
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("atb-{}", index + 1));
-
-        products.push(ScrapedProduct {
-            store: "atb".to_string(),
-            external: external_id,
-            name,
-            price,
-            old_price,
-            image_url,
-            scraper_at: chrono_now(),
-        });
-    }
-
-    println!("[Rust] Успішно спарсено товарів з 1-ї сторінки: {}", products.len());
-    Ok(products)
-}
-
-fn chrono_now() -> String {
-    "2026-08-20T12:00:00Z".to_string()
-}
+  scraper_worker                      воркер: чекає завдань у Redis (scraper:tasks)
+  scraper_worker scrape <store> [опції]
+      --max-pages N     не більше N сторінок на категорію
+      --category TEXT   лише категорії, slug яких містить TEXT
+      --delay-ms N      пауза між запитами (за замовчуванням 3000)
+      --json            вивести всі товари як JSON Lines
+      --push            надіслати товари в Redis (scraper:results)
+";
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    println!("[Rust Worker] Скрейпер запущено!");
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+async fn main() -> Result<()> {
+    dotenv::dotenv().ok();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        None | Some("worker") => run_worker().await,
+        Some("scrape") => run_cli(&args[1..]).await,
+        Some("help" | "--help" | "-h") => {
+            print!("{HELP}");
+            Ok(())
+        }
+        Some(other) => bail!("невідома команда {other}\n\n{HELP}"),
+    }
+}
 
-    println!("[Rust Worker] Підключення до Redis: {}", redis_url);
-    let client = redis::Client::open(redis_url)?;
+fn redis_url() -> String {
+    std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into())
+}
+
+fn source_for(store: &str) -> Result<Source> {
+    Source::for_store(store)
+        .with_context(|| format!("невідома мережа {store}; доступні: {}", SUPPORTED.join(", ")))
+}
+
+struct RedisSink {
+    con: MultiplexedConnection,
+    run_id: Option<String>,
+}
+
+impl Sink for RedisSink {
+    async fn product(&mut self, product: ScrapedProduct) -> Result<()> {
+        let json = serde_json::to_string(&ProductMessage::new(&product, self.run_id.as_deref()))?;
+        let _: () = self.con.lpush(RESULTS_QUEUE, json).await?;
+        Ok(())
+    }
+}
+
+struct PrintSink {
+    json: bool,
+    shown: u32,
+}
+
+impl Sink for PrintSink {
+    async fn product(&mut self, product: ScrapedProduct) -> Result<()> {
+        if self.json {
+            println!("{}", serde_json::to_string(&product)?);
+        } else if self.shown < 20 {
+            println!(
+                "{:>9.2} {:<9} {:<10} {} {}",
+                product.price,
+                product.old_price.map(|p| format!("({p:.2})")).unwrap_or_default(),
+                product.size.as_deref().unwrap_or(""),
+                product.name,
+                product.barcodes.join(","),
+            );
+        }
+        self.shown += 1;
+        Ok(())
+    }
+}
+
+async fn run_worker() -> Result<()> {
+    let url = redis_url();
+    eprintln!("[scraper] воркер запущено, Redis: {url}");
+    let client = redis::Client::open(url)?;
     let mut con = client.get_multiplexed_async_connection().await?;
 
     loop {
-        let result: Option<(String, String)> = con.brpop("scraper:tasks", 0.0).await.ok();
-
-        if let Some((_queue, task_json)) = result {
-            println!("[Rust Worker] Отримано завдання: {}", task_json);
-
-            if let Ok(task) = serde_json::from_str::<ScraperTask>(&task_json) {
-                println!("[Rust Worker] Починаємо обробку магазину: {}", task.store);
-
-                let scraped_products = match task.store.as_str() {
-                    "atb" => scrape_atb().await.unwrap_or_default(),
-                    _ => {
-                        println!("[Rust Worker] Невідомий магазин: {}", task.store);
-                        Vec::new()
-                    }
-                };
-
-                for product in scraped_products {
-                    let product_json = serde_json::to_string(&product)?;
-
-                    let _: () = con.lpush("scraper:results", &product_json).await?;
-                    println!("[Rust Worker] Відправлено в чергу: {}", product.name);
+        let task: Option<(String, String)> = con.brpop(TASKS_QUEUE, 0.0).await?;
+        let Some((_, raw)) = task else { continue };
+        match serde_json::from_str::<ScraperTask>(&raw) {
+            Ok(task) => {
+                if let Err(error) = handle_task(&mut con, task).await {
+                    eprintln!("[scraper] помилка Redis: {error}");
                 }
-                println!("[Rust Worker] Завдання для {} завершено!", task.store);
-            } else {
-                println!("[Rust Worker] Невірний формат JSON у завданні: {}", task_json);
             }
+            Err(error) => eprintln!("[scraper] некоректне завдання {raw}: {error}"),
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+async fn handle_task(con: &mut MultiplexedConnection, task: ScraperTask) -> Result<()> {
+    eprintln!("[scraper] завдання: {} (run {:?})", task.store, task.run_id);
+    let event = |kind: &'static str, stats: &CrawlStats, error: Option<String>| RunEvent {
+        kind,
+        run_id: task.run_id.clone(),
+        store: task.store.clone(),
+        pages_fetched: stats.pages,
+        items_seen: stats.items,
+        error,
+        at: now_iso(),
+    };
+    send_event(con, &event("run_started", &CrawlStats::default(), None)).await?;
 
-    #[tokio::test]
-    async fn test_scrape_atb() {
-        println!("--- ТЕСТУВАННЯ ПАРСИНГУ АТБ ---");
-        
-        let result = scrape_atb().await;
-        
-        assert!(result.is_ok(), "Парсер повернув помилку!");
-        
-        let products = result.unwrap();
-        println!("Знайдено товарів: {}", products.len());
-        
-        for (i, p) in products.iter().take(5).enumerate() {
-            println!("Товар #{}: {} | Ціна: {} грн | Фото: {:?}", i + 1, p.name, p.price, p.image_url);
+    let result = async {
+        let source = source_for(&task.store)?;
+        let delay = Duration::from_millis(task.crawl_delay_ms.unwrap_or(DEFAULT_DELAY_MS));
+        let mut fetcher = Fetcher::new(delay)?;
+        let options = CrawlOptions { max_pages: task.max_pages, category: None };
+        let mut sink = RedisSink { con: con.clone(), run_id: task.run_id.clone() };
+        crawl(&source, &mut fetcher, &options, &mut sink).await
+    }
+    .await;
+
+    let finished = match result {
+        Ok(stats) => {
+            let error = (!stats.errors.is_empty()).then(|| stats.errors.join("\n"));
+            event("run_finished", &stats, error)
+        }
+        Err(error) => event("run_failed", &CrawlStats::default(), Some(format!("{error:#}"))),
+    };
+    eprintln!(
+        "[scraper] {}: {} — сторінок {}, товарів {}",
+        task.store, finished.kind, finished.pages_fetched, finished.items_seen
+    );
+    send_event(con, &finished).await
+}
+
+async fn send_event(con: &mut MultiplexedConnection, event: &RunEvent) -> Result<()> {
+    let _: () = con.lpush(RESULTS_QUEUE, serde_json::to_string(event)?).await?;
+    Ok(())
+}
+
+async fn run_cli(args: &[String]) -> Result<()> {
+    let store = args.first().context("вкажіть мережу: scrape <store>")?;
+    let source = source_for(store)?;
+    let mut options = CrawlOptions::default();
+    let mut delay_ms = DEFAULT_DELAY_MS;
+    let (mut json, mut push) = (false, false);
+
+    let mut rest = args[1..].iter();
+    while let Some(arg) = rest.next() {
+        match arg.as_str() {
+            "--max-pages" => options.max_pages = Some(rest.next().context("--max-pages N")?.parse()?),
+            "--category" => options.category = Some(rest.next().context("--category TEXT")?.clone()),
+            "--delay-ms" => delay_ms = rest.next().context("--delay-ms N")?.parse()?,
+            "--json" => json = true,
+            "--push" => push = true,
+            other => bail!("невідомий параметр {other}\n\n{HELP}"),
         }
     }
+
+    let mut fetcher = Fetcher::new(Duration::from_millis(delay_ms))?;
+    let stats = if push {
+        let client = redis::Client::open(redis_url())?;
+        let con = client.get_multiplexed_async_connection().await?;
+        crawl(&source, &mut fetcher, &options, &mut RedisSink { con, run_id: None }).await?
+    } else {
+        crawl(&source, &mut fetcher, &options, &mut PrintSink { json, shown: 0 }).await?
+    };
+
+    eprintln!(
+        "[scraper] {store}: сторінок {}, товарів {}, HTTP-запитів {}, помилок {}",
+        stats.pages,
+        stats.items,
+        fetcher.requests,
+        stats.errors.len()
+    );
+    for error in &stats.errors {
+        eprintln!("  - {error}");
+    }
+    Ok(())
 }
