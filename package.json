@@ -15,12 +15,15 @@
     "dev:web": "bun --filter web dev",
     "dev:mobile": "bun --filter mobile start",
     "dev:scraper": "cd apps/scraper && cargo run",
-    "dev:orval": "bun --filter web generate:api",
+    "dev:orval": "cd apps/web && OPENAPI_SPEC=../api/openapi.json bun x orval",
     "dev:migrate": "cd apps/api && bunx prisma migrate dev",
     "dev:generate": "cd apps/api && bunx prisma generate",
     "dev:seed": "cd apps/api && bunx prisma db seed",
     "dev:studio": "cd apps/api && bunx prisma studio",
-    "test:api": "bun --filter api test"
+    "test:api": "bun --filter api test",
+    "scraper:cli": "docker compose run --rm scraper scrape",
+    "scraper:test": "docker build --target test apps/scraper",
+    "dev:openapi": "bun --filter api openapi"
   },
   "keywords": [],
   "author": "Reiclid",

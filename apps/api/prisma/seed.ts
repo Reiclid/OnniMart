@@ -24,134 +24,62 @@ type ChainSeed = {
 const CHAINS: ChainSeed[] = [
   // Україна
   {
-    slug: 'atb',
-    name: 'АТБ',
-    website: 'https://www.atbmarket.com',
-    countryCode: 'UA',
-    scrapeEnabled: true,
-  },
-  {
     slug: 'silpo',
     name: 'Сільпо',
     website: 'https://silpo.ua',
     countryCode: 'UA',
+    scrapeEnabled: true,
   },
   {
     slug: 'novus',
     name: 'NOVUS',
     website: 'https://novus.zakaz.ua',
     countryCode: 'UA',
+    scrapeEnabled: true,
   },
   {
     slug: 'auchan',
     name: 'Ашан',
     website: 'https://auchan.zakaz.ua',
     countryCode: 'UA',
+    scrapeEnabled: true,
   },
+  // Парсер є, але сайт на технічних роботах (жовтень 2026)
   {
-    slug: 'metro-ua',
-    name: 'METRO',
-    website: 'https://metro.zakaz.ua',
-    countryCode: 'UA',
-  },
-  {
-    slug: 'eko',
-    name: 'ЕКО маркет',
-    website: 'https://eko.zakaz.ua',
-    countryCode: 'UA',
-  },
-  {
-    slug: 'megamarket',
-    name: 'МегаМаркет',
-    website: 'https://megamarket.zakaz.ua',
-    countryCode: 'UA',
-  },
-  {
-    slug: 'varus',
-    name: 'VARUS',
-    website: 'https://varus.ua',
-    countryCode: 'UA',
-  },
-  { slug: 'fora', name: 'Фора', website: 'https://fora.ua', countryCode: 'UA' },
-  {
-    slug: 'fozzy',
-    name: 'Fozzy',
-    website: 'https://fozzyshop.ua',
+    slug: 'atb',
+    name: 'АТБ',
+    website: 'https://www.atbmarket.com',
     countryCode: 'UA',
   },
   // Німеччина
   {
-    slug: 'lidl-de',
-    name: 'Lidl',
-    website: 'https://www.lidl.de',
+    slug: 'aldi-sued',
+    name: 'ALDI SÜD',
+    website: 'https://www.aldi-sued.de',
     countryCode: 'DE',
+    scrapeEnabled: true,
   },
   {
     slug: 'aldi-nord',
     name: 'ALDI Nord',
     website: 'https://www.aldi-nord.de',
     countryCode: 'DE',
-  },
-  {
-    slug: 'aldi-sued',
-    name: 'ALDI SÜD',
-    website: 'https://www.aldi-sued.de',
-    countryCode: 'DE',
-  },
-  {
-    slug: 'penny-de',
-    name: 'PENNY',
-    website: 'https://www.penny.de',
-    countryCode: 'DE',
-  },
-  {
-    slug: 'kaufland-de',
-    name: 'Kaufland',
-    website: 'https://filiale.kaufland.de',
-    countryCode: 'DE',
-  },
-  {
-    slug: 'edeka-de',
-    name: 'EDEKA',
-    website: 'https://www.edeka.de',
-    countryCode: 'DE',
+    scrapeEnabled: true,
   },
   {
     slug: 'globus-de',
     name: 'Globus',
     website: 'https://produkte.globus.de',
     countryCode: 'DE',
+    scrapeEnabled: true,
   },
+  // Lidl не публікує ціни на продукти онлайн — беремо їх з Open Prices (prices.openfoodfacts.org)
   {
-    slug: 'norma-de',
-    name: 'NORMA',
-    website: 'https://www.norma-online.de',
+    slug: 'lidl-de',
+    name: 'Lidl',
+    website: 'https://www.lidl.de',
     countryCode: 'DE',
-  },
-  {
-    slug: 'dm-de',
-    name: 'dm',
-    website: 'https://www.dm.de',
-    countryCode: 'DE',
-  },
-  {
-    slug: 'rossmann-de',
-    name: 'Rossmann',
-    website: 'https://www.rossmann.de',
-    countryCode: 'DE',
-  },
-  // Сайти з антибот-захистом проти чесного User-Agent — тільки довідково, збір вимкнено
-  {
-    slug: 'rewe-de',
-    name: 'REWE',
-    website: 'https://www.rewe.de',
-    countryCode: 'DE',
-  },
-  {
-    slug: 'netto-de',
-    name: 'Netto Marken-Discount',
-    website: 'https://www.netto-online.de',
-    countryCode: 'DE',
+    scrapeEnabled: true,
   },
 ];
 

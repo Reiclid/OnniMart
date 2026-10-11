@@ -42,6 +42,26 @@ describe('parseQuantity', () => {
     });
   });
 
+  it('розпізнає німецькі позначення з дефісом (ALDI Nord)', () => {
+    expect(parseQuantity('1,5-L-Flasche')).toMatchObject({
+      measure: 'VOLUME',
+      netQuantity: 1500,
+    });
+    expect(parseQuantity('1-Liter-Flasche')).toMatchObject({
+      measure: 'VOLUME',
+      netQuantity: 1000,
+    });
+    expect(parseQuantity('6 x 0,5-Liter-Flasche')).toMatchObject({
+      netQuantity: 3000,
+      packCount: 6,
+    });
+    expect(parseQuantity('6×0,33-L-Flasche')).toMatchObject({
+      netQuantity: 1980,
+      packCount: 6,
+    });
+    expect(parseQuantity('Coca-Cola Zero')).toBeNull();
+  });
+
   it('віддає перевагу вазі над штуками', () => {
     expect(parseQuantity('Сосиски Алан 6 шт 300 г')).toMatchObject({
       measure: 'MASS',

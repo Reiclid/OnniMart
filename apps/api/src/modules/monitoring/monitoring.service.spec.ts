@@ -1,0 +1,146 @@
+import { NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { buildWhere, MonitoringService } from './monitoring.service';
+
+type Args = any;
+
+const LISTING = {
+  id: 'listing-1',
+  externalId: '932943',
+  rawName: 'Напій Dr.Pepper газований з/б',
+  rawBrand: 'Dr.Pepper',
+  rawCategory: 'napoi-52',
+  url: 'https://silpo.ua/product/x',
+  imageUrl: null,
+  measure: 'VOLUME',
+  // Prisma повертає Decimal; у тесті імітуємо рядком
+  netQuantity: '355',
+  packCount: 1,
+  isWeighted: false,
+  currentPrice: '59.99',
+  regularPrice: '82.99',
+  unitPrice: '168.99',
+  isOnPromo: true,
+  inStock: true,
+  matchStatus: 'PENDING',
+  barcodes: ['05000112552218'],
+  firstSeenAt: new Date('2026-10-10T08:00:00Z'),
+  lastSeenAt: new Date('2026-10-11T08:00:00Z'),
+  rawData: { store: 'silpo' },
+  chain: { slug: 'silpo', name: 'Сільпо', currency: 'UAH' },
+};
+
+describe('MonitoringService', () => {
+  let prisma: {
+    listing: { findMany: jest.Mock; count: jest.Mock; findUnique: jest.Mock };
+  };
+  let service: MonitoringService;
+
+  beforeEach(() => {
+    prisma = {
+      listing: {
+        findMany: jest.fn((_args: Args) => Promise.resolve([LISTING])),
+        count: jest.fn((_args: Args) => Promise.resolve(120)),
+        findUnique: jest.fn((_args: Args): Promise<unknown> =>
+          Promise.resolve(null),
+        ),
+      },
+    };
+    service = new MonitoringService(prisma as unknown as PrismaService);
+  });
+
+  it('перетворює Decimal у числа та підписує фасування', async () => {
+    const page = await service.getListings({});
+    expect(page).toMatchObject({ total: 120, page: 1, pageSize: 50 });
+    expect(page.items[0]).toMatchObject({
+      chainSlug: 'silpo',
+      currency: 'UAH',
+      name: 'Напій Dr.Pepper газований з/б',
+      currentPrice: 59.99,
+      regularPrice: 82.99,
+      unitPrice: 168.99,
+      unitLabel: 'л',
+      quantityLabel: '0,355 л',
+      lastSeenAt: '2026-10-11T08:00:00.000Z',
+    });
+  });
+
+  it('обмежує розмір сторінки та рахує зсув', async () => {
+    await service.getListings({
+      page: '3' as never,
+      pageSize: '1000' as never,
+    });
+    expect(prisma.listing.findMany.mock.calls[0][0]).toMatchObject({
+      skip: 400,
+      take: 200,
+    });
+  });
+
+  it('повертає 404 для неіснуючої картки', async () => {
+    await expect(service.getListing('nope')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('віддає історію цін картки', async () => {
+    prisma.listing.findUnique.mockResolvedValue({
+      ...LISTING,
+      variant: null,
+      priceSnapshots: [
+        {
+          id: BigInt(7),
+          price: '59.99',
+          regularPrice: '82.99',
+          unitPrice: null,
+          promoType: 'DISCOUNT',
+          promoLabel: null,
+          promoEndsAt: new Date('2026-10-14T00:00:00Z'),
+          inStock: true,
+          capturedAt: new Date('2026-10-11T08:00:00Z'),
+        },
+      ],
+    });
+
+    const details = await service.getListing('listing-1');
+    expect(details.history).toEqual([
+      {
+        id: '7',
+        price: 59.99,
+        regularPrice: 82.99,
+        unitPrice: null,
+        promoType: 'DISCOUNT',
+        promoLabel: null,
+        promoEndsAt: '2026-10-14T00:00:00.000Z',
+        inStock: true,
+        capturedAt: '2026-10-11T08:00:00.000Z',
+      },
+    ]);
+    expect(details.firstSeenAt).toBe('2026-10-10T08:00:00.000Z');
+    expect(details.rawData).toEqual({ store: 'silpo' });
+  });
+});
+
+describe('buildWhere', () => {
+  it('фільтрує за мережею, акцією та зіставленням', () => {
+    expect(
+      buildWhere({ chain: 'novus', promo: 'true' as never, matched: true }),
+    ).toEqual({
+      chain: { slug: 'novus' },
+      isOnPromo: true,
+      variantId: { not: null },
+    });
+  });
+
+  it('шукає штрихкод у нормалізованому вигляді', () => {
+    const where = buildWhere({ q: '5449000132499' });
+    expect(where.OR).toContainEqual({ barcodes: { has: '05449000132499' } });
+  });
+
+  it('шукає текст без урахування регістру', () => {
+    const where = buildWhere({ q: ' cola ' });
+    expect(where.OR).toEqual([
+      { rawName: { contains: 'cola', mode: 'insensitive' } },
+      { rawBrand: { contains: 'cola', mode: 'insensitive' } },
+    ]);
+  });
+});
