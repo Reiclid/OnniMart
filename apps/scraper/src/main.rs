@@ -30,8 +30,8 @@ async fn scrape_atb() -> Result<Vec<ScrapedProduct>, Box<dyn Error>> {
         .args([
             "-s",
             url,
-            "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "-H", "Referer: https://www.atbmarket.com/",
+            // Чесно представляємось ботом (див. docs/01-data-sources.md): АТБ блокує лише стандартний UA curl
+            "-H", "User-Agent: OnniMartBot/0.1 (+https://github.com/Reiclid/OnniMart; diploma project)",
             "-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "-H", "Accept-Language: uk-UA,uk;q=0.9,en;q=0.8",
         ])
