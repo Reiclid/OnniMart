@@ -424,7 +424,8 @@ export class MatchingService {
               data: {
                 variantId: created.id,
                 matchStatus: 'AUTO_MATCHED',
-                matchMethod: 'FUZZY',
+                // Картка — перша в новому фасуванні; схожість із товаром лишається в matchScore
+                matchMethod: 'CREATED',
                 matchScore: decision.score,
                 matchedAt: now,
               },
@@ -466,11 +467,7 @@ export class MatchingService {
         row.rawBrand ??
         features.brand)
       : null;
-    const variantLabel =
-      [
-        ...features.attributeLabels,
-        ...features.flavours.map((t) => t.surface),
-      ].join(' · ') || null;
+    const variantLabel = variantLabelOf(features);
 
     const { variant, productId } = await this.prisma.$transaction(
       async (tx) => {
@@ -599,9 +596,26 @@ function variantData(listing: ListingInput) {
  * "Паста сиркова … банан" і "… персик" → "Яготинське для дітей · паста сиркова";
  * "Coca-Cola Zero" і "Coca-Cola Cherry" → "Coca-Cola".
  */
-function lineOf(features: NameFeatures, brandName: string) {
+function lineBase(features: NameFeatures) {
   const flavours = new Set(features.flavours.map((t) => t.norm));
-  const base = features.tokens.filter((t) => !flavours.has(t.norm)).slice(0, 2);
+  return features.tokens.filter((t) => !flavours.has(t.norm)).slice(0, 2);
+}
+
+/**
+ * Чим товар відрізняється всередині лінійки: слова поза назвою лінійки
+ * (смак, "Спорт") і ознаки — "банан · 3,9%", "спорт · негазована", "Zero".
+ */
+export function variantLabelOf(features: NameFeatures): string | null {
+  const base = new Set(lineBase(features).map((t) => t.norm));
+  const extra = features.tokens
+    .filter((t) => !base.has(t.norm))
+    .slice(0, 4)
+    .map((t) => t.surface);
+  return [...extra, ...features.attributeLabels].join(' · ') || null;
+}
+
+function lineOf(features: NameFeatures, brandName: string) {
+  const base = lineBase(features);
   return {
     slug: slugify(`${features.brand} ${base.map((t) => t.norm).join(' ')}`),
     name: base.length

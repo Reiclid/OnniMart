@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getMatchingStatus } from '@/api/generated/matching/matching';
 import {
   getChains,
   getScrapeRuns,
@@ -16,11 +17,13 @@ import {
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const [{ data: stats }, { data: chains }, { data: runs }] = await Promise.all([
-    getStats(),
-    getChains(),
-    getScrapeRuns({ limit: 15 }),
-  ]);
+  const [{ data: stats }, { data: chains }, { data: runs }, { data: matching }] =
+    await Promise.all([
+      getStats(),
+      getChains(),
+      getScrapeRuns({ limit: 15 }),
+      getMatchingStatus(),
+    ]);
   const active = runs.some(
     (run) => run.status === 'QUEUED' || run.status === 'RUNNING',
   );
@@ -29,7 +32,14 @@ export default async function DashboardPage() {
     { label: 'Мережі', value: `${stats.enabledChains} / ${stats.chains}`, hint: 'увімкнено / усього' },
     { label: 'Картки товарів', value: formatNumber(stats.listings) },
     { label: 'Зі штрихкодом', value: formatNumber(stats.listingsWithBarcode) },
-    { label: 'Зіставлено з каталогом', value: formatNumber(stats.matchedListings) },
+    { label: 'Товарів у каталозі', value: formatNumber(matching.products), href: '/products?all=true' },
+    {
+      label: 'Порівнюються у 2+ мережах',
+      value: formatNumber(matching.multiChainVariants),
+      hint: 'фасувань',
+      href: '/products',
+    },
+    { label: 'На модерації', value: formatNumber(matching.inReview), href: '/matching' },
     { label: 'З акцією', value: formatNumber(stats.promoListings) },
     { label: 'Записи історії цін', value: formatNumber(stats.priceSnapshots) },
   ];
@@ -41,14 +51,26 @@ export default async function DashboardPage() {
         <AutoRefresh active={active} />
       </div>
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        {cards.map((card) => (
-          <div key={card.label} className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="text-xs text-slate-500">{card.label}</div>
-            <div className="mt-1 text-2xl font-semibold">{card.value}</div>
-            {card.hint && <div className="text-xs text-slate-400">{card.hint}</div>}
-          </div>
-        ))}
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {cards.map((card) => {
+          const body = (
+            <>
+              <div className="text-xs text-slate-500">{card.label}</div>
+              <div className="mt-1 text-2xl font-semibold">{card.value}</div>
+              {card.hint && <div className="text-xs text-slate-400">{card.hint}</div>}
+            </>
+          );
+          const className = 'rounded-lg border border-slate-200 bg-white p-4';
+          return card.href ? (
+            <Link key={card.label} href={card.href} className={`${className} hover:border-blue-300`}>
+              {body}
+            </Link>
+          ) : (
+            <div key={card.label} className={className}>
+              {body}
+            </div>
+          );
+        })}
       </section>
 
       <section className="space-y-3">

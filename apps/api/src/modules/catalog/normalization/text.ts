@@ -39,7 +39,7 @@ export function fixHomoglyphs(word: string): string {
 export interface Token {
   /** Нормалізоване слово для порівняння */
   norm: string;
-  /** Слово як у назві (нижній регістр) — для підписів в інтерфейсі */
+  /** Слово як у назві — для підписів в інтерфейсі */
   surface: string;
 }
 
@@ -49,7 +49,6 @@ export interface Token {
  */
 export function tokenize(text: string): Token[] {
   const words = text
-    .toLowerCase()
     .replace(/(\d),(\d)/g, '$1.$2')
     .replace(/(\d)\s+%/g, '$1%')
     .match(/[\p{L}\p{N}]+(?:[.][\p{N}]+)?%?/gu);

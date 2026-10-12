@@ -8,6 +8,7 @@
 
 export interface MatchedVariantDto {
   id: string;
+  productId: string;
   label: string;
   productName: string;
 }

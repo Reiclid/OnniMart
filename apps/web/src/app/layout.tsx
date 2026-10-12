@@ -34,10 +34,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               Огляд
             </Link>
             <Link
+              href="/products"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
+              Каталог
+            </Link>
+            <Link
               href="/listings"
               className="text-sm text-slate-600 hover:text-slate-900"
             >
-              Товари
+              Картки мереж
+            </Link>
+            <Link
+              href="/matching"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
+              Зіставлення
             </Link>
             <a
               href="http://localhost:3001/api/docs"
