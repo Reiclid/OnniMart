@@ -149,13 +149,33 @@ describe('CatalogIndex.decide', () => {
     expect(index.decide(card).kind).not.toBe('fuzzy');
   });
 
-  it('шукає лише в межах країни', () => {
-    const decision = catalogWithWater().decide(
-      listing('Вода мінеральна Моршинська негазована 1,5л', 'Моршинська', {
-        chainId: 'globus-de',
+  it('товар іншої країни — лише за повного збігу бренду, назви й фасування', () => {
+    const index = new CatalogIndex();
+    const ua = listing('Напій газований Coca-Cola 1,25л', 'Coca-Cola', {
+      chainId: 'eko',
+      quantity: { ...LITRE_1_5, netQuantity: 1250 },
+    });
+    index.addProduct('cola', ua.features, 'UA');
+    index.addVariant('cola-1250', 'cola', quantityKey(ua.quantity));
+    index.addName('cola-1250', ua.features, 'UA', 'eko');
+
+    const de = (name: string, netQuantity = 1250) =>
+      listing(name, 'COCA-COLA', {
+        chainId: 'aldi-sued',
         country: 'DE',
-      }),
-    );
-    expect(decision.kind).toBe('product');
+        quantity: { ...LITRE_1_5, netQuantity },
+      });
+    expect(index.decide(de('Cola Original 1,25 l'))).toMatchObject({
+      kind: 'fuzzy',
+      variantId: 'cola-1250',
+    });
+    // Інше фасування того самого товару — нове фасування спільного товару
+    expect(index.decide(de('Cola Original 1,5 l', 1500))).toMatchObject({
+      kind: 'variant',
+      productId: 'cola',
+    });
+    // Zero — інший товар; часткові збіги між мовами на модерацію не йдуть
+    expect(index.decide(de('Cola Zero 1,25 l')).kind).toBe('product');
+    expect(index.decide(de('Cola Mix 1,25 l')).kind).toBe('product');
   });
 });

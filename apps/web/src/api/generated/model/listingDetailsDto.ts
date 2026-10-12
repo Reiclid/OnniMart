@@ -64,8 +64,8 @@ export interface ListingDetailsDto {
   /** @nullable */
   variant: MatchedVariantDto | null;
   history: PriceSnapshotDto[];
-  /** Картки з тим самим штрихкодом в інших мережах, дешевші першими */
-  sameBarcode: ListingSummaryDto[];
+  /** Той самий товар в інших мережах: те саме фасування каталогу або спільний штрихкод */
+  otherOffers: ListingSummaryDto[];
   /**
      * Сирі дані парсера
      * @nullable

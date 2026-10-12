@@ -25,6 +25,12 @@ export const THRESHOLDS = {
    * нормалізованих назв: експеримент показав, що це той самий товар з іншим GTIN
    */
   barcodeOverride: 0.99,
+  /**
+   * Мінімальна схожість з товаром іншої країни. Назви різними мовами дають
+   * випадкові часткові збіги, тож зіставляємо лише повний збіг бренду, назви
+   * й фасування ("Coca-Cola 1,25 л" в Україні й Німеччині) і без модерації.
+   */
+  crossCountry: 0.99,
 };
 
 export type Thresholds = typeof THRESHOLDS;
@@ -52,6 +58,8 @@ export interface CandidateScore extends PairScore {
    * віддати пару модератору замість автоматичного зіставлення.
    */
   barcodeMismatch?: boolean;
+  /** Фасування поки продається лише в інших країнах */
+  foreign?: boolean;
 }
 
 export type MatchDecision =
@@ -74,18 +82,21 @@ interface VariantEntry {
   names: NameFeatures[];
   barcodes: Set<string>;
   chains: Set<string>;
+  countries: Set<string>;
 }
 
 interface ProductEntry {
   id: string;
   features: NameFeatures;
   quantityKeys: Set<string>;
+  countries: Set<string>;
 }
 
 /**
  * Каталог у памʼяті для пакетного зіставлення. Щоб не порівнювати все з усім,
- * кандидатів відбираємо блоками: та сама країна, те саме фасування і хоча б
- * одне спільне слово (за першими 4 літерами), а для фасувань — той самий бренд.
+ * кандидатів відбираємо блоками: те саме фасування і хоча б одне спільне слово
+ * (за першими 4 літерами), а для нових фасувань — той самий бренд.
+ * Кандидати своєї країни мають пріоритет; товар іншої країни — лише за повного збігу.
  */
 export class CatalogIndex {
   private readonly variants = new Map<string, VariantEntry>();
@@ -113,12 +124,13 @@ export class CatalogIndex {
   }
 
   addProduct(id: string, features: NameFeatures, country: string): void {
-    if (!this.products.has(id)) {
-      this.products.set(id, { id, features, quantityKeys: new Set() });
+    let product = this.products.get(id);
+    if (!product) {
+      product = { id, features, quantityKeys: new Set(), countries: new Set() };
+      this.products.set(id, product);
     }
-    if (features.brand) {
-      this.block(this.productBlocks, `${country}|${features.brand}`, id);
-    }
+    product.countries.add(country);
+    if (features.brand) this.block(this.productBlocks, features.brand, id);
   }
 
   addVariant(id: string, productId: string, quantity: string): void {
@@ -130,6 +142,7 @@ export class CatalogIndex {
       names: [],
       barcodes: new Set(),
       chains: new Set(),
+      countries: new Set(),
     });
     this.products.get(productId)?.quantityKeys.add(quantity);
   }
@@ -150,21 +163,20 @@ export class CatalogIndex {
     const variant = this.variants.get(variantId);
     if (!variant) return;
     variant.names.push(features);
+    variant.countries.add(country);
     if (chainId) variant.chains.add(chainId);
     for (const stem of stems(features)) {
       this.block(
         this.variantBlocks,
-        `${country}|${variant.quantityKey}|${stem}`,
+        `${variant.quantityKey}|${stem}`,
         variantId,
       );
     }
     const product = this.products.get(variant.productId);
-    if (product && features.brand) {
-      this.block(
-        this.productBlocks,
-        `${country}|${features.brand}`,
-        product.id,
-      );
+    if (product) {
+      product.countries.add(country);
+      if (features.brand)
+        this.block(this.productBlocks, features.brand, product.id);
     }
   }
 
@@ -189,9 +201,7 @@ export class CatalogIndex {
     const key = quantityKey(listing.quantity);
     const ids = new Set<string>();
     for (const stem of stems(listing.features)) {
-      for (const id of this.variantBlocks.get(
-        `${listing.country}|${key}|${stem}`,
-      ) ?? []) {
+      for (const id of this.variantBlocks.get(`${key}|${stem}`) ?? []) {
         ids.add(id);
       }
     }
@@ -208,15 +218,18 @@ export class CatalogIndex {
         if (!best || score.score > best.score) best = score;
       }
       if (!best || best.score <= 0) continue;
+      const foreign = !variant.countries.has(listing.country);
+      if (foreign && best.score < this.thresholds.crossCountry) continue;
       const barcodeMismatch =
         listing.barcodes.length > 0 &&
         variant.barcodes.size > 0 &&
         !listing.barcodes.some((g) => variant.barcodes.has(g));
-      scored.push(
-        barcodeMismatch
-          ? { ...best, variantId: id, barcodeMismatch }
-          : { ...best, variantId: id },
-      );
+      scored.push({
+        ...best,
+        variantId: id,
+        ...(barcodeMismatch && { barcodeMismatch }),
+        ...(foreign && { foreign }),
+      });
     }
     return scored.sort((a, b) => b.score - a.score);
   }
@@ -228,7 +241,9 @@ export class CatalogIndex {
     }
 
     const scored = this.scoreCandidates(listing);
-    const [best, second] = scored;
+    // Спершу — фасування, що вже продаються в цій країні
+    const domestic = scored.filter((c) => !c.foreign);
+    const [best, second] = domestic;
     const trusted =
       best &&
       (!best.barcodeMismatch || best.score >= this.thresholds.barcodeOverride);
@@ -240,9 +255,23 @@ export class CatalogIndex {
     if (best && best.score >= this.thresholds.review) {
       return {
         kind: 'review',
-        candidates: scored
+        candidates: domestic
           .filter((c) => c.score >= this.thresholds.review)
           .slice(0, 3),
+      };
+    }
+
+    // Той самий товар з іншої країни — лише однозначний повний збіг
+    const foreign = scored.filter((c) => c.foreign && !c.barcodeMismatch);
+    if (
+      foreign.length === 1 ||
+      (foreign.length > 1 &&
+        foreign[0].score - foreign[1].score >= this.thresholds.margin)
+    ) {
+      return {
+        kind: 'fuzzy',
+        variantId: foreign[0].variantId,
+        score: foreign[0].score,
       };
     }
 
@@ -259,13 +288,14 @@ export class CatalogIndex {
     const key = quantityKey(listing.quantity);
     const idf = this.idf(listing.country);
     let best: { productId: string; score: number } | null = null;
-    for (const id of this.productBlocks.get(
-      `${listing.country}|${listing.features.brand}`,
-    ) ?? []) {
+    for (const id of this.productBlocks.get(listing.features.brand) ?? []) {
       const product = this.products.get(id)!;
       if (product.quantityKeys.has(key)) continue;
       const { score } = scorePair(listing.features, product.features, idf);
-      if (score >= this.thresholds.product && (!best || score > best.score)) {
+      const threshold = product.countries.has(listing.country)
+        ? this.thresholds.product
+        : this.thresholds.crossCountry;
+      if (score >= threshold && (!best || score > best.score)) {
         best = { productId: id, score };
       }
     }

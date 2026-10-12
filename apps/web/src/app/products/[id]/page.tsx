@@ -86,9 +86,14 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
 }
 
 function OffersTable({ offers }: { offers: ListingSummaryDto[] }) {
-  const currencies = new Set(offers.map((o) => o.currency));
-  // Найдешевша пропозиція має сенс лише в одній валюті й за наявності кількох мереж
-  const cheapestId = offers.length > 1 && currencies.size === 1 ? offers[0]?.id : undefined;
+  // Пропозиції згруповано за валютою (₴, потім €) і відсортовано від найдешевшої.
+  // Найдешевша позначається окремо в кожній валюті, якщо в ній кілька мереж.
+  const cheapest = new Set<string>();
+  for (const currency of new Set(offers.map((o) => o.currency))) {
+    const group = offers.filter((o) => o.currency === currency);
+    if (group.length > 1) cheapest.add(group[0].id);
+  }
+  const isCheapest = (id: string) => cheapest.has(id);
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
@@ -104,10 +109,10 @@ function OffersTable({ offers }: { offers: ListingSummaryDto[] }) {
         </thead>
         <tbody className="divide-y divide-slate-100">
           {offers.map((offer) => (
-            <tr key={offer.id} className={offer.id === cheapestId ? 'bg-green-50' : ''}>
+            <tr key={offer.id} className={isCheapest(offer.id) ? 'bg-green-50' : ''}>
               <td className="px-3 py-2 whitespace-nowrap">
                 <div className="font-medium">{offer.chainName}</div>
-                {offer.id === cheapestId ? (
+                {isCheapest(offer.id) ? (
                   <span className="rounded bg-green-600 px-1.5 py-0.5 text-xs font-semibold text-white">
                     найдешевше
                   </span>

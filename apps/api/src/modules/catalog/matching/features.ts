@@ -203,6 +203,8 @@ const STOP_WORDS = new Set(
     'of',
     'original',
     'classic',
+    // "Coca-Cola Original Taste" (ALDI Nord) — те саме, що "Cola Original"
+    'taste',
   ].map(fold),
 );
 

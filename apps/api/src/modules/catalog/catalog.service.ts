@@ -165,12 +165,15 @@ export class CatalogService {
           label: variant.label,
           netQuantity: toNumber(variant.netQuantity) ?? 0,
           barcodes: variant.barcodes.map((b) => b.gtin),
+          // Ціни різних країн не порівнюємо напряму: групи за валютою
+          // (₴, потім €), усередині — від найдешевшої за одиницю
           offers: variant.listings
             .map(toListingDto)
             .sort(
               (a, b) =>
+                currencyRank(a.currency) - currencyRank(b.currency) ||
                 (a.unitPrice ?? a.currentPrice ?? Infinity) -
-                (b.unitPrice ?? b.currentPrice ?? Infinity),
+                  (b.unitPrice ?? b.currentPrice ?? Infinity),
             ),
         }))
         // Спершу фасування, які є в кількох мережах, далі — за розміром
@@ -340,6 +343,13 @@ function priceRanges(
     }
   }
   return [...ranges.values()];
+}
+
+const CURRENCY_ORDER = ['UAH', 'EUR', 'PLN', 'USD'];
+
+function currencyRank(currency: string): number {
+  const rank = CURRENCY_ORDER.indexOf(currency);
+  return rank === -1 ? CURRENCY_ORDER.length : rank;
 }
 
 function clampPageSize(value?: number | string): number {

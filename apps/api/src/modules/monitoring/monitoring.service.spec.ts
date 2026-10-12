@@ -136,16 +136,38 @@ describe('MonitoringService', () => {
     const details = await service.getListing('listing-1');
     expect(prisma.listing.findMany.mock.calls[0][0].where).toEqual({
       id: { not: 'listing-1' },
-      barcodes: { hasSome: ['05000112552218'] },
+      OR: [{ barcodes: { hasSome: ['05000112552218'] } }],
     });
-    expect(details.sameBarcode).toHaveLength(1);
-    expect(details.sameBarcode[0]).toMatchObject({
+    expect(details.otherOffers).toHaveLength(1);
+    expect(details.otherOffers[0]).toMatchObject({
       id: 'listing-2',
       chainName: 'NOVUS',
     });
   });
 
-  it('не шукає збігів, якщо в картки немає штрихкоду', async () => {
+  it('бере пропозиції того самого фасування каталогу', async () => {
+    prisma.listing.findUnique.mockResolvedValue({
+      ...LISTING,
+      barcodes: [],
+      variantId: 'variant-1',
+      variant: {
+        id: 'variant-1',
+        productId: 'p1',
+        label: '1,25 л',
+        product: { name: 'Coca-Cola' },
+      },
+      priceSnapshots: [],
+    });
+    prisma.listing.findMany.mockResolvedValue([]);
+
+    await service.getListing('listing-1');
+    expect(prisma.listing.findMany.mock.calls[0][0].where).toEqual({
+      id: { not: 'listing-1' },
+      OR: [{ variantId: 'variant-1' }],
+    });
+  });
+
+  it('не шукає збігів без штрихкоду й зіставлення', async () => {
     prisma.listing.findUnique.mockResolvedValue({
       ...LISTING,
       barcodes: [],
@@ -155,7 +177,7 @@ describe('MonitoringService', () => {
 
     const details = await service.getListing('listing-1');
     expect(prisma.listing.findMany).not.toHaveBeenCalled();
-    expect(details.sameBarcode).toEqual([]);
+    expect(details.otherOffers).toEqual([]);
   });
 });
 

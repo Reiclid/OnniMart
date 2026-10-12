@@ -141,9 +141,9 @@ export class ListingDetailsDto extends ListingSummaryDto {
   @ApiProperty({
     type: [ListingSummaryDto],
     description:
-      'Картки з тим самим штрихкодом в інших мережах, дешевші першими',
+      'Той самий товар в інших мережах: те саме фасування каталогу або спільний штрихкод',
   })
-  sameBarcode!: ListingSummaryDto[];
+  otherOffers!: ListingSummaryDto[];
   @ApiProperty({
     type: 'object',
     additionalProperties: true,

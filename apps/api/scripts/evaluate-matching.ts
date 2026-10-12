@@ -116,12 +116,13 @@ async function main() {
   }
 }
 
-/** Пари "id|id" карток різних мереж однієї країни зі спільним GTIN */
+/** Пари "id|id" карток різних мереж зі спільним GTIN */
 function truthPairs(listings: ListingInput[]): Set<string> {
   const byGtin = new Map<string, ListingInput[]>();
   for (const l of listings) {
     for (const gtin of l.barcodes) {
-      const key = `${l.country}|${gtin}`;
+      // Той самий GTIN — той самий товар і в іншій країні (імпорт)
+      const key = gtin;
       byGtin.set(key, [...(byGtin.get(key) ?? []), l]);
     }
   }
