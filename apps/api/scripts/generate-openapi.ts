@@ -9,7 +9,10 @@ import { createOpenApiDocument } from '../src/swagger';
 
 async function main() {
   const app = await NestFactory.create(AppModule, { logger: false });
-  writeFileSync('openapi.json', JSON.stringify(createOpenApiDocument(app), null, 2));
+  writeFileSync(
+    'openapi.json',
+    JSON.stringify(createOpenApiDocument(app), null, 2),
+  );
   console.log('openapi.json оновлено');
   process.exit(0);
 }

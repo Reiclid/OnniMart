@@ -85,6 +85,24 @@ export class ListingSummaryDto {
   @ApiProperty() inStock!: boolean;
   @ApiProperty({ enum: ['PENDING', 'AUTO_MATCHED', 'CONFIRMED', 'REJECTED'] })
   matchStatus!: string;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['BARCODE', 'FUZZY', 'MANUAL', 'CREATED'],
+  })
+  matchMethod!: string | null;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Впевненість 0..1',
+  })
+  matchScore!: number | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Товар каталогу, з яким зіставлено картку',
+  })
+  productId!: string | null;
   @ApiProperty({ type: [String] }) barcodes!: string[];
   @ApiProperty() lastSeenAt!: string;
 }
@@ -110,6 +128,7 @@ export class PriceSnapshotDto {
 
 export class MatchedVariantDto {
   @ApiProperty() id!: string;
+  @ApiProperty() productId!: string;
   @ApiProperty() label!: string;
   @ApiProperty() productName!: string;
 }

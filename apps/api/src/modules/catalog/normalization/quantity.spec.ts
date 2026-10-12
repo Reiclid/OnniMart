@@ -1,4 +1,9 @@
-import { computeUnitPrice, formatQuantity, parseQuantity } from './quantity';
+import {
+  computeUnitPrice,
+  formatQuantity,
+  parseQuantity,
+  stripQuantity,
+} from './quantity';
 
 describe('parseQuantity', () => {
   it.each([
@@ -39,6 +44,29 @@ describe('parseQuantity', () => {
       measure: 'VOLUME',
       netQuantity: 6000,
       packCount: 12,
+    });
+  });
+
+  it('кількість пляшок після обʼєму — упаковка напоїв (METRO)', () => {
+    expect(
+      parseQuantity('Вода мінеральна Миргородська сильногазована 1,5л 6шт'),
+    ).toEqual({
+      measure: 'VOLUME',
+      netQuantity: 9000,
+      packCount: 6,
+      isWeighted: false,
+    });
+    expect(parseQuantity('Сосиски 300 г 6 шт')).toMatchObject({
+      measure: 'MASS',
+      netQuantity: 300,
+      packCount: 1,
+    });
+    expect(
+      parseQuantity('Пакети для сміття Fino Міцні 60л 40шт'),
+    ).toMatchObject({
+      measure: 'VOLUME',
+      netQuantity: 60000,
+      packCount: 1,
     });
   });
 
@@ -111,5 +139,28 @@ describe('formatQuantity', () => {
     ['Яйця 10 шт', '10 шт'],
   ])('%s → %s', (name, label) => {
     expect(formatQuantity(parseQuantity(name)!)).toBe(label);
+  });
+});
+
+describe('stripQuantity', () => {
+  it.each([
+    [
+      'Вода мінеральна Моршинська негазована 1,5л',
+      'Вода мінеральна Моршинська негазована',
+    ],
+    ['Cola Zero 1,25 l', 'Cola Zero'],
+    ['Пиво Corona 6х0,33 л', 'Пиво Corona'],
+    [
+      'Dessert im Glas 60 g, Double Chocolate',
+      'Dessert im Glas, Double Chocolate',
+    ],
+    ['Großtafel 250 g', 'Großtafel'],
+    [
+      'Молоко Галичина ультрапастеризоване 2,5% 950г',
+      'Молоко Галичина ультрапастеризоване 2,5%',
+    ],
+    ['Coca-Cola', 'Coca-Cola'],
+  ])('%s → %s', (name, stripped) => {
+    expect(stripQuantity(name)).toBe(stripped);
   });
 });

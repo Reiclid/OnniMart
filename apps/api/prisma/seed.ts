@@ -1,5 +1,5 @@
 // Початкові дані: країни, мережі (за результатами аудиту robots.txt — docs/01-data-sources.md),
-// базові категорії та демо-лінійка Coca-Cola для перевірки ієрархії каталогу.
+// базові категорії. Каталог товарів наповнює зіставлення (src/modules/catalog/matching).
 // Запуск: bun run dev:seed (з кореня репозиторію)
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -201,80 +201,10 @@ async function seedCategories() {
   }
 }
 
-/** Демонстрація трирівневої ієрархії: лінійка → смак → фасування */
-async function seedDemoCatalog() {
-  const brand = await prisma.brand.upsert({
-    where: { slug: 'coca-cola' },
-    create: {
-      slug: 'coca-cola',
-      name: 'Coca-Cola',
-      manufacturer: 'The Coca-Cola Company',
-    },
-    update: {},
-  });
-  const line = await prisma.productLine.upsert({
-    where: { slug: 'coca-cola' },
-    create: { slug: 'coca-cola', name: 'Coca-Cola', brandId: brand.id },
-    update: {},
-  });
-  const category = await prisma.category.findUniqueOrThrow({
-    where: { slug: 'soft-drinks' },
-  });
-
-  const flavours = [
-    {
-      slug: 'coca-cola-original',
-      name: 'Coca-Cola Original',
-      variantLabel: 'Original',
-    },
-    { slug: 'coca-cola-zero', name: 'Coca-Cola Zero', variantLabel: 'Zero' },
-    {
-      slug: 'coca-cola-cherry',
-      name: 'Coca-Cola Cherry',
-      variantLabel: 'Cherry',
-    },
-  ];
-  const sizes = [
-    { netQuantity: 330, label: '0,33 л', packaging: 'з/б' },
-    { netQuantity: 500, label: '0,5 л', packaging: 'ПЕТ' },
-    { netQuantity: 1000, label: '1 л', packaging: 'ПЕТ' },
-    { netQuantity: 2000, label: '2 л', packaging: 'ПЕТ' },
-  ];
-
-  for (const flavour of flavours) {
-    const product = await prisma.product.upsert({
-      where: { slug: flavour.slug },
-      create: {
-        ...flavour,
-        lineId: line.id,
-        brandId: brand.id,
-        categoryId: category.id,
-      },
-      update: {},
-    });
-
-    for (const size of sizes) {
-      await prisma.productVariant.upsert({
-        where: {
-          productId_measure_netQuantity_packCount: {
-            productId: product.id,
-            measure: 'VOLUME',
-            netQuantity: size.netQuantity,
-            packCount: 1,
-          },
-        },
-        create: { productId: product.id, measure: 'VOLUME', ...size },
-        update: {},
-      });
-    }
-  }
-}
-
 async function main() {
   await seedCountries();
   await seedChains();
   await seedCategories();
-  await seedDemoCatalog();
   console.log(
     `Seed завершено: ${CHAINS.length} мереж, ${CATEGORIES.length} категорій`,
   );

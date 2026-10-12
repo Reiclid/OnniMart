@@ -55,6 +55,11 @@ const MULTIPACK_REVERSED = new RegExp(
   `(?<![\\p{L}\\d.,])${NUMBER}${GAP}${UNIT}${TIMES}(\\d+)(?:\\s*шт)?${UNIT_END}`,
   'iu',
 );
+// "1,5л 6шт", "0,5 л, 12 шт" — упаковка напоїв: кількість пляшок після об'єму
+const VOLUME_PACK = new RegExp(
+  `(?<![\\p{L}\\d.,])${NUMBER}${GAP}${UNIT}[\\s,]+(\\d+)\\s*(?:шт|pcs|stk|st)${UNIT_END}`,
+  'iu',
+);
 const SINGLE = new RegExp(
   `(?<![\\p{L}\\d.,])${NUMBER}${GAP}${UNIT}${UNIT_END}`,
   'giu',
@@ -105,6 +110,22 @@ export function parseQuantity(name: string): ParsedQuantity | null {
     };
   }
 
+  const volumePack = VOLUME_PACK.exec(name);
+  if (volumePack && unitOf(volumePack[2]).measure === 'VOLUME') {
+    const unit = unitOf(volumePack[2]);
+    const packCount = Number(volumePack[3]);
+    const bottle = toNumber(volumePack[1]) * unit.factor;
+    // Пляшки й банки до 3 л; "Пакети для сміття 60л 40шт" — це не упаковка напоїв
+    if (packCount > 1 && packCount <= 48 && bottle <= 3000) {
+      return {
+        measure: 'VOLUME',
+        netQuantity: round3(packCount * toNumber(volumePack[1]) * unit.factor),
+        packCount,
+        isWeighted: false,
+      };
+    }
+  }
+
   const matches = [...name.matchAll(SINGLE)].map((m) => ({
     value: toNumber(m[1]),
     unit: unitOf(m[2]),
@@ -125,6 +146,25 @@ export function parseQuantity(name: string): ParsedQuantity | null {
     packCount: 1,
     isWeighted: false,
   };
+}
+
+const MULTIPACK_ALL = new RegExp(MULTIPACK.source, 'giu');
+const MULTIPACK_REVERSED_ALL = new RegExp(MULTIPACK_REVERSED.source, 'giu');
+
+/**
+ * Назва без фасування — для зіставлення та як назва товару в каталозі:
+ * "Вода мінеральна Моршинська негазована 1,5л" → "Вода мінеральна Моршинська негазована",
+ * "Cola Zero 1,25 l" → "Cola Zero", "Пиво Corona 6х0,33 л" → "Пиво Corona".
+ */
+export function stripQuantity(name: string): string {
+  return name
+    .replace(MULTIPACK_ALL, ' ')
+    .replace(MULTIPACK_REVERSED_ALL, ' ')
+    .replace(SINGLE, ' ')
+    .replace(/\s+([,.;)])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .replace(/[\s,;:–-]+$/u, '')
+    .trim();
 }
 
 /**

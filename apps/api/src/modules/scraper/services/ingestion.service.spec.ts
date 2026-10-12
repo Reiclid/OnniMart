@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { MatchingService } from '../../catalog/matching/matching.service';
 import { RunEventDto, ScrapedProductDto } from '../dto/scraped-product.dto';
 import { IngestionService } from './ingestion.service';
 
@@ -82,6 +83,7 @@ function event(overrides: Partial<RunEventDto> = {}): RunEventDto {
 describe('IngestionService', () => {
   let prisma: ReturnType<typeof createPrismaMock>;
   let service: IngestionService;
+  let matching: { schedule: jest.Mock };
 
   beforeAll(() => {
     Logger.overrideLogger(false);
@@ -89,7 +91,11 @@ describe('IngestionService', () => {
 
   beforeEach(() => {
     prisma = createPrismaMock();
-    service = new IngestionService(prisma as unknown as PrismaService);
+    matching = { schedule: jest.fn() };
+    service = new IngestionService(
+      prisma as unknown as PrismaService,
+      matching as unknown as MatchingService,
+    );
   });
 
   it('пропускає товар невідомої мережі', async () => {
@@ -317,6 +323,13 @@ describe('IngestionService', () => {
         status: 'FAILED',
         error: 'сайт заблокував запит (403)',
       });
+    });
+
+    it('після завершення запуску ставить зіставлення в чергу', async () => {
+      await service.handleRunEvent(event());
+      expect(matching.schedule).not.toHaveBeenCalled();
+      await service.handleRunEvent(event({ kind: 'run_finished' }));
+      expect(matching.schedule).toHaveBeenCalledTimes(1);
     });
 
     it('ігнорує події без запуску в базі', async () => {

@@ -21,11 +21,12 @@ const UNIT_LABELS: Record<Measure, string> = {
   COUNT: 'шт',
 };
 
-const listingInclude = {
+export const listingInclude = {
   chain: { select: { slug: true, name: true, currency: true } },
+  variant: { select: { productId: true } },
 } satisfies Prisma.ListingInclude;
 
-type ListingWithChain = Prisma.ListingGetPayload<{
+export type ListingWithChain = Prisma.ListingGetPayload<{
   include: typeof listingInclude;
 }>;
 
@@ -175,6 +176,7 @@ export class MonitoringService {
       variant: listing.variant
         ? {
             id: listing.variant.id,
+            productId: listing.variant.productId,
             label: listing.variant.label,
             productName: listing.variant.product.name,
           }
@@ -214,7 +216,7 @@ export function buildWhere(query: ListingsQueryDto): Prisma.ListingWhereInput {
   return where;
 }
 
-function toListingDto(listing: ListingWithChain): ListingSummaryDto {
+export function toListingDto(listing: ListingWithChain): ListingSummaryDto {
   const measure = listing.measure;
   const netQuantity = toNumber(listing.netQuantity);
   return {
@@ -248,6 +250,9 @@ function toListingDto(listing: ListingWithChain): ListingSummaryDto {
     isOnPromo: listing.isOnPromo,
     inStock: listing.inStock,
     matchStatus: listing.matchStatus,
+    matchMethod: listing.matchMethod,
+    matchScore: listing.matchScore,
+    productId: listing.variant?.productId ?? null,
     barcodes: listing.barcodes,
     lastSeenAt: listing.lastSeenAt.toISOString(),
   };

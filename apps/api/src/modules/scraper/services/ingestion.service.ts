@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, PromoType } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { MatchingService } from '../../catalog/matching/matching.service';
 import { normalizeBarcodes } from '../../catalog/normalization/gtin';
 import {
   computeUnitPrice,
@@ -24,7 +25,10 @@ export class IngestionService {
   /** Кеш: чи існує ScrapeRun з таким id (щоб не перевіряти на кожен товар) */
   private readonly knownRuns = new Map<string, boolean>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly matching: MatchingService,
+  ) {}
 
   async ingest(item: ScrapedProductDto): Promise<IngestResult> {
     if (!isValid(item)) {
@@ -154,6 +158,8 @@ export class IngestionService {
 
     await this.prisma.scrapeRun.update({ where: { id: runId }, data });
     this.logger.log(`Запуск ${event.store}: ${event.kind}`);
+    // Після запуску зіставляємо нові картки з каталогом (у фоні)
+    if (event.kind !== 'run_started') this.matching.schedule();
   }
 
   private async existingRun(runId?: string | null): Promise<string | null> {
@@ -201,7 +207,9 @@ function isValid(item: ScrapedProductDto): boolean {
   );
 }
 
-function resolveQuantity(item: ScrapedProductDto): ParsedQuantity | null {
+export function resolveQuantity(
+  item: ScrapedProductDto,
+): ParsedQuantity | null {
   const unit = item.price_unit?.toLowerCase();
   if (unit === 'кг' || unit === 'kg') {
     return {
@@ -211,8 +219,11 @@ function resolveQuantity(item: ScrapedProductDto): ParsedQuantity | null {
       isWeighted: true,
     };
   }
-  // Фасування з окремого поля сайту надійніше за розбір назви
-  return parseQuantity(item.size ?? '') ?? parseQuantity(item.name);
+  // Фасування з окремого поля сайту надійніше за розбір назви, але поле часто
+  // описує одну пляшку з упаковки: "1,5л 6шт" у назві, volume = 1500 у даних
+  const fromName = parseQuantity(item.name);
+  if (fromName && fromName.packCount > 1) return fromName;
+  return parseQuantity(item.size ?? '') ?? fromName;
 }
 
 function promoTypeOf(

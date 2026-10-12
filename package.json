@@ -21,6 +21,7 @@
     "dev:seed": "cd apps/api && bunx prisma db seed",
     "dev:studio": "cd apps/api && bunx prisma studio",
     "test:api": "bun --filter api test",
+    "match:evaluate": "bun --filter api match:evaluate",
     "scraper:cli": "docker compose run --rm scraper scrape",
     "scraper:test": "docker build --target test -t onnimart-scraper:test apps/scraper",
     "dev:openapi": "bun --filter api openapi"
