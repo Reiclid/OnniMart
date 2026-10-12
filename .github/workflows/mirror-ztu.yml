@@ -1,0 +1,39 @@
+# Дзеркало репозиторію на GitLab ЗТУ: після кожного push на GitHub (гілки, теги,
+# видалення гілок) усі гілки й теги копіюються на git.ztu.edu.ua.
+#
+# Потрібні секрети репозиторію (Settings → Secrets and variables → Actions):
+#   ZTU_USERNAME — логін на git.ztu.edu.ua
+#   ZTU_TOKEN    — Access Token GitLab зі scope write_repository
+name: Дзеркало на git.ztu.edu.ua
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  delete:
+  workflow_dispatch:
+
+concurrency:
+  group: mirror-ztu
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Клонувати всі гілки й теги з GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone --mirror "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" repo.git
+          cd repo.git
+          # Службові refs GitHub (pull requests) на GitLab не переносимо
+          git for-each-ref --format='delete %(refname)' refs/pull | git update-ref --stdin
+
+      - name: Відправити на git.ztu.edu.ua
+        env:
+          ZTU_USERNAME: ${{ secrets.ZTU_USERNAME }}
+          ZTU_TOKEN: ${{ secrets.ZTU_TOKEN }}
+        run: |
+          cd repo.git
+          git push --mirror "https://${ZTU_USERNAME}:${ZTU_TOKEN}@git.ztu.edu.ua/ipz/2023-2027/ipz-23-4/hrushevytskyy-denys.git"
