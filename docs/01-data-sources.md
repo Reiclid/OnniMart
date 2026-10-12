@@ -18,21 +18,29 @@ OnniMartBot/0.1 (+https://github.com/Reiclid/OnniMart; diploma project)
 
 | Статус | Що означає | Мережі |
 |---|---|---|
-| ✅ | robots.txt дозволяє каталог і сторінки товарів, бот отримує 200 | АТБ, Сільпо, вітрини zakaz.ua (NOVUS, Ашан, METRO, ЕКО маркет, МегаМаркет), VARUS, Фора, Fozzy, Lidl, ALDI Nord, ALDI SÜD, PENNY, EDEKA, Kaufland (Filiale), Globus, NORMA, dm, Rossmann |
-| ⚠️ | Дозволено, але з умовами: пагінація заборонена (лише sitemap), великий Crawl-delay або є лише акційні сторінки | Lidl (без `?offset=`), Watsons (без `?page=`), edeka24 (Crawl-delay 20 с), Kaufland (лише акції), EVA / Prostor (див. таблицю) |
-| ❌ | Чесного бота блокує антибот-захист (403 / Cloudflare challenge / Akamai) або потрібна авторизація. **Обходити захист не можна.** | REWE, Netto Marken-Discount, EVA, хаб zakaz.ua, Glovo, Rozetka, Kaufland.de (маркетплейс), Picnic |
+| ✅ | robots.txt дозволяє каталог і сторінки товарів, бот отримує 200 | АТБ, Сільпо, вітрини zakaz.ua (NOVUS, Ашан, METRO, ЕКО маркет, МегаМаркет), VARUS, Fozzy, Lidl, ALDI Nord, ALDI SÜD, Globus |
+| ⚠️ | Дозволено, але з умовами: пагінація заборонена (лише sitemap), великий Crawl-delay, є лише акційні сторінки або ціни окремого маркету | Lidl (без `?offset=` → Open Prices), Kaufland (Filiale), PENNY, NORMA — лише акції; EDEKA (ціни маркету), Фора (без SSR), Watsons (без `?page=`), edeka24 (Crawl-delay 20 с), EVA / Prostor (див. таблицю) |
+| ❌ | Чесного бота блокує антибот-захист (403 / Cloudflare challenge / Akamai) або потрібна авторизація. **Обходити захист не можна.** | REWE, Netto Marken-Discount, Rossmann (JS-челендж), dm (API закрито в robots.txt), EVA, хаб zakaz.ua, Glovo, Rozetka, Kaufland.de (маркетплейс), Picnic |
 
-## Що реально парситься (перевірено наживо 11.10.2026)
+## Що реально парситься (перевірено наживо 11–12.10.2026)
 
 | Мережа | Джерело | Як отримуємо дані | EAN | Обсяг |
 |---|---|---|---|---|
 | 🇺🇦 Сільпо | silpo.ua | JSON у `<script id="serverApp-state">` на сторінках категорій, `?page=N` | на сторінці товару (поки не беремо) | 47 товарів на сторінку, ~28 кореневих категорій |
-| 🇺🇦 NOVUS, Ашан | novus.zakaz.ua, auchan.zakaz.ua | `__NEXT_DATA__` на сторінках категорій, `?page=N` | ✅ | 30 товарів на сторінку |
+| 🇺🇦 NOVUS, Ашан, METRO, ЕКО маркет, МегаМаркет | `<мережа>.zakaz.ua` | `__NEXT_DATA__` на сторінках категорій, `?page=N` | ✅ | 30 товарів на сторінку |
+| 🇺🇦 VARUS | varus.ua | `window.__INITIAL_STATE__` (Vue Storefront) на сторінках категорій, `?page=N` | ❌ | 40 товарів на сторінку, 21 категорія |
 | 🇩🇪 ALDI SÜD | aldi-sued.de | HTML-плитки (Nuxt SSR), `?page=N` | ❌ | ~5 000 товарів |
 | 🇩🇪 ALDI Nord | aldi-nord.de | результати Algolia в `__NEXT_DATA__` сторінок підкатегорій; список підкатегорій — з sitemap | ❌ | усі товари підкатегорії на одній сторінці |
 | 🇩🇪 Globus | produkte.globus.de | HTML-плитки Shopware (`data-product-gtin`), `?p=N` | ✅ | 24 товари на сторінку |
 | 🇩🇪 Lidl | prices.openfoodfacts.org | **Open Prices API** — ціни з чеків покупців, ліцензія ODbL | ✅ | сотні цін за пів року, оновлюється спільнотою |
+| 🇩🇪 Kaufland | filiale.kaufland.de | JSON для Vue SSR (`window.SSR[…]`) на сторінці `/angebote/uebersicht.html` | частково — у назві файлу зображення | лише акції тижня, ~900 позицій за 1 запит |
+| 🇩🇪 PENNY | penny.de | список категорій тижня з `/angebote`, пропозиції — `/.rest/offers/by-category/<тиждень>/<категорія>` | ❌ | лише акції тижня, ~120–250 позицій |
+| 🇩🇪 NORMA | norma-online.de | HTML тематичних сторінок акцій `/de/angebote/ab-…/<тема>-t-<id>/` | ❌ | лише акції тижня, ~130 позицій |
 | 🇺🇦 АТБ | atbmarket.com | HTML, `?page=N` | ❌ | парсер готовий, вимкнено — сайт на технічних роботах |
+
+**Kaufland, PENNY, NORMA — лише акції.** Ці мережі не публікують повний асортимент з цінами, тільки щотижневі пропозиції. Для диплома це корисне джерело саме про знижки (глибина, частота, «фейкові» знижки), а не про звичайні ціни. Пропозиції, що починають діяти пізніше («ab Donnerstag», наступний тиждень), парсер пропускає, поки їхня дата не настане. Ціни лише з карткою Kaufland або в застосунку PENNY позначаються як `LOYALTY`.
+
+**Kaufland: штрихкод із назви зображення.** Приблизно половина зображень названа GTIN-ом (`…/schwarz/4002334119577_DE_P-1`), решта — внутрішнім 8-значним номером Kaufland. Беремо лише 13–14-значні коди; API все одно перевіряє контрольну цифру.
 
 **Чому Lidl через Open Prices.** Lidl Німеччина не публікує ціни на продукти онлайн:
 
@@ -57,8 +65,8 @@ OnniMartBot/0.1 (+https://github.com/Reiclid/OnniMart; diploma project)
 | ЕКО маркет | eko.zakaz.ua | як NOVUS | — | — | так | ✅ |
 | МегаМаркет | megamarket.zakaz.ua, megamarket.ua | megamarket.ua: `Disallow: /api/`, `/cart/`, `/user/` | **3 с** | — | так (zakaz) | ✅ |
 | API zakaz.ua | stores-api.zakaz.ua | `Disallow: /` | — | — | — | ❌ **не використовувати**, лише HTML-вітрини |
-| VARUS | varus.ua | обмежень немає, є `sitemap-index.xml` | — | 200 | треба перевірити | ✅ |
-| Фора | fora.ua | `Disallow: /cart`, `/checkout`, `/search/all?find=`, сортування | — | 200 | треба перевірити | ✅ |
+| VARUS | varus.ua | обмежень немає, є `sitemap-index.xml` | — | 200 | ні; є бренд, вага / обʼєм, акційна ціна з датою закінчення | ✅ |
+| Фора | fora.ua | `Disallow: /cart`, `/checkout`, `/search/all?find=`, сортування | — | 200 | React без SSR: HTML порожній, дані — з окремого API (не перевіряли) | ⚠️ |
 | Fozzy | fozzyshop.ua | `Disallow: /search`, `/basket`, `/checkout`, `/cabinet/` | — | 200 | треба перевірити | ✅ |
 | Ашан (власний сайт) | auchan.ua | `Disallow: /catalogsearch/`, `/?`, `/view/*`, `/nav/` | — | Cloudflare captcha | — | ⚠️ використовувати auchan.zakaz.ua |
 | Таврія В | tavriav.ua | robots.txt → 403 (S3 AccessDenied) | — | — | — | ⚠️ формально 4xx = дозволено, але краще уточнити вручну |
@@ -78,15 +86,15 @@ OnniMartBot/0.1 (+https://github.com/Reiclid/OnniMart; diploma project)
 | **Lidl** | www.lidl.de | `Disallow: *?offset=*`, `*sort=*`, `*id=*`, `*search?q=*`, `/user-api/*` | — | 200 | продуктів онлайн немає (лише листівка-картинка й застосунок) → ціни з **Open Prices** | ⚠️ → Open Prices |
 | **ALDI Nord** | www.aldi-nord.de | `Disallow: /*?*filters`, кілька службових сторінок | — | 200 | товари в `__NEXT_DATA__` сторінок підкатегорій | ✅ |
 | **ALDI SÜD** | www.aldi-sued.de | `Disallow: /tools`, `/*?q=`; `Allow: /*?page=*`; є `sitemap_products.xml` | — | 200 (curl з UA Chrome — Akamai 403) | явно дозволяє AI-ботів | ✅ |
-| **PENNY** | www.penny.de | `Allow: /` | — | 200 | — | ✅ |
-| EDEKA | www.edeka.de | `Disallow: /EDEKA/`, `/lieferservice/`, `/xml/` | — | 200 | ціни залежать від конкретного маркету | ✅ |
+| **PENNY** | www.penny.de | `Allow: /` | — | 200 | лише акції тижня через `/.rest/offers/…` | ✅ |
+| EDEKA | www.edeka.de | `Disallow: /EDEKA/`, `/lieferservice/`, `/xml/` | — | 200 | акції завантажує JavaScript окремо для кожного маркету — загальної ціни мережі немає | ⚠️ |
 | edeka24 | www.edeka24.de | блокує GPTBot / CCBot | **20 с** | 200 | онлайн-магазин | ⚠️ повільно |
-| Kaufland | filiale.kaufland.de | `Disallow: /angebote/aktuell/uebersicht/detail` та ін. | — | 200 | лише огляд акцій | ⚠️ |
+| **Kaufland** | filiale.kaufland.de | `Disallow: /angebote/aktuell/uebersicht/detail` та ін.; сам огляд `/angebote/uebersicht.html` дозволено | — | 200 | лише акції тижня (JSON у сторінці огляду) | ✅ |
 | Kaufland | www.kaufland.de | Cloudflare captcha | — | — | маркетплейс | ❌ |
 | Globus | produkte.globus.de, globus.de | `Disallow: /produkte/listing`, `/checkout`, `/account` | — | 200 | товари — через sitemap | ✅ |
-| NORMA | www.norma-online.de | `Disallow: /ws/`; блокує `Python-urllib`, `Wget` та ін. за назвою | — | 200 | потрібен власний UA | ✅ |
-| dm | www.dm.de | `Disallow: /search`, `/cart` | — | 200 | дрогері | ✅ |
-| Rossmann | www.rossmann.de | `Disallow: /*?*` (крім пагінації), блокує ClaudeBot | — | 200 | дрогері | ✅ |
+| **NORMA** | www.norma-online.de | `Disallow: /ws/`; блокує `Python-urllib`, `Wget` та ін. за назвою | — | 200 | лише акції тижня, переважно непродовольчі | ✅ |
+| dm | www.dm.de | `Disallow: /search`, `/cart` | — | 200 | сайт — SPA, а API товарів `product-search.services.dmtech.com` має `Disallow: /` | ❌ |
+| Rossmann | www.rossmann.de | `Disallow: /*?*` (крім пагінації), блокує ClaudeBot | — | **JS-челендж** | «Client Challenge» замість сторінки | ❌ |
 | REWE | www.rewe.de | robots.txt дозволяє `/angebote/…`, але… | — | **403** | антибот-захист | ❌ |
 | Netto Marken-Discount | www.netto-online.de | `Disallow: /INTERSHOP/`, `/media/handzettel/` | — | **403** | антибот-захист | ❌ |
 | Picnic | picnic.app | групи лише для іменованих ботів | — | — | ціни лише в застосунку після входу | ❌ |

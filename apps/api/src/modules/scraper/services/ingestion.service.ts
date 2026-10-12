@@ -219,7 +219,8 @@ function promoTypeOf(
   regularPrice: number | null,
   label?: string | null,
 ): PromoType | null {
-  if (label && /карт|loyal|plus/i.test(label)) return 'LOYALTY';
+  // "Ціна з карткою", "Kaufland Card", "Lidl Plus", "PENNY App"
+  if (label && /карт|card|loyal|plus|\bapp\b/i.test(label)) return 'LOYALTY';
   if (label && /\d\s*\+\s*\d/.test(label)) return 'MULTIBUY';
   return regularPrice !== null || label ? 'DISCOUNT' : null;
 }

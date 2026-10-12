@@ -2,8 +2,12 @@ mod aldi_nord;
 mod aldi_sued;
 mod atb;
 mod globus;
+mod kaufland;
+mod norma;
 mod open_prices;
+mod penny;
 mod silpo;
+mod varus;
 mod zakaz;
 
 use anyhow::Result;
@@ -36,6 +40,10 @@ enum Kind {
     /// Відкрита база цін Open Prices, параметр — назва мережі в OpenStreetMap
     OpenPrices(&'static str),
     Atb,
+    Varus,
+    Kaufland,
+    Penny,
+    Norma,
 }
 
 /// Мережа і спосіб її парсингу. Ключ — StoreChain.slug в базі.
@@ -52,10 +60,14 @@ pub const SUPPORTED: &[&str] = &[
     "metro-ua",
     "eko",
     "megamarket",
+    "varus",
     "aldi-sued",
     "aldi-nord",
     "globus-de",
     "lidl-de",
+    "kaufland-de",
+    "penny-de",
+    "norma-de",
     "atb",
 ];
 
@@ -73,6 +85,10 @@ impl Source {
             "globus-de" => Kind::Globus,
             "lidl-de" => Kind::OpenPrices("Lidl"),
             "atb" => Kind::Atb,
+            "varus" => Kind::Varus,
+            "kaufland-de" => Kind::Kaufland,
+            "penny-de" => Kind::Penny,
+            "norma-de" => Kind::Norma,
             _ => return None,
         };
         Some(Self { store: store.to_string(), kind })
@@ -88,20 +104,27 @@ impl Source {
             Kind::Globus => globus::START_URL.into(),
             Kind::OpenPrices(brand) => open_prices::start_url(brand),
             Kind::Atb => atb::START_URL.into(),
+            Kind::Varus => varus::START_URL.into(),
+            Kind::Kaufland => kaufland::START_URL.into(),
+            Kind::Penny => penny::START_URL.into(),
+            Kind::Norma => norma::START_URL.into(),
         }
     }
 
     pub fn parse_categories(&self, html: &str) -> Result<Vec<Category>> {
+        let today = Local::now().date_naive();
         match self.kind {
             Kind::Silpo => silpo::parse_categories(html),
             Kind::Zakaz(subdomain) => zakaz::parse_categories(html, subdomain),
             Kind::AldiSued => aldi_sued::parse_categories(html),
             Kind::AldiNord => aldi_nord::parse_categories(html),
             Kind::Globus => globus::parse_categories(html),
-            Kind::OpenPrices(brand) => {
-                open_prices::parse_categories(html, brand, Local::now().date_naive())
-            }
+            Kind::OpenPrices(brand) => open_prices::parse_categories(html, brand, today),
             Kind::Atb => atb::parse_categories(html),
+            Kind::Varus => varus::parse_categories(html),
+            Kind::Kaufland => kaufland::parse_categories(html),
+            Kind::Penny => penny::parse_categories(html, today),
+            Kind::Norma => norma::parse_categories(html, today),
         }
     }
 
@@ -128,6 +151,13 @@ impl Source {
             Kind::Globus => globus::parse_page(html, store, category, scraped_at),
             Kind::OpenPrices(_) => open_prices::parse_page(html, store, category, scraped_at),
             Kind::Atb => atb::parse_page(html, store, category, scraped_at),
+            Kind::Varus => varus::parse_page(html, store, category, scraped_at),
+            Kind::Kaufland => {
+                let today = Local::now().date_naive();
+                kaufland::parse_page(html, store, category, scraped_at, today)
+            }
+            Kind::Penny => penny::parse_page(html, store, category, scraped_at),
+            Kind::Norma => norma::parse_page(html, store, category, scraped_at),
         }
     }
 }

@@ -37,7 +37,9 @@ pub async fn crawl<S: Sink>(
     sink: &mut S,
 ) -> Result<CrawlStats> {
     let mut stats = CrawlStats::default();
-    let start_page = fetcher.get(&source.start_url()).await?;
+    let start_url = source.start_url();
+    let start_page = fetcher.get(&start_url).await?;
+    stats.pages += 1;
     let mut categories = source.parse_categories(&start_page)?;
     if let Some(filter) = &options.category {
         categories.retain(|c| c.slug.contains(filter.as_str()));
@@ -52,7 +54,13 @@ pub async fn crawl<S: Sink>(
         let mut page = 1;
         loop {
             let url = source.page_url(category, page);
-            let html = match fetcher.get(&url).await {
+            // Kaufland: усі акції на стартовій сторінці — не завантажуємо її вдруге
+            let fetched = if url == start_url {
+                Ok(start_page.clone())
+            } else {
+                fetcher.get(&url).await.inspect(|_| stats.pages += 1)
+            };
+            let html = match fetched {
                 Ok(html) => html,
                 Err(error) => {
                     let blocked = matches!(
@@ -66,7 +74,6 @@ pub async fn crawl<S: Sink>(
                     break;
                 }
             };
-            stats.pages += 1;
 
             let listing = match source.parse_page(&html, category, &now_iso()) {
                 Ok(listing) => listing,
