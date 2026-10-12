@@ -44,6 +44,34 @@ const CHAINS: ChainSeed[] = [
     countryCode: 'UA',
     scrapeEnabled: true,
   },
+  {
+    slug: 'metro-ua',
+    name: 'METRO',
+    website: 'https://metro.zakaz.ua',
+    countryCode: 'UA',
+    scrapeEnabled: true,
+  },
+  {
+    slug: 'eko',
+    name: 'ЕКО маркет',
+    website: 'https://eko.zakaz.ua',
+    countryCode: 'UA',
+    scrapeEnabled: true,
+  },
+  {
+    slug: 'megamarket',
+    name: 'МегаМаркет',
+    website: 'https://megamarket.zakaz.ua',
+    countryCode: 'UA',
+    scrapeEnabled: true,
+  },
+  {
+    slug: 'varus',
+    name: 'VARUS',
+    website: 'https://varus.ua',
+    countryCode: 'UA',
+    scrapeEnabled: true,
+  },
   // Парсер є, але сайт на технічних роботах (жовтень 2026)
   {
     slug: 'atb',
@@ -78,6 +106,28 @@ const CHAINS: ChainSeed[] = [
     slug: 'lidl-de',
     name: 'Lidl',
     website: 'https://www.lidl.de',
+    countryCode: 'DE',
+    scrapeEnabled: true,
+  },
+  // Kaufland, PENNY, NORMA публікують лише щотижневі акції, повного асортименту з цінами немає
+  {
+    slug: 'kaufland-de',
+    name: 'Kaufland',
+    website: 'https://filiale.kaufland.de',
+    countryCode: 'DE',
+    scrapeEnabled: true,
+  },
+  {
+    slug: 'penny-de',
+    name: 'PENNY',
+    website: 'https://www.penny.de',
+    countryCode: 'DE',
+    scrapeEnabled: true,
+  },
+  {
+    slug: 'norma-de',
+    name: 'NORMA',
+    website: 'https://www.norma-online.de',
     countryCode: 'DE',
     scrapeEnabled: true,
   },

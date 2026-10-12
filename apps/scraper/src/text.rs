@@ -47,6 +47,53 @@ pub fn script_json<'a>(html: &'a str, id: &str) -> Option<&'a str> {
     Some(&html[open_end..close])
 }
 
+/// JSON-обʼєкт, що починається з першої `{` після `marker`:
+/// `window.__INITIAL_STATE__ = {...};(function(){...})()` → `{...}`.
+/// Дужки рахуються з урахуванням рядків, тож хвіст скрипту не заважає.
+pub fn json_object_after<'a>(html: &'a str, marker: &str) -> Option<&'a str> {
+    let start = html.find(marker)?;
+    let open = start + html[start..].find('{')?;
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (offset, byte) in html.as_bytes()[open..].iter().enumerate() {
+        if in_string {
+            match byte {
+                _ if escaped => escaped = false,
+                b'\\' => escaped = true,
+                b'"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match byte {
+            b'"' => in_string = true,
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(&html[open..=open + offset]);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Фасування з підпису "je 500-g-Packg.", "je Ka. 20 x 0,5-l-Fl.": без "je" на початку.
+/// Повертає (фасування, ваговий товар); "je Stück" / "je" — фасування невідоме.
+pub fn german_unit(text: &str) -> (Option<String>, bool) {
+    let unit = clean(text);
+    let unit = unit.strip_prefix("je").unwrap_or(&unit).trim();
+    let unit = unit.strip_prefix("ca.").unwrap_or(unit).trim();
+    match unit {
+        "kg" | "1 kg" => (None, true),
+        "" | "Stück" | "Packg." | "Paar" => (None, false),
+        _ => (Some(unit.to_string()), false),
+    }
+}
+
 /// "до 13.10" → "2026-10-13". Рік не вказано, тож беремо найближчу майбутню дату.
 pub fn day_month_to_date(text: &str, today: NaiveDate) -> Option<String> {
     let re = regex::Regex::new(r"(\d{1,2})\.(\d{1,2})").ok()?;
@@ -87,6 +134,26 @@ mod tests {
         let html = r#"<script id="__NEXT_DATA__" type="application/json">{"a":1}</script>"#;
         assert_eq!(script_json(html, "__NEXT_DATA__"), Some(r#"{"a":1}"#));
         assert_eq!(script_json(html, "missing"), None);
+    }
+
+    #[test]
+    fn extracts_json_object_after_marker() {
+        let html = r#"<script>window.__INITIAL_STATE__={"a":{"b":"}{"},"c":[1]};(function(){var x={};}())</script>"#;
+        assert_eq!(
+            json_object_after(html, "__INITIAL_STATE__"),
+            Some(r#"{"a":{"b":"}{"},"c":[1]}"#)
+        );
+        assert_eq!(json_object_after(html, "missing"), None);
+    }
+
+    #[test]
+    fn splits_german_unit_labels() {
+        assert_eq!(german_unit("je 500-g-Packg."), (Some("500-g-Packg.".into()), false));
+        assert_eq!(german_unit("je Ka. 20 x 0,5-l-Fl."), (Some("Ka. 20 x 0,5-l-Fl.".into()), false));
+        assert_eq!(german_unit("je ca. 640 g"), (Some("640 g".into()), false));
+        assert_eq!(german_unit("je kg"), (None, true));
+        assert_eq!(german_unit("je Stück"), (None, false));
+        assert_eq!(german_unit("je"), (None, false));
     }
 
     #[test]

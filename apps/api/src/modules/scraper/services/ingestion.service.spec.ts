@@ -180,6 +180,15 @@ describe('IngestionService', () => {
     expect(snapshot.data.promoType).toBe('LOYALTY');
   });
 
+  it.each(['Kaufland Card -44%', 'PENNY App 0.99'])(
+    'вважає "%s" ціною для учасників програми лояльності',
+    async (label) => {
+      await service.ingest(product({ promo_label: label }));
+      const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
+      expect(snapshot.data.promoType).toBe('LOYALTY');
+    },
+  );
+
   it('бере фасування з поля size, якщо його немає в назві', async () => {
     await service.ingest(
       product({
