@@ -85,11 +85,11 @@ export default async function ListingPage(props: PageProps<'/listings/[id]'>) {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Цей товар в інших мережах</h2>
-        {item.sameBarcode.length === 0 ? (
+        {item.otherOffers.length === 0 ? (
           <p className="text-sm text-slate-500">
-            {item.barcodes.length
-              ? 'Інших карток з таким штрихкодом поки немає.'
-              : 'Мережа не вказує штрихкод — знадобиться нечітке зіставлення за назвою.'}
+            {item.variant
+              ? 'Поки що цей товар знайдено лише в цій мережі.'
+              : 'Картку ще не зіставлено з каталогом — вона на модерації або чекає наступного запуску зіставлення.'}
           </p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
@@ -103,7 +103,7 @@ export default async function ListingPage(props: PageProps<'/listings/[id]'>) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {[item, ...item.sameBarcode].map((other) => (
+                {[item, ...item.otherOffers].map((other) => (
                   <tr key={other.id} className={other.id === item.id ? 'bg-blue-50' : ''}>
                     <td className="px-4 py-2 font-medium">{other.chainName}</td>
                     <td className="px-4 py-2">

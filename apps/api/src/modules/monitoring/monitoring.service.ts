@@ -157,15 +157,19 @@ export class MonitoringService {
       throw new NotFoundException(`Товар ${id} не знайдено`);
     }
 
-    // Той самий товар в інших мережах — збіг хоча б одного штрихкоду
-    const sameBarcode = listing.barcodes.length
+    // Той самий товар в інших мережах: те саме фасування каталогу
+    // (за штрихкодом або схожістю назви) чи хоча б спільний штрихкод
+    const same: Prisma.ListingWhereInput[] = [];
+    if (listing.variantId) same.push({ variantId: listing.variantId });
+    if (listing.barcodes.length) {
+      same.push({ barcodes: { hasSome: listing.barcodes } });
+    }
+    const otherOffers = same.length
       ? await this.prisma.listing.findMany({
-          where: {
-            id: { not: listing.id },
-            barcodes: { hasSome: listing.barcodes },
-          },
+          where: { id: { not: listing.id }, OR: same },
           include: listingInclude,
-          orderBy: { unitPrice: 'asc' },
+          // Спершу українські мережі (₴), далі німецькі (€); у межах валюти — дешевші
+          orderBy: [{ chain: { countryCode: 'desc' } }, { unitPrice: 'asc' }],
           take: 50,
         })
       : [];
@@ -192,7 +196,7 @@ export class MonitoringService {
         inStock: snapshot.inStock,
         capturedAt: snapshot.capturedAt.toISOString(),
       })),
-      sameBarcode: sameBarcode.map(toListingDto),
+      otherOffers: otherOffers.map(toListingDto),
       rawData: (listing.rawData as Record<string, unknown> | null) ?? null,
     };
   }
