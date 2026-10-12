@@ -36,4 +36,4 @@ jobs:
           ZTU_TOKEN: ${{ secrets.ZTU_TOKEN }}
         run: |
           cd repo.git
-          git push --mirror "https://${ZTU_USERNAME}:${ZTU_TOKEN}@git.ztu.edu.ua/ipz/2023-2027/ipz-23-4/hrushevytskyy-denys.git"
+          git push --mirror "https://${ZTU_USERNAME}:${ZTU_TOKEN}@git.ztu.edu.ua/ipz/2023-2027/ipz-23-4/hrushevytskyy-denys/onnimart.git"
