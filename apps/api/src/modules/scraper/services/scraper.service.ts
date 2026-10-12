@@ -27,6 +27,8 @@ export class ScraperService implements OnModuleDestroy {
   async triggerScrape(
     store: string,
     maxPages?: number,
+    // "manual" — кнопка в адмінці, "cron" — планувальник
+    trigger: 'manual' | 'cron' = 'manual',
   ): Promise<TriggerScraperResponseDto> {
     if (
       maxPages !== undefined &&
@@ -48,7 +50,7 @@ export class ScraperService implements OnModuleDestroy {
     }
 
     const run = await this.prisma.scrapeRun.create({
-      data: { chainId: chain.id, trigger: 'manual' },
+      data: { chainId: chain.id, trigger },
     });
 
     const task = {
