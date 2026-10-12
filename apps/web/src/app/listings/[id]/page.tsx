@@ -72,8 +72,12 @@ export default async function ListingPage(props: PageProps<'/listings/[id]'>) {
             ))}
           </dl>
           {item.variant && (
-            <p className="text-sm">
-              Зіставлено з каталогом: <b>{item.variant.productName}</b>, {item.variant.label}
+            <p className="flex flex-wrap items-center gap-2 text-sm">
+              Зіставлено з каталогом:
+              <Link href={`/products/${item.variant.productId}`} className="font-semibold text-blue-700 hover:underline">
+                {item.variant.productName}, {item.variant.label}
+              </Link>
+              {item.matchMethod && <StatusBadge status={item.matchMethod} />}
             </p>
           )}
         </div>

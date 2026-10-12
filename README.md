@@ -14,8 +14,8 @@
 | Шлях | Що це |
 |---|---|
 | `apps/api` | NestJS + Prisma 7 (PostgreSQL): REST API, прийом даних від парсера, каталог |
-| `apps/scraper` | Rust-парсер (7 мереж UA/DE): бере завдання з Redis (`scraper:tasks`) і повертає товари та події запуску (`scraper:results`) |
-| `apps/web` | Next.js: адмін-UI для перевірки зібраних даних (далі — вебклієнт) |
+| `apps/scraper` | Rust-парсер (14 мереж UA/DE): бере завдання з Redis (`scraper:tasks`) і повертає товари та події запуску (`scraper:results`) |
+| `apps/web` | Next.js: каталог з порівнянням цін, модерація зіставлень, моніторинг парсера |
 | `apps/mobile` | Expo: мобільний застосунок зі сканером штрихкодів |
 | `packages/shared` | Спільні TypeScript-типи |
 | `docs/` | Документація до диплома |
@@ -37,12 +37,25 @@ cp apps/api/.env.example apps/api/.env
 bun run infra:up        # PostgreSQL, Redis, Meilisearch і Rust-парсер (воркер)
 bun run dev:generate    # Prisma Client
 bun run dev:migrate     # міграції
-bun run dev:seed        # мережі, категорії, демо-товари
+bun run dev:seed        # країни, мережі, категорії
 bun run dev:api         # API: http://localhost:3001/api/docs
 bun run dev:web         # UI:  http://localhost:3000
 ```
 
 У UI на сторінці «Огляд» біля кожної мережі є кнопка «Запустити». Режим «1 стор./категорію» — швидка перевірка за кілька хвилин; «Усе» — повний обхід із паузою 3 с між запитами.
+
+Після кожного запуску парсера нові картки автоматично зіставляються з каталогом:
+
+- **Каталог** (`/products`) — товари, що продаються в кількох мережах, з цінами й ціною за кг / л; на сторінці товару — фасування × мережі й перемикач смаків лінійки.
+- **Зіставлення** (`/matching`) — статистика і черга модерації: спірні пари (схожість 70–90 %) підтверджує або відхиляє людина.
+
+Експеримент з якістю зіставлення (штрихкоди як еталон) і службові скрипти:
+
+```bash
+bun run match:evaluate                       # precision / recall для порогів
+cd apps/api && bun run listings:reparse     # перерахувати фасування з rawData
+cd apps/api && bun run catalog:reset --yes    # видалити каталог (потім «Зіставити зараз»)
+```
 
 Парсер без API (вивід у консоль):
 

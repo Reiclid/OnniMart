@@ -37,3 +37,19 @@ export function formatDuration(start: string, end: string | null): string {
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat('uk-UA').format(value);
 }
+
+/** "29,60–31,29 ₴" або "1,99 €", якщо ціна одна */
+export function formatPriceRange(range: {
+  currency: string;
+  min: number;
+  max: number;
+}): string {
+  if (range.min === range.max) return formatPrice(range.min, range.currency);
+  return `${formatPrice(range.min, range.currency)} – ${formatPrice(range.max, range.currency)}`;
+}
+
+/** Схожість 0..1 у відсотках: 0.934 → "93 %" */
+export function formatScore(score: number | null | undefined): string {
+  if (score === null || score === undefined) return '—';
+  return `${Math.round(score * 100)} %`;
+}

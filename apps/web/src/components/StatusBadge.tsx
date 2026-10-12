@@ -8,6 +8,11 @@ const STYLES: Record<string, { label: string; className: string }> = {
   AUTO_MATCHED: { label: 'Авто', className: 'bg-green-100 text-green-800' },
   CONFIRMED: { label: 'Підтверджено', className: 'bg-green-100 text-green-800' },
   REJECTED: { label: 'Відхилено', className: 'bg-red-100 text-red-800' },
+  // Як картку зіставлено з каталогом
+  BARCODE: { label: 'Штрихкод', className: 'bg-emerald-100 text-emerald-800' },
+  FUZZY: { label: 'Схожість назви', className: 'bg-sky-100 text-sky-800' },
+  MANUAL: { label: 'Модератор', className: 'bg-violet-100 text-violet-800' },
+  CREATED: { label: 'Перша картка', className: 'bg-gray-100 text-gray-600' },
 };
 
 export function StatusBadge({ status }: { status: string }) {

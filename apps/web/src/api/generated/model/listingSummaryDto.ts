@@ -5,6 +5,7 @@
  * API для моніторингу цін та скрейпінгу
  * OpenAPI spec version: 1.0
  */
+import type { ListingSummaryDtoMatchMethod } from './listingSummaryDtoMatchMethod';
 import type { ListingSummaryDtoMatchStatus } from './listingSummaryDtoMatchStatus';
 
 export interface ListingSummaryDto {
@@ -41,6 +42,18 @@ export interface ListingSummaryDto {
   isOnPromo: boolean;
   inStock: boolean;
   matchStatus: ListingSummaryDtoMatchStatus;
+  /** @nullable */
+  matchMethod: ListingSummaryDtoMatchMethod;
+  /**
+     * Впевненість 0..1
+     * @nullable
+     */
+  matchScore: number | null;
+  /**
+     * Товар каталогу, з яким зіставлено картку
+     * @nullable
+     */
+  productId: string | null;
   barcodes: string[];
   lastSeenAt: string;
 }
