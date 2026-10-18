@@ -8,6 +8,13 @@
 export const SCRAPER_TASKS_QUEUE = 'scraper:tasks';
 /** Товари та події запуску (scraper → воркер). Один список, щоб run_finished ішов після товарів */
 export const SCRAPER_RESULTS_QUEUE = 'scraper:results';
+/** Повідомлення, яке воркер зараз обробляє; видаляється лише після запису в БД */
+export const SCRAPER_RESULTS_PROCESSING = 'scraper:results:processing';
+/**
+ * Повідомлення, які не вдалося обробити (некоректні або після MAX спроб).
+ * Повернути в чергу: redis-cli LMOVE scraper:results:dead scraper:results RIGHT LEFT
+ */
+export const SCRAPER_RESULTS_DEAD = 'scraper:results:dead';
 /** Запити на пакетне зіставлення (API → воркер) */
 export const MATCHING_REQUESTS_QUEUE = 'matching:requests';
 /** Стан зіставлення, який воркер публікує для API (JSON MatchingState) */
