@@ -11,8 +11,8 @@ import {
   ProductsQueryDto,
   ReviewPageDto,
 } from './dto/catalog.dto';
-import { MatchingService } from './matching/matching.service';
-import { normalizeGtin } from './normalization/gtin';
+import { MatchingClient } from './matching/matching.client';
+import { normalizeGtin } from '@repo/matching';
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
@@ -22,7 +22,7 @@ const MAX_PAGE_SIZE = 200;
 export class CatalogService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly matching: MatchingService,
+    private readonly matching: MatchingClient,
   ) {}
 
   async getProducts(query: ProductsQueryDto): Promise<ProductPageDto> {
@@ -211,6 +211,7 @@ export class CatalogService {
       inReview,
       byMethod,
       [{ count: multiChainVariants }],
+      state,
     ] = await Promise.all([
       this.prisma.product.count(),
       this.prisma.listing.count({
@@ -235,11 +236,12 @@ export class CatalogService {
             SELECT "variantId" FROM listings WHERE "variantId" IS NOT NULL
             GROUP BY "variantId" HAVING count(DISTINCT "chainId") >= 2
           ) AS t`,
+      this.matching.state(),
     ]);
 
     return {
-      running: this.matching.running,
-      lastReport: this.matching.lastReport,
+      running: state.running,
+      lastReport: state.lastReport,
       products,
       multiChainVariants,
       unmatched,

@@ -1,0 +1,25 @@
+{
+  "name": "@repo/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Контракти черг Redis між Rust-скрапером, API та воркером",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test src"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.2.0",
+    "typescript": "^6.0.0"
+  }
+}

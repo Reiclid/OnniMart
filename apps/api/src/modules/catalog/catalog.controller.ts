@@ -10,7 +10,8 @@ import {
   ReviewPageDto,
   RunMatchingResponseDto,
 } from './dto/catalog.dto';
-import { MatchingService } from './matching/matching.service';
+import { MatchingClient } from './matching/matching.client';
+import { ModerationService } from './matching/moderation.service';
 
 @ApiTags('catalog')
 @Controller('api/v1')
@@ -54,7 +55,8 @@ export class CatalogController {
 export class MatchingController {
   constructor(
     private readonly catalog: CatalogService,
-    private readonly matching: MatchingService,
+    private readonly matching: MatchingClient,
+    private readonly moderation: ModerationService,
   ) {}
 
   @Get('status')
@@ -74,10 +76,10 @@ export class MatchingController {
     operationId: 'runMatching',
   })
   @ApiResponse({ status: 202, type: RunMatchingResponseDto })
-  run(): RunMatchingResponseDto {
-    const started = !this.matching.running;
-    this.matching.schedule();
-    return { started };
+  async run(): Promise<RunMatchingResponseDto> {
+    const { running } = await this.matching.state();
+    await this.matching.request();
+    return { started: !running };
   }
 
   @Get('review')
@@ -103,7 +105,7 @@ export class MatchingController {
   })
   @ApiResponse({ status: 204 })
   async accept(@Param('id') id: string): Promise<void> {
-    await this.matching.acceptCandidate(id);
+    await this.moderation.acceptCandidate(id);
   }
 
   @Post('listings/:id/reject')
@@ -114,7 +116,7 @@ export class MatchingController {
   })
   @ApiResponse({ status: 204 })
   async reject(@Param('id') id: string): Promise<void> {
-    await this.matching.rejectCandidates(id);
+    await this.moderation.rejectCandidates(id);
   }
 
   @Post('listings/:id/unlink')
@@ -125,6 +127,6 @@ export class MatchingController {
   })
   @ApiResponse({ status: 204 })
   async unlink(@Param('id') id: string): Promise<void> {
-    await this.matching.unlink(id);
+    await this.moderation.unlink(id);
   }
 }

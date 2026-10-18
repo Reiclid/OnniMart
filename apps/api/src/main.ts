@@ -8,7 +8,6 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors();
-  // Потрібно, щоб IngestionWorker коректно зупиняв цикл читання з Redis
   app.enableShutdownHooks();
 
   SwaggerModule.setup('api/docs', app, createOpenApiDocument(app));

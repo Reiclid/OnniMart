@@ -3,7 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "workspaces": [
-    "apps/*",
+    "apps/api",
+    "apps/web",
     "packages/*"
   ],
   "description": "Вебсистема моніторингу, агрегації та аналізу цін на споживчі товари",
@@ -11,20 +12,24 @@
   "scripts": {
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
-    "dev:api": "bun --filter api start:dev",
+    "build:packages": "bun --filter '@repo/*' build",
+    "dev:api": "bun run build:packages && bun --filter api start:dev",
+    "dev:worker": "bun run build:packages && bun --filter api start:worker:dev",
     "dev:web": "bun --filter web dev",
-    "dev:mobile": "bun --filter mobile start",
     "dev:scraper": "cd apps/scraper && cargo run",
     "dev:orval": "cd apps/web && OPENAPI_SPEC=../api/openapi.json bun x orval",
-    "dev:migrate": "cd apps/api && bunx prisma migrate dev",
-    "dev:generate": "cd apps/api && bunx prisma generate",
-    "dev:seed": "cd apps/api && bunx prisma db seed",
-    "dev:studio": "cd apps/api && bunx prisma studio",
+    "dev:migrate": "cd apps/api && bun x prisma migrate dev",
+    "dev:generate": "cd apps/api && bun x prisma generate",
+    "dev:seed": "cd apps/api && bun x prisma db seed",
+    "dev:studio": "cd apps/api && bun x prisma studio",
+    "dev:openapi": "bun run build:packages && bun --filter api openapi",
+    "test": "bun --filter '@repo/*' test && bun --filter api test",
     "test:api": "bun --filter api test",
+    "test:matching": "bun --filter @repo/matching test",
+    "typecheck": "bun run build:packages && bun --filter '@repo/*' typecheck && cd apps/api && bun x tsc --noEmit -p tsconfig.json",
     "match:evaluate": "bun --filter api match:evaluate",
     "scraper:cli": "docker compose run --rm scraper scrape",
-    "scraper:test": "docker build --target test -t onnimart-scraper:test apps/scraper",
-    "dev:openapi": "bun --filter api openapi"
+    "scraper:test": "docker build --target test -t onnimart-scraper:test apps/scraper"
   },
   "keywords": [],
   "author": "Reiclid",
@@ -32,7 +37,6 @@
   "type": "module",
   "devDependencies": {
     "@types/node": "^26.2.0",
-    "api": "workspace:*",
     "dotenv": "^17.4.2",
     "turbo": "^2.10.11",
     "typescript": "^6.0.0"

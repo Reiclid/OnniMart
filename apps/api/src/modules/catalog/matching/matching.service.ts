@@ -1,31 +1,26 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import {
+  MATCHING_STATE_KEY,
+  MatchingState,
+  MatchReport,
+} from '@repo/contracts';
 import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { formatQuantity, stripQuantity } from '../normalization/quantity';
-import { slugify } from '../normalization/text';
+import { createRedis } from '../../../redis';
 import {
   CatalogIndex,
+  extractFeatures,
+  lineOf,
   ListingInput,
   MatchDecision,
+  prepareListings,
   quantityKey,
-} from './catalog-index';
-import { extractFeatures, NameFeatures } from './features';
-import { prepareListings } from './prepare';
-
-export interface MatchReport {
-  startedAt: string;
-  finishedAt: string;
-  /** Скільки незіставлених карток розглянуто */
-  processed: number;
-  byBarcode: number;
-  fuzzy: number;
-  /** Відправлено на модерацію */
-  review: number;
-  /** Додано як нове фасування наявного товару */
-  newVariants: number;
-  newProducts: number;
-}
+  slugify,
+  stripQuantity,
+  variantLabel,
+  variantLabelOf,
+} from '@repo/matching';
 
 type Row = Awaited<ReturnType<MatchingService['loadListings']>>[number];
 
@@ -36,23 +31,25 @@ type Row = Awaited<ReturnType<MatchingService['loadListings']>>[number];
  *   3. 0,70–0,90 → кандидати в чергу модерації;
  *   4. той самий бренд і назва, але інше фасування → нове фасування товару;
  *   5. інакше → новий товар у каталозі.
- * Працює пакетно: після кожного запуску парсера і на вимогу.
+ * Працює пакетно у воркері (src/worker.ts): після кожного запуску парсера і на запит API
+ * (черга matching:requests). Стан публікує в Redis (matching:state) для API.
  */
 @Injectable()
-export class MatchingService {
+export class MatchingService implements OnModuleDestroy {
   private readonly logger = new Logger(MatchingService.name);
+  private readonly redis = createRedis();
   private current: Promise<MatchReport> | null = null;
   private again = false;
   private last: MatchReport | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
-  get running(): boolean {
-    return this.current !== null;
+  onModuleDestroy() {
+    this.redis.disconnect();
   }
 
-  get lastReport(): MatchReport | null {
-    return this.last;
+  get running(): boolean {
+    return this.current !== null;
   }
 
   /** Запустити у фоні; якщо зіставлення вже йде — повторити після нього */
@@ -69,116 +66,28 @@ export class MatchingService {
     }
     this.current = this.execute().finally(() => {
       this.current = null;
+      void this.publish();
       if (this.again) {
         this.again = false;
         this.schedule();
       }
     });
+    void this.publish();
     return this.current;
   }
 
-  /** Модератор підтвердив кандидата */
-  async acceptCandidate(candidateId: string): Promise<void> {
-    const candidate = await this.prisma.matchCandidate.findUnique({
-      where: { id: candidateId },
-      include: { listing: { include: { chain: { select: { slug: true } } } } },
-    });
-    if (!candidate) throw new NotFoundException('Кандидата не знайдено');
-    const now = new Date();
-    await this.prisma.$transaction([
-      this.prisma.matchCandidate.update({
-        where: { id: candidate.id },
-        data: { status: 'ACCEPTED', decidedAt: now },
-      }),
-      this.prisma.matchCandidate.updateMany({
-        where: {
-          listingId: candidate.listingId,
-          id: { not: candidate.id },
-          status: 'SUGGESTED',
-        },
-        data: { status: 'REJECTED', decidedAt: now },
-      }),
-      this.prisma.listing.update({
-        where: { id: candidate.listingId },
-        data: {
-          variantId: candidate.variantId,
-          matchStatus: 'CONFIRMED',
-          matchMethod: 'MANUAL',
-          matchScore: candidate.score,
-          matchedAt: now,
-        },
-      }),
-      this.prisma.barcode.createMany({
-        data: candidate.listing.barcodes.map((gtin) => ({
-          gtin,
-          variantId: candidate.variantId,
-          source: candidate.listing.chain.slug,
-        })),
-        skipDuplicates: true,
-      }),
-    ]);
-  }
-
-  /** Модератор відхилив усіх кандидатів — картка стане окремим товаром */
-  async rejectCandidates(listingId: string): Promise<void> {
-    const { count } = await this.prisma.matchCandidate.updateMany({
-      where: { listingId, status: 'SUGGESTED' },
-      data: { status: 'REJECTED', decidedAt: new Date() },
-    });
-    if (count === 0)
-      throw new NotFoundException('Немає кандидатів для цієї картки');
-    this.schedule();
-  }
-
-  /**
-   * Картку зіставлено помилково: відвʼязуємо, запамʼятовуємо пару як відхилену
-   * і зіставляємо заново. Порожні товар і фасування видаляємо.
-   */
-  async unlink(listingId: string): Promise<void> {
-    const listing = await this.prisma.listing.findUnique({
-      where: { id: listingId },
-    });
-    if (!listing) throw new NotFoundException('Картку не знайдено');
-    const variantId = listing.variantId;
-    if (!variantId) return;
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.matchCandidate.upsert({
-        where: { listingId_variantId: { listingId, variantId } },
-        create: {
-          listingId,
-          variantId,
-          score: listing.matchScore ?? 0,
-          status: 'REJECTED',
-          decidedAt: new Date(),
-          details: { reason: 'unlinked' },
-        },
-        update: { status: 'REJECTED', decidedAt: new Date() },
-      });
-      await tx.listing.update({
-        where: { id: listingId },
-        data: {
-          variantId: null,
-          matchStatus: 'PENDING',
-          matchMethod: null,
-          matchScore: null,
-          matchedAt: null,
-        },
-      });
-      const left = await tx.listing.count({ where: { variantId } });
-      if (left === 0) {
-        const variant = await tx.productVariant.delete({
-          where: { id: variantId },
-        });
-        const variants = await tx.productVariant.count({
-          where: { productId: variant.productId },
-        });
-        if (variants === 0) {
-          await tx.product.delete({ where: { id: variant.productId } });
-        }
-      }
-    });
-    this.schedule();
+  /** Стан для API: GET /api/v1/matching/status */
+  private async publish(): Promise<void> {
+    const state: MatchingState = {
+      running: this.running,
+      lastReport: this.last,
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      await this.redis.set(MATCHING_STATE_KEY, JSON.stringify(state));
+    } catch (error) {
+      this.logger.warn(`Не вдалося опублікувати стан: ${String(error)}`);
+    }
   }
 
   private loadListings() {
@@ -578,50 +487,7 @@ export class MatchingService {
 }
 
 function variantData(listing: ListingInput) {
-  const { measure, netQuantity, packCount, isWeighted } = listing.quantity;
-  return {
-    measure,
-    netQuantity,
-    packCount,
-    isWeighted,
-    label:
-      measure && netQuantity
-        ? formatQuantity({ measure, netQuantity, packCount, isWeighted })
-        : 'фасування не вказано',
-  };
-}
-
-/**
- * Лінійка бренду — бренд і перші два слова назви без смаків:
- * "Паста сиркова … банан" і "… персик" → "Яготинське для дітей · паста сиркова";
- * "Coca-Cola Zero" і "Coca-Cola Cherry" → "Coca-Cola".
- */
-function lineBase(features: NameFeatures) {
-  const flavours = new Set(features.flavours.map((t) => t.norm));
-  return features.tokens.filter((t) => !flavours.has(t.norm)).slice(0, 2);
-}
-
-/**
- * Чим товар відрізняється всередині лінійки: слова поза назвою лінійки
- * (смак, "Спорт") і ознаки — "банан · 3,9%", "спорт · негазована", "Zero".
- */
-export function variantLabelOf(features: NameFeatures): string | null {
-  const base = new Set(lineBase(features).map((t) => t.norm));
-  const extra = features.tokens
-    .filter((t) => !base.has(t.norm))
-    .slice(0, 4)
-    .map((t) => t.surface);
-  return [...extra, ...features.attributeLabels].join(' · ') || null;
-}
-
-function lineOf(features: NameFeatures, brandName: string) {
-  const base = lineBase(features);
-  return {
-    slug: slugify(`${features.brand} ${base.map((t) => t.norm).join(' ')}`),
-    name: base.length
-      ? `${brandName} · ${base.map((t) => t.surface).join(' ')}`
-      : brandName,
-  };
+  return { ...listing.quantity, label: variantLabel(listing.quantity) };
 }
 
 function isUniqueViolation(error: unknown): boolean {

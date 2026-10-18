@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { CatalogController, MatchingController } from './catalog.controller';
 import { CatalogService } from './catalog.service';
-import { MatchingService } from './matching/matching.service';
+import { MatchingClient } from './matching/matching.client';
+import { ModerationService } from './matching/moderation.service';
 
 @Module({
   controllers: [CatalogController, MatchingController],
-  providers: [CatalogService, MatchingService],
-  exports: [MatchingService],
+  providers: [CatalogService, MatchingClient, ModerationService],
 })
 export class CatalogModule {}

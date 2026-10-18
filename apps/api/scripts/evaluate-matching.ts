@@ -19,8 +19,8 @@ import {
   ListingInput,
   quantityKey,
   THRESHOLDS,
-} from '../src/modules/catalog/matching/catalog-index';
-import { prepareListings } from '../src/modules/catalog/matching/prepare';
+  prepareListings,
+} from '@repo/matching';
 
 const AUTO_LEVELS = [0.8, 0.85, 0.9, 0.95];
 

@@ -1,5 +1,5 @@
 import { extractFeatures } from './features';
-import { variantLabelOf } from './matching.service';
+import { variantLabelOf } from './naming';
 
 describe('variantLabelOf', () => {
   it.each([

@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { MatchingService } from '../../catalog/matching/matching.service';
-import { RunEventDto, ScrapedProductDto } from '../dto/scraped-product.dto';
+import { RunEventMessage, ScrapedProductMessage } from '@repo/contracts';
 import { IngestionService } from './ingestion.service';
 
 const ATB = { id: 'chain-atb', slug: 'atb', name: 'АТБ' };
@@ -56,8 +56,8 @@ const EXISTING = {
 };
 
 function product(
-  overrides: Partial<ScrapedProductDto> = {},
-): ScrapedProductDto {
+  overrides: Partial<ScrapedProductMessage> = {},
+): ScrapedProductMessage {
   return {
     store: 'atb',
     external: '12345',
@@ -68,7 +68,7 @@ function product(
   };
 }
 
-function event(overrides: Partial<RunEventDto> = {}): RunEventDto {
+function event(overrides: Partial<RunEventMessage> = {}): RunEventMessage {
   return {
     kind: 'run_started',
     run_id: RUN_ID,

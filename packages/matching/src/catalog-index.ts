@@ -1,7 +1,6 @@
 import type { NameFeatures } from './features';
+import type { Measure } from './normalization/quantity';
 import { buildIdf, Idf, PairScore, scorePair } from './similarity';
-
-export type Measure = 'MASS' | 'VOLUME' | 'COUNT';
 
 export interface QuantityInfo {
   measure: Measure | null;

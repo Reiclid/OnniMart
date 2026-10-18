@@ -1,8 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { normalizeGtin } from '../catalog/normalization/gtin';
-import { formatQuantity, Measure } from '../catalog/normalization/quantity';
+import { formatQuantity, Measure, normalizeGtin } from '@repo/matching';
 import {
   ChainSummaryDto,
   ListingDetailsDto,

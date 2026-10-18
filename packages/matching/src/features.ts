@@ -1,11 +1,11 @@
-import { stripQuantity } from '../normalization/quantity';
+import { stripQuantity } from './normalization/quantity';
 import {
   fold,
   slugify,
   Token,
   tokenize,
   transliterate,
-} from '../normalization/text';
+} from './normalization/text';
 
 /**
  * Ознаки назви товару для нечіткого зіставлення:

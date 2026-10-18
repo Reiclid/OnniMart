@@ -2,13 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, PromoType } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { MatchingService } from '../../catalog/matching/matching.service';
-import { normalizeBarcodes } from '../../catalog/normalization/gtin';
 import {
   computeUnitPrice,
+  normalizeBarcodes,
   ParsedQuantity,
   parseQuantity,
-} from '../../catalog/normalization/quantity';
-import { RunEventDto, ScrapedProductDto } from '../dto/scraped-product.dto';
+} from '@repo/matching';
+import { RunEventMessage, ScrapedProductMessage } from '@repo/contracts';
 
 export type IngestResult = 'skipped' | 'unchanged' | 'changed';
 
@@ -30,7 +30,7 @@ export class IngestionService {
     private readonly matching: MatchingService,
   ) {}
 
-  async ingest(item: ScrapedProductDto): Promise<IngestResult> {
+  async ingest(item: ScrapedProductMessage): Promise<IngestResult> {
     if (!isValid(item)) {
       this.logger.warn(
         `Некоректне повідомлення від парсера: ${JSON.stringify(item)}`,
@@ -130,7 +130,7 @@ export class IngestionService {
   }
 
   /** Оновлює ScrapeRun за подією від парсера */
-  async handleRunEvent(event: RunEventDto): Promise<void> {
+  async handleRunEvent(event: RunEventMessage): Promise<void> {
     const runId = await this.existingRun(event.run_id);
     if (!runId) return;
 
@@ -196,7 +196,7 @@ export class IngestionService {
   }
 }
 
-function isValid(item: ScrapedProductDto): boolean {
+function isValid(item: ScrapedProductMessage): boolean {
   return (
     typeof item?.store === 'string' &&
     typeof item.external === 'string' &&
@@ -208,7 +208,7 @@ function isValid(item: ScrapedProductDto): boolean {
 }
 
 export function resolveQuantity(
-  item: ScrapedProductDto,
+  item: ScrapedProductMessage,
 ): ParsedQuantity | null {
   const unit = item.price_unit?.toLowerCase();
   if (unit === 'кг' || unit === 'kg') {

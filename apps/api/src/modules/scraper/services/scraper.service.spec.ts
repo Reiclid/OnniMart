@@ -1,6 +1,6 @@
 import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { SCRAPER_TASKS_QUEUE } from '../scraper.constants';
+import { SCRAPER_TASKS_QUEUE } from '@repo/contracts';
 import { ScraperService } from './scraper.service';
 
 type Args = any;

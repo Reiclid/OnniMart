@@ -1,4 +1,5 @@
-import type { ListingInput, Measure } from './catalog-index';
+import type { ListingInput } from './catalog-index';
+import type { Measure } from './normalization/quantity';
 import { buildBrandDictionary, detectBrand, extractFeatures } from './features';
 
 /** Картка мережі в тому вигляді, як її читає зіставлення з бази */

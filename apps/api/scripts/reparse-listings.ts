@@ -1,13 +1,13 @@
 // Повторно розбирає фасування і ціну за одиницю для всіх карток із збережених
 // сирих даних парсера (Listing.rawData) — без повторного скрейпінгу.
-// Потрібно після змін у catalog/normalization/quantity.ts.
+// Потрібно після змін у packages/matching/src/normalization/quantity.ts.
 //
 // Запуск: bun scripts/reparse-listings.ts
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
-import { computeUnitPrice } from '../src/modules/catalog/normalization/quantity';
-import type { ScrapedProductDto } from '../src/modules/scraper/dto/scraped-product.dto';
+import { computeUnitPrice } from '@repo/matching';
+import type { ScrapedProductMessage } from '@repo/contracts';
 import { resolveQuantity } from '../src/modules/scraper/services/ingestion.service';
 
 const prisma = new PrismaClient({
@@ -32,7 +32,7 @@ async function main() {
   for (const listing of listings) {
     if (!listing.rawData || listing.currentPrice === null) continue;
     const quantity = resolveQuantity(
-      listing.rawData as unknown as ScrapedProductDto,
+      listing.rawData as unknown as ScrapedProductMessage,
     );
     const unitPrice = computeUnitPrice(Number(listing.currentPrice), quantity);
     const same =

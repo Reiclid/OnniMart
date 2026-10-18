@@ -5,18 +5,15 @@ import {
   NotFoundException,
   OnModuleDestroy,
 } from '@nestjs/common';
-import Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { TriggerScraperResponseDto } from '../dto/trigger-scraper.dto';
-import { DEFAULT_REDIS_URL, SCRAPER_TASKS_QUEUE } from '../scraper.constants';
+import { SCRAPER_TASKS_QUEUE, ScraperTask } from '@repo/contracts';
+import { createRedis } from '../../../redis';
 
 @Injectable()
 export class ScraperService implements OnModuleDestroy {
   private readonly logger = new Logger(ScraperService.name);
-  private readonly redis = new Redis(
-    process.env.REDIS_URL ?? DEFAULT_REDIS_URL,
-    { lazyConnect: true },
-  );
+  private readonly redis = createRedis();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -53,7 +50,7 @@ export class ScraperService implements OnModuleDestroy {
       data: { chainId: chain.id, trigger },
     });
 
-    const task = {
+    const task: ScraperTask = {
       run_id: run.id,
       store: chain.slug,
       max_pages: maxPages ?? null,
