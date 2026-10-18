@@ -2,6 +2,11 @@ use serde::{Deserialize, Serialize};
 
 /// Черга завдань від API
 pub const TASKS_QUEUE: &str = "scraper:tasks";
+/// Завдання, яке воркер зараз виконує; видаляється після run_finished / run_failed
+pub const TASKS_PROCESSING: &str = "scraper:tasks:processing";
+/// Ознака життя воркера: run_id поточного запуску з TTL (див. ScrapeScheduler в API)
+pub const HEARTBEAT_KEY: &str = "scraper:heartbeat";
+pub const HEARTBEAT_TTL_SECS: u64 = 900;
 /// Черга результатів для API: товари та події запуску в одному списку,
 /// щоб "run_finished" гарантовано оброблявся після всіх товарів
 pub const RESULTS_QUEUE: &str = "scraper:results";
@@ -19,7 +24,7 @@ pub struct ScraperTask {
     pub crawl_delay_ms: Option<u64>,
 }
 
-/// Товар зі сторінки мережі. Поля — контракт з ScrapedProductDto в apps/api.
+/// Товар зі сторінки мережі. Поля — контракт з ScrapedProductMessage у packages/contracts.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ScrapedProduct {
     pub store: String,

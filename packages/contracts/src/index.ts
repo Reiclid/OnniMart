@@ -6,6 +6,10 @@
 
 /** Завдання для Rust-парсера (API → scraper) */
 export const SCRAPER_TASKS_QUEUE = 'scraper:tasks';
+/** Завдання, яке Rust-воркер зараз виконує */
+export const SCRAPER_TASKS_PROCESSING = 'scraper:tasks:processing';
+/** run_id поточного запуску з TTL 900 с; оновлюється з кожним товаром */
+export const SCRAPER_HEARTBEAT_KEY = 'scraper:heartbeat';
 /** Товари та події запуску (scraper → воркер). Один список, щоб run_finished ішов після товарів */
 export const SCRAPER_RESULTS_QUEUE = 'scraper:results';
 /** Повідомлення, яке воркер зараз обробляє; видаляється лише після запису в БД */

@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
   OnModuleDestroy,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { TriggerScraperResponseDto } from '../dto/trigger-scraper.dto';
@@ -46,6 +48,18 @@ export class ScraperService implements OnModuleDestroy {
       );
     }
 
+    // Мережа вже в черзі чи обходиться — другий запуск лише навантажив би сайт.
+    // Завислі запуски знімає ScrapeScheduler.reapLostRuns
+    const active = await this.prisma.scrapeRun.findFirst({
+      where: { chainId: chain.id, status: { in: ['QUEUED', 'RUNNING'] } },
+      select: { id: true },
+    });
+    if (active) {
+      throw new ConflictException(
+        `${chain.name} уже в черзі або обходиться (запуск ${active.id})`,
+      );
+    }
+
     const run = await this.prisma.scrapeRun.create({
       data: { chainId: chain.id, trigger },
     });
@@ -57,7 +71,20 @@ export class ScraperService implements OnModuleDestroy {
       crawl_delay_ms: chain.crawlDelayMs,
       created_at: new Date().toISOString(),
     };
-    await this.redis.lpush(SCRAPER_TASKS_QUEUE, JSON.stringify(task));
+    try {
+      await this.redis.lpush(SCRAPER_TASKS_QUEUE, JSON.stringify(task));
+    } catch (error) {
+      // Інакше запуск лишився б QUEUED назавжди й блокував мережу
+      await this.prisma.scrapeRun.update({
+        where: { id: run.id },
+        data: {
+          status: 'FAILED',
+          finishedAt: new Date(),
+          error: `Не вдалося поставити завдання в чергу: ${String(error)}`,
+        },
+      });
+      throw new ServiceUnavailableException('Redis недоступний');
+    }
 
     this.logger.log(`Задача на скрейпінг мережі [${store}] додана в чергу.`);
 

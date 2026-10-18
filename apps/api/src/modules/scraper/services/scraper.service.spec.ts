@@ -1,4 +1,10 @@
-import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SCRAPER_TASKS_QUEUE } from '@repo/contracts';
 import { ScraperService } from './scraper.service';
@@ -19,7 +25,7 @@ const CHAINS: Record<string, object> = {
 describe('ScraperService', () => {
   let prisma: {
     storeChain: { findUnique: jest.Mock };
-    scrapeRun: { create: jest.Mock };
+    scrapeRun: { create: jest.Mock; findFirst: jest.Mock; update: jest.Mock };
   };
   let redis: { lpush: jest.Mock; disconnect: jest.Mock };
   let service: ScraperService;
@@ -37,6 +43,8 @@ describe('ScraperService', () => {
       },
       scrapeRun: {
         create: jest.fn((_args: Args) => Promise.resolve({ id: 'run-1' })),
+        findFirst: jest.fn((_args: Args) => Promise.resolve(null)),
+        update: jest.fn((_args: Args) => Promise.resolve({})),
       },
     };
     redis = { lpush: jest.fn(() => Promise.resolve(1)), disconnect: jest.fn() };
@@ -88,5 +96,26 @@ describe('ScraperService', () => {
       BadRequestException,
     );
     expect(prisma.scrapeRun.create).not.toHaveBeenCalled();
+  });
+
+  it('не ставить другий запуск, поки мережа в черзі або обходиться', async () => {
+    prisma.scrapeRun.findFirst.mockResolvedValueOnce({ id: 'run-0' });
+    await expect(service.triggerScrape('silpo')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(prisma.scrapeRun.create).not.toHaveBeenCalled();
+  });
+
+  it('Redis недоступний — запуск позначається FAILED, а не висить QUEUED', async () => {
+    redis.lpush.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(service.triggerScrape('silpo')).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    expect(prisma.scrapeRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'run-1' },
+        data: expect.objectContaining({ status: 'FAILED' }),
+      }),
+    );
   });
 });

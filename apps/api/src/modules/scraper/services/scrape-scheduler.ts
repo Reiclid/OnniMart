@@ -4,7 +4,9 @@ import {
   OnApplicationBootstrap,
   OnModuleDestroy,
 } from '@nestjs/common';
+import { SCRAPER_HEARTBEAT_KEY } from '@repo/contracts';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { createRedis } from '../../../redis';
 import { ScraperService } from './scraper.service';
 
 /** Як часто перевіряти, чи не настав час для наступного обходу */
@@ -14,6 +16,11 @@ const CHECK_EVERY_MS = 10 * 60 * 1000;
  * Повний обхід усіх мереж одним воркером триває години, тож поріг великий.
  */
 const MIN_STALE_RUN_MS = 48 * 60 * 60 * 1000;
+/**
+ * RUNNING-запуск без heartbeat довше за це вважаємо втраченим (воркер парсера зник).
+ * Більше за TTL heartbeat (900 с), який парсер оновлює з кожним товаром.
+ */
+export const LOST_RUN_MS = 20 * 60 * 1000;
 
 export interface ChainSchedule {
   slug: string;
@@ -51,7 +58,9 @@ export class ScrapeScheduler
   implements OnApplicationBootstrap, OnModuleDestroy
 {
   private readonly logger = new Logger(ScrapeScheduler.name);
+  private readonly redis = createRedis();
   private timer?: NodeJS.Timeout;
+  private enabled = false;
   private intervalMs = 24 * 60 * 60 * 1000;
 
   constructor(
@@ -60,24 +69,58 @@ export class ScrapeScheduler
   ) {}
 
   onApplicationBootstrap() {
-    if (process.env.SCRAPE_SCHEDULE !== 'true') {
-      this.logger.log(
-        'Планувальник вимкнено (SCRAPE_SCHEDULE=true, щоб увімкнути)',
-      );
-      return;
-    }
+    this.enabled = process.env.SCRAPE_SCHEDULE === 'true';
     const hours = Number(process.env.SCRAPE_INTERVAL_HOURS);
     if (Number.isFinite(hours) && hours > 0)
       this.intervalMs = hours * 60 * 60 * 1000;
     this.logger.log(
-      `Планувальник: повний обхід кожні ${this.intervalMs / 3_600_000} год`,
+      this.enabled
+        ? `Планувальник: повний обхід кожні ${this.intervalMs / 3_600_000} год`
+        : 'Планувальник вимкнено (SCRAPE_SCHEDULE=true, щоб увімкнути); завислі запуски все одно знімаються',
     );
-    this.timer = setInterval(() => void this.tick(), CHECK_EVERY_MS);
-    void this.tick();
+    this.timer = setInterval(() => void this.maintain(), CHECK_EVERY_MS);
+    void this.maintain();
   }
 
   onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
+    this.redis.disconnect();
+  }
+
+  /** Кожні 10 хв: зняти втрачені запуски, далі — заплановані обходи (якщо увімкнено) */
+  async maintain(now = new Date()): Promise<void> {
+    await this.reapLostRuns(now);
+    if (this.enabled) await this.tick(now);
+  }
+
+  /** RUNNING-запуски без heartbeat парсера → FAILED, щоб не висіли й не блокували мережу */
+  async reapLostRuns(now = new Date()): Promise<string[]> {
+    try {
+      const runs = await this.prisma.scrapeRun.findMany({
+        where: {
+          status: 'RUNNING',
+          startedAt: { lt: new Date(now.getTime() - LOST_RUN_MS) },
+        },
+        select: { id: true },
+      });
+      if (runs.length === 0) return [];
+      const alive = await this.redis.get(SCRAPER_HEARTBEAT_KEY);
+      const lost = runs.map((r) => r.id).filter((id) => id !== alive);
+      if (lost.length === 0) return [];
+      await this.prisma.scrapeRun.updateMany({
+        where: { id: { in: lost }, status: 'RUNNING' },
+        data: {
+          status: 'FAILED',
+          finishedAt: now,
+          error: 'Воркер парсера не подає ознак життя (heartbeat)',
+        },
+      });
+      this.logger.warn(`Втрачені запуски → FAILED: ${lost.join(', ')}`);
+      return lost;
+    } catch (error) {
+      this.logger.error(`Перевірка завислих запусків: ${String(error)}`);
+      return [];
+    }
   }
 
   async tick(now = new Date()): Promise<string[]> {

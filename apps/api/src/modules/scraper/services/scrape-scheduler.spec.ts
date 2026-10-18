@@ -86,3 +86,44 @@ describe('ScrapeScheduler.tick', () => {
     );
   });
 });
+
+describe('ScrapeScheduler.reapLostRuns', () => {
+  beforeAll(() => Logger.overrideLogger(false));
+
+  function setup(heartbeat: string | null) {
+    const prisma = {
+      scrapeRun: {
+        findMany: jest.fn(() =>
+          Promise.resolve([{ id: 'run-a' }, { id: 'run-b' }]),
+        ),
+        updateMany: jest.fn((_args: unknown) => Promise.resolve({ count: 1 })),
+      },
+    };
+    const scheduler = new ScrapeScheduler(
+      prisma as unknown as PrismaService,
+      {} as ScraperService,
+    );
+    Object.assign(scheduler, {
+      redis: { get: jest.fn(() => Promise.resolve(heartbeat)) },
+    });
+    return { scheduler, prisma };
+  }
+
+  it('позначає FAILED запуски без heartbeat, живий не чіпає', async () => {
+    const { scheduler, prisma } = setup('run-b');
+    await expect(scheduler.reapLostRuns(NOW)).resolves.toEqual(['run-a']);
+    expect(prisma.scrapeRun.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ['run-a'] }, status: 'RUNNING' },
+      }),
+    );
+  });
+
+  it('heartbeat немає — втрачені всі старі RUNNING', async () => {
+    const { scheduler } = setup(null);
+    await expect(scheduler.reapLostRuns(NOW)).resolves.toEqual([
+      'run-a',
+      'run-b',
+    ]);
+  });
+});

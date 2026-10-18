@@ -9,17 +9,20 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use redis::AsyncCommands;
+use redis::Direction;
 use redis::aio::MultiplexedConnection;
 
 use crate::crawler::{CrawlOptions, CrawlStats, Sink, crawl};
 use crate::http::Fetcher;
 use crate::model::{
-    ProductMessage, RESULTS_QUEUE, RunEvent, ScrapedProduct, ScraperTask, TASKS_QUEUE,
+    HEARTBEAT_KEY, HEARTBEAT_TTL_SECS, ProductMessage, RESULTS_QUEUE, RunEvent, ScrapedProduct,
+    ScraperTask, TASKS_PROCESSING, TASKS_QUEUE,
 };
 use crate::sources::{SUPPORTED, Source};
 use crate::text::now_iso;
 
-const DEFAULT_DELAY_MS: u64 = 3000;
+/// Мінімальна пауза між запитами до одного сайту (docs/01-data-sources.md, правило 3)
+const MIN_DELAY_MS: u64 = 3000;
 
 const HELP: &str = "\
 OnniMart scraper
@@ -28,7 +31,7 @@ OnniMart scraper
   scraper_worker scrape <store> [опції]
       --max-pages N     не більше N сторінок на категорію
       --category TEXT   лише категорії, slug яких містить TEXT
-      --delay-ms N      пауза між запитами (за замовчуванням 3000)
+      --delay-ms N      пауза між запитами, не менше 3000 (за замовчуванням 3000)
       --json            вивести всі товари як JSON Lines
       --push            надіслати товари в Redis (scraper:results)
 ";
@@ -66,8 +69,16 @@ impl Sink for RedisSink {
     async fn product(&mut self, product: ScrapedProduct) -> Result<()> {
         let json = serde_json::to_string(&ProductMessage::new(&product, self.run_id.as_deref()))?;
         let _: () = self.con.lpush(RESULTS_QUEUE, json).await?;
+        if let Some(run_id) = &self.run_id {
+            heartbeat(&mut self.con, run_id).await?;
+        }
         Ok(())
     }
+}
+
+async fn heartbeat(con: &mut MultiplexedConnection, run_id: &str) -> Result<()> {
+    let _: () = con.set_ex(HEARTBEAT_KEY, run_id, HEARTBEAT_TTL_SECS).await?;
+    Ok(())
 }
 
 struct PrintSink {
@@ -100,9 +111,31 @@ async fn run_worker() -> Result<()> {
     let client = redis::Client::open(url)?;
     let mut con = client.get_multiplexed_async_connection().await?;
 
+    // Воркер упав посеред обходу: позначаємо той запуск як невдалий, а не перезапускаємо
+    // (багатогодинний обхід, що падає, інакше крутився б нескінченно)
+    let unfinished: Option<String> = con.lindex(TASKS_PROCESSING, -1).await?;
+    if let Some(raw) = unfinished {
+        if let Ok(task) = serde_json::from_str::<ScraperTask>(&raw) {
+            let event = RunEvent {
+                kind: "run_failed",
+                run_id: task.run_id,
+                store: task.store,
+                pages_fetched: 0,
+                items_seen: 0,
+                error: Some("воркер парсера перезапустився посеред обходу".into()),
+                at: now_iso(),
+            };
+            send_event(&mut con, &event).await?;
+        }
+        let _: () = con.lrem(TASKS_PROCESSING, -1, &raw).await?;
+    }
+
     loop {
-        let task: Option<(String, String)> = con.brpop(TASKS_QUEUE, 0.0).await?;
-        let Some((_, raw)) = task else { continue };
+        // Завдання лишається в TASKS_PROCESSING, доки обхід не завершиться
+        let raw: Option<String> = con
+            .blmove(TASKS_QUEUE, TASKS_PROCESSING, Direction::Right, Direction::Left, 0.0)
+            .await?;
+        let Some(raw) = raw else { continue };
         match serde_json::from_str::<ScraperTask>(&raw) {
             Ok(task) => {
                 if let Err(error) = handle_task(&mut con, task).await {
@@ -111,6 +144,7 @@ async fn run_worker() -> Result<()> {
             }
             Err(error) => eprintln!("[scraper] некоректне завдання {raw}: {error}"),
         }
+        let _: () = con.lrem(TASKS_PROCESSING, -1, &raw).await?;
     }
 }
 
@@ -126,10 +160,13 @@ async fn handle_task(con: &mut MultiplexedConnection, task: ScraperTask) -> Resu
         at: now_iso(),
     };
     send_event(con, &event("run_started", &CrawlStats::default(), None)).await?;
+    if let Some(run_id) = &task.run_id {
+        heartbeat(con, run_id).await?;
+    }
 
     let result = async {
         let source = source_for(&task.store)?;
-        let delay = Duration::from_millis(task.crawl_delay_ms.unwrap_or(DEFAULT_DELAY_MS));
+        let delay = polite_delay(task.crawl_delay_ms.unwrap_or(MIN_DELAY_MS));
         let mut fetcher = Fetcher::new(delay)?;
         let options = CrawlOptions { max_pages: task.max_pages, category: None };
         let mut sink = RedisSink { con: con.clone(), run_id: task.run_id.clone() };
@@ -151,6 +188,11 @@ async fn handle_task(con: &mut MultiplexedConnection, task: ScraperTask) -> Resu
     send_event(con, &finished).await
 }
 
+/// Пауза не менша за MIN_DELAY_MS, навіть якщо завдання чи CLI просять менше
+fn polite_delay(ms: u64) -> Duration {
+    Duration::from_millis(ms.max(MIN_DELAY_MS))
+}
+
 async fn send_event(con: &mut MultiplexedConnection, event: &RunEvent) -> Result<()> {
     let _: () = con.lpush(RESULTS_QUEUE, serde_json::to_string(event)?).await?;
     Ok(())
@@ -160,7 +202,7 @@ async fn run_cli(args: &[String]) -> Result<()> {
     let store = args.first().context("вкажіть мережу: scrape <store>")?;
     let source = source_for(store)?;
     let mut options = CrawlOptions::default();
-    let mut delay_ms = DEFAULT_DELAY_MS;
+    let mut delay_ms = MIN_DELAY_MS;
     let (mut json, mut push) = (false, false);
 
     let mut rest = args[1..].iter();
@@ -175,7 +217,7 @@ async fn run_cli(args: &[String]) -> Result<()> {
         }
     }
 
-    let mut fetcher = Fetcher::new(Duration::from_millis(delay_ms))?;
+    let mut fetcher = Fetcher::new(polite_delay(delay_ms))?;
     let stats = if push {
         let client = redis::Client::open(redis_url())?;
         let con = client.get_multiplexed_async_connection().await?;
@@ -195,4 +237,15 @@ async fn run_cli(args: &[String]) -> Result<()> {
         eprintln!("  - {error}");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn delay_is_never_below_minimum() {
+        assert_eq!(polite_delay(0), Duration::from_millis(MIN_DELAY_MS));
+        assert_eq!(polite_delay(5000), Duration::from_millis(5000));
+    }
 }
