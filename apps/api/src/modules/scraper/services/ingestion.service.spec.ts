@@ -152,6 +152,16 @@ describe('IngestionService', () => {
     expect(prisma.priceSnapshot.create).not.toHaveBeenCalled();
   });
 
+  it('ціна з трьома знаками не дає нового запису на кожному обході', async () => {
+    // У БД DECIMAL(12,2): 24.999 зберігається як 25.00
+    prisma.listing.findUnique.mockResolvedValue(EXISTING);
+
+    await expect(service.ingest(product({ price: 24.999 }))).resolves.toBe(
+      'unchanged',
+    );
+    expect(prisma.priceSnapshot.create).not.toHaveBeenCalled();
+  });
+
   it('записує знижку і дату закінчення акції', async () => {
     prisma.listing.findUnique.mockResolvedValue(EXISTING);
 

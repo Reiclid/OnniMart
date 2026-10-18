@@ -7,8 +7,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
       POSTGRES_DB: ${POSTGRES_DB:-onnimart}
+    # Лише з цього компʼютера: бази й черги не повинні бути видні в локальній мережі
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -26,7 +27,7 @@ services:
     container_name: onnimart-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
 
@@ -47,7 +48,7 @@ services:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterKey123}
       MEILI_ENV: development
     ports:
-      - "7700:7700"
+      - "127.0.0.1:7700:7700"
     volumes:
       - meili_data:/meili_data
 

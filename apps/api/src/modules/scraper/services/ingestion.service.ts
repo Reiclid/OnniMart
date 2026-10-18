@@ -54,9 +54,11 @@ export class IngestionService {
 
     const quantity = resolveQuantity(item);
     const barcodes = normalizeBarcodes(item.barcodes ?? []);
-    const price = item.price;
+    // Як у БД (DECIMAL(12,2)), інакше 24.999 ≠ 25.00 і запис історії на кожному обході
+    const price = toCents(item.price);
+    const oldPrice = item.old_price == null ? null : toCents(item.old_price);
     const regularPrice =
-      item.old_price != null && item.old_price > price ? item.old_price : null;
+      oldPrice !== null && oldPrice > price ? oldPrice : null;
     const unitPrice = computeUnitPrice(price, quantity);
     const inStock = item.in_stock ?? true;
     const isOnPromo = regularPrice !== null || Boolean(item.promo_label);
@@ -289,6 +291,10 @@ function parseOptionalDate(value?: string | null): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toCents(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function toNumberOrNull(value: unknown): number | null {
