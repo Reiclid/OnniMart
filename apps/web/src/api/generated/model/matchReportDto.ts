@@ -15,4 +15,8 @@ export interface MatchReportDto {
   review: number;
   newVariants: number;
   newProducts: number;
+  /** Картку тим часом зіставив хтось інший */
+  skipped: number;
+  /** Помилки окремих карток */
+  failed: number;
 }

@@ -157,6 +157,10 @@ export interface MatchReport {
   /** Додано як нове фасування наявного товару */
   newVariants: number;
   newProducts: number;
+  /** Картку тим часом зіставив хтось інший */
+  skipped: number;
+  /** Помилки окремих карток (деталі — у лозі воркера) */
+  failed: number;
 }
 
 /** Те, що воркер кладе в MATCHING_STATE_KEY */

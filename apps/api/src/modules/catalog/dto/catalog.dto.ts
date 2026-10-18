@@ -108,6 +108,9 @@ export class MatchReportDto {
   @ApiProperty() review!: number;
   @ApiProperty() newVariants!: number;
   @ApiProperty() newProducts!: number;
+  @ApiProperty({ description: 'Картку тим часом зіставив хтось інший' })
+  skipped!: number;
+  @ApiProperty({ description: 'Помилки окремих карток' }) failed!: number;
 }
 
 export class MatchMethodCountDto {

@@ -134,6 +134,8 @@ export class MatchingService implements OnModuleDestroy {
       review: 0,
       newVariants: 0,
       newProducts: 0,
+      skipped: 0,
+      failed: 0,
     };
 
     // Спершу картки зі штрихкодами: вони створюють надійні "якорі" для решти
@@ -154,7 +156,19 @@ export class MatchingService implements OnModuleDestroy {
     for (const row of pending) {
       const listing = inputs.get(row.id)!;
       const decision = index.decide(listing);
-      await this.apply(decision, row, listing, index, context);
+      try {
+        await this.apply(decision, row, listing, index, context);
+      } catch (error) {
+        // Одна картка не зупиняє весь пакет
+        if (error instanceof StaleListing) report.skipped++;
+        else {
+          report.failed++;
+          this.logger.error(
+            `Картка ${row.id} (${row.rawName}): ${(error as Error).stack ?? String(error)}`,
+          );
+        }
+        continue;
+      }
       report.processed++;
       if (decision.kind === 'barcode') report.byBarcode++;
       else if (decision.kind === 'fuzzy') report.fuzzy++;
@@ -168,7 +182,8 @@ export class MatchingService implements OnModuleDestroy {
     this.logger.log(
       `Зіставлення: ${report.processed} карток — штрихкод ${report.byBarcode}, ` +
         `схожість ${report.fuzzy}, модерація ${report.review}, ` +
-        `нових фасувань ${report.newVariants}, нових товарів ${report.newProducts}`,
+        `нових фасувань ${report.newVariants}, нових товарів ${report.newProducts}, ` +
+        `пропущено ${report.skipped}, помилок ${report.failed}`,
     );
     return report;
   }
@@ -275,34 +290,34 @@ export class MatchingService implements OnModuleDestroy {
     context: Awaited<ReturnType<MatchingService['loadCatalog']>>,
   ): Promise<void> {
     const now = new Date();
-    const link = (
+    const auto = (
       variantId: string,
       method: 'BARCODE' | 'FUZZY' | 'CREATED',
       score: number,
-    ) =>
-      this.prisma.listing.update({
-        where: { id: row.id },
-        data: {
-          variantId,
-          matchStatus: 'AUTO_MATCHED',
-          matchMethod: method,
-          matchScore: score,
-          matchedAt: now,
-        },
-      });
+    ) => ({
+      variantId,
+      matchStatus: 'AUTO_MATCHED' as const,
+      matchMethod: method,
+      matchScore: score,
+      matchedAt: now,
+    });
 
     switch (decision.kind) {
       case 'barcode':
       case 'fuzzy': {
         const score = decision.kind === 'fuzzy' ? decision.score : 1;
-        await this.prisma.$transaction([
-          link(
-            decision.variantId,
-            decision.kind === 'fuzzy' ? 'FUZZY' : 'BARCODE',
-            score,
-          ),
-          this.newBarcodes(decision.variantId, row, index),
-        ]);
+        await this.prisma.$transaction(async (tx) => {
+          await claim(
+            tx,
+            row.id,
+            auto(
+              decision.variantId,
+              decision.kind === 'fuzzy' ? 'FUZZY' : 'BARCODE',
+              score,
+            ),
+          );
+          await this.barcodesFor(decision.variantId, row, index, tx);
+        });
         this.register(index, decision.variantId, row, listing);
         return;
       }
@@ -328,17 +343,12 @@ export class MatchingService implements OnModuleDestroy {
             const created = await tx.productVariant.create({
               data: { productId: decision.productId, ...variantData(listing) },
             });
-            await tx.listing.update({
-              where: { id: row.id },
-              data: {
-                variantId: created.id,
-                matchStatus: 'AUTO_MATCHED',
-                // Картка — перша в новому фасуванні; схожість із товаром лишається в matchScore
-                matchMethod: 'CREATED',
-                matchScore: decision.score,
-                matchedAt: now,
-              },
-            });
+            // Картка — перша в новому фасуванні; схожість із товаром лишається в matchScore
+            await claim(
+              tx,
+              row.id,
+              auto(created.id, 'CREATED', decision.score),
+            );
             await this.barcodesFor(created.id, row, index, tx);
             return created;
           });
@@ -378,61 +388,66 @@ export class MatchingService implements OnModuleDestroy {
       : null;
     const variantLabel = variantLabelOf(features);
 
-    const { variant, productId } = await this.prisma.$transaction(
-      async (tx) => {
-        let brandId: string | null = null;
-        let lineId: string | null = null;
-        if (features.brand && brandName) {
-          brandId = context.brandIds.get(features.brand) ?? null;
-          if (!brandId) {
-            const brand = await tx.brand.upsert({
-              where: { slug: features.brand },
-              create: { slug: features.brand, name: brandName },
-              update: {},
-            });
-            brandId = brand.id;
-            context.brandIds.set(features.brand, brandId);
-          }
-          const line = lineOf(features, brandName);
-          lineId = context.lineIds.get(line.slug) ?? null;
-          if (!lineId) {
-            const created = await tx.productLine.upsert({
-              where: { slug: line.slug },
-              create: { slug: line.slug, name: line.name, brandId },
-              update: {},
-            });
-            lineId = created.id;
-            context.lineIds.set(line.slug, lineId);
-          }
+    const result = await this.prisma.$transaction(async (tx) => {
+      let brandId: string | null = null;
+      let lineId: string | null = null;
+      if (features.brand && brandName) {
+        brandId = context.brandIds.get(features.brand) ?? null;
+        if (!brandId) {
+          const brand = await tx.brand.upsert({
+            where: { slug: features.brand },
+            create: { slug: features.brand, name: brandName },
+            update: {},
+          });
+          brandId = brand.id;
         }
+        const line = lineOf(features, brandName);
+        lineId = context.lineIds.get(line.slug) ?? null;
+        if (!lineId) {
+          const created = await tx.productLine.upsert({
+            where: { slug: line.slug },
+            create: { slug: line.slug, name: line.name, brandId },
+            update: {},
+          });
+          lineId = created.id;
+        }
+      }
 
-        const product = await tx.product.create({
-          data: {
-            name,
-            slug: `${slugify(`${brandName ?? ''} ${name}`).slice(0, 80)}-${randomUUID().slice(0, 6)}`,
-            variantLabel,
-            imageUrl: row.imageUrl,
-            brandId,
-            lineId,
-            variants: { create: variantData(listing) },
-          },
-          include: { variants: true },
-        });
-        const created = product.variants[0];
-        await tx.listing.update({
-          where: { id: row.id },
-          data: {
-            variantId: created.id,
-            matchStatus: 'AUTO_MATCHED',
-            matchMethod: 'CREATED',
-            matchScore: 1,
-            matchedAt: new Date(),
-          },
-        });
-        await this.barcodesFor(created.id, row, index, tx);
-        return { variant: created, productId: product.id };
-      },
-    );
+      const product = await tx.product.create({
+        data: {
+          name,
+          slug: `${slugify(`${brandName ?? ''} ${name}`).slice(0, 80)}-${randomUUID().slice(0, 6)}`,
+          variantLabel,
+          imageUrl: row.imageUrl,
+          brandId,
+          lineId,
+          variants: { create: variantData(listing) },
+        },
+        include: { variants: true },
+      });
+      const created = product.variants[0];
+      await claim(tx, row.id, {
+        variantId: created.id,
+        matchStatus: 'AUTO_MATCHED',
+        matchMethod: 'CREATED',
+        matchScore: 1,
+        matchedAt: new Date(),
+      });
+      await this.barcodesFor(created.id, row, index, tx);
+      return {
+        variant: created,
+        productId: product.id,
+        brandId,
+        lineId,
+        lineSlug:
+          features.brand && brandName ? lineOf(features, brandName).slug : null,
+      };
+    });
+    if (features.brand && result.brandId)
+      context.brandIds.set(features.brand, result.brandId);
+    if (result.lineSlug && result.lineId)
+      context.lineIds.set(result.lineSlug, result.lineId);
+    const { variant, productId } = result;
 
     index.addProduct(productId, features, listing.country);
     index.addVariant(variant.id, productId, quantityKey(listing.quantity));
@@ -442,17 +457,6 @@ export class MatchingService implements OnModuleDestroy {
   /** Штрихкоди картки, яких ще немає в каталозі */
   private unknownBarcodes(row: Row, index: CatalogIndex): string[] {
     return row.barcodes.filter((gtin) => !index.barcodeOwner(gtin));
-  }
-
-  private newBarcodes(variantId: string, row: Row, index: CatalogIndex) {
-    return this.prisma.barcode.createMany({
-      data: this.unknownBarcodes(row, index).map((gtin) => ({
-        gtin,
-        variantId,
-        source: row.chain.slug,
-      })),
-      skipDuplicates: true,
-    });
   }
 
   private async barcodesFor(
@@ -484,6 +488,22 @@ export class MatchingService implements OnModuleDestroy {
       listing.chainId,
     );
   }
+}
+
+/** Картку вже зіставив хтось інший (модератор, прийом даних) — знімок пакета застарів */
+export class StaleListing extends Error {}
+
+/** Записує рішення, лише якщо картка досі не зіставлена; інакше відкочує транзакцію */
+export async function claim(
+  tx: Prisma.TransactionClient,
+  listingId: string,
+  data: Prisma.ListingUpdateManyMutationInput & { variantId: string },
+): Promise<void> {
+  const { count } = await tx.listing.updateMany({
+    where: { id: listingId, variantId: null },
+    data,
+  });
+  if (count === 0) throw new StaleListing();
 }
 
 function variantData(listing: ListingInput) {

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { MatchingClient } from './matching.client';
 
@@ -17,6 +21,12 @@ export class ModerationService {
       include: { listing: { include: { chain: { select: { slug: true } } } } },
     });
     if (!candidate) throw new NotFoundException('Кандидата не знайдено');
+    // Застаріла вкладка модератора: рішення вже ухвалено або картку вже зіставлено
+    if (candidate.status !== 'SUGGESTED' || candidate.listing.variantId) {
+      throw new ConflictException(
+        'Кандидат уже неактуальний — оновіть сторінку',
+      );
+    }
     const now = new Date();
     await this.prisma.$transaction([
       this.prisma.matchCandidate.update({
