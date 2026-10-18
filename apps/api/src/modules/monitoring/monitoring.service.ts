@@ -3,6 +3,7 @@ import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { formatQuantity, Measure, normalizeGtin } from '@repo/matching';
 import {
+  ChainStatus,
   ChainSummaryDto,
   ListingDetailsDto,
   ListingPageDto,
@@ -73,9 +74,16 @@ export class MonitoringService {
     };
   }
 
-  async getChains(): Promise<ChainSummaryDto[]> {
+  async getChains(
+    statuses?: ChainStatus[],
+    country?: string,
+  ): Promise<ChainSummaryDto[]> {
     const [chains, promoCounts, lastRuns] = await Promise.all([
       this.prisma.storeChain.findMany({
+        where: {
+          ...(statuses && { status: { in: statuses } }),
+          ...(country && { countryCode: country.toUpperCase() }),
+        },
         orderBy: [{ countryCode: 'desc' }, { name: 'asc' }],
         include: { _count: { select: { listings: true } } },
       }),
@@ -107,6 +115,9 @@ export class MonitoringService {
         countryCode: chain.countryCode,
         currency: chain.currency,
         scrapeEnabled: chain.scrapeEnabled,
+        status: chain.status,
+        onlinePrices: chain.onlinePrices,
+        notes: chain.notes,
         listingsCount: chain._count.listings,
         promoCount: promoByChain.get(chain.id) ?? 0,
         lastRun: run ? toRunDto(run) : null,

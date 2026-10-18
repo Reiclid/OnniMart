@@ -23,12 +23,26 @@ datasource db {
 // Довідники
 // ============================================================
 
-/// ISO 4217
-enum Currency {
-  UAH
-  EUR
-  PLN
-  USD
+/// Стан мережі в реєстрі: від кандидата (docs/04-retail-chains.md) до робочого парсера
+enum ChainStatus {
+  /// Парсер працює, мережа обходиться
+  ACTIVE
+  /// Парсер є, але збір вимкнено (сайт не працює, тимчасові проблеми)
+  PAUSED
+  /// Кандидат на розширення: robots.txt, антибот і умови ще не перевірені
+  CANDIDATE
+  /// Не парситься: антибот-захист, заборона robots.txt, лише застосунок, санкції
+  RULED_OUT
+}
+
+/// Чи публікує мережа ціни онлайн (попередня оцінка до аудиту)
+enum OnlinePrices {
+  /// Онлайн-магазин або каталог з цінами всього асортименту
+  FULL
+  /// Лише акції / листівки або ціни конкретного магазину
+  PARTIAL
+  /// Невідомо
+  UNKNOWN
 }
 
 /// Що саме вимірюємо. Кількість завжди зберігається в базових одиницях:
@@ -41,9 +55,10 @@ enum Measure {
 
 model Country {
   /// ISO 3166-1 alpha-2: UA, DE, PL
-  code     String   @id @db.Char(2)
+  code     String @id @db.Char(2)
   name     String
-  currency Currency
+  /// ISO 4217: UAH, EUR, USD, JPY…
+  currency String @db.Char(3)
 
   chains StoreChain[]
 
@@ -58,7 +73,14 @@ model StoreChain {
   website     String
   logoUrl     String?
   countryCode String   @db.Char(2)
-  currency    Currency
+  /// ISO 4217
+  currency    String   @db.Char(3)
+
+  // Реєстр мереж (усі відомі мережі, не лише ті, що парсяться)
+  status       ChainStatus  @default(CANDIDATE)
+  onlinePrices OnlinePrices @default(UNKNOWN)
+  /// Чому вимкнено / відкинуто, що перевірити, звідки брати дані
+  notes        String?
 
   // Параметри збору даних (див. docs/01-data-sources.md)
   scrapeEnabled   Boolean   @default(false)
@@ -74,6 +96,8 @@ model StoreChain {
   listings   Listing[]
   scrapeRuns ScrapeRun[]
 
+  @@index([countryCode])
+  @@index([status])
   @@map("store_chains")
 }
 

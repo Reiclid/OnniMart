@@ -20,7 +20,8 @@ export default async function DashboardPage() {
   const [{ data: stats }, { data: chains }, { data: runs }, { data: matching }] =
     await Promise.all([
       getStats(),
-      getChains(),
+      // Реєстр містить сотні кандидатів — на огляді лише мережі з парсером
+      getChains({ status: ['ACTIVE', 'PAUSED'] }),
       getScrapeRuns({ limit: 15 }),
       getMatchingStatus(),
     ]);

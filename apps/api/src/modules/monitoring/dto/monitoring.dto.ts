@@ -29,6 +29,14 @@ export class ScrapeRunDto {
   @ApiProperty({ type: String, nullable: true }) error!: string | null;
 }
 
+export const CHAIN_STATUSES = [
+  'ACTIVE',
+  'PAUSED',
+  'CANDIDATE',
+  'RULED_OUT',
+] as const;
+export type ChainStatus = (typeof CHAIN_STATUSES)[number];
+
 export class ChainSummaryDto {
   @ApiProperty() id!: string;
   @ApiProperty() slug!: string;
@@ -37,6 +45,18 @@ export class ChainSummaryDto {
   @ApiProperty() countryCode!: string;
   @ApiProperty() currency!: string;
   @ApiProperty() scrapeEnabled!: boolean;
+  @ApiProperty({
+    enum: CHAIN_STATUSES,
+    description:
+      'ACTIVE — парсер працює; PAUSED — вимкнено; CANDIDATE — не перевірено; RULED_OUT — не парситься',
+  })
+  status!: ChainStatus;
+  @ApiProperty({
+    enum: ['FULL', 'PARTIAL', 'UNKNOWN'],
+    description: 'Ціни онлайн: увесь асортимент, лише акції/магазин, невідомо',
+  })
+  onlinePrices!: string;
+  @ApiProperty({ type: String, nullable: true }) notes!: string | null;
   @ApiProperty() listingsCount!: number;
   @ApiProperty() promoCount!: number;
   @ApiProperty({ type: ScrapeRunDto, nullable: true })

@@ -5,6 +5,8 @@
  * API для моніторингу цін та скрейпінгу
  * OpenAPI spec version: 1.0
  */
+import type { ChainSummaryDtoOnlinePrices } from './chainSummaryDtoOnlinePrices';
+import type { ChainSummaryDtoStatus } from './chainSummaryDtoStatus';
 import type { ScrapeRunDto } from './scrapeRunDto';
 
 export interface ChainSummaryDto {
@@ -15,6 +17,12 @@ export interface ChainSummaryDto {
   countryCode: string;
   currency: string;
   scrapeEnabled: boolean;
+  /** ACTIVE — парсер працює; PAUSED — вимкнено; CANDIDATE — не перевірено; RULED_OUT — не парситься */
+  status: ChainSummaryDtoStatus;
+  /** Ціни онлайн: увесь асортимент, лише акції/магазин, невідомо */
+  onlinePrices: ChainSummaryDtoOnlinePrices;
+  /** @nullable */
+  notes: string | null;
   listingsCount: number;
   promoCount: number;
   /** @nullable */

@@ -1,137 +1,17 @@
-// Початкові дані: країни, мережі (за результатами аудиту robots.txt — docs/01-data-sources.md),
-// базові категорії. Каталог товарів наповнює зіставлення (src/modules/catalog/matching).
+// Початкові дані: країни, реєстр мереж (prisma/data/chains.ts: робочі парсери й кандидати
+// з docs/04-retail-chains.md), базові категорії. Каталог товарів наповнює зіставлення (src/modules/catalog/matching).
 // Запуск: bun run dev:seed (з кореня репозиторію)
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
+import { CHAINS } from './data/chains';
+import { COUNTRIES } from './data/countries';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
 const ROBOTS_CHECKED_AT = new Date('2026-10-11T00:00:00Z');
-
-type ChainSeed = {
-  slug: string;
-  name: string;
-  website: string;
-  countryCode: 'UA' | 'DE';
-  /** Чи є готовий парсер у apps/scraper */
-  scrapeEnabled?: boolean;
-  crawlDelayMs?: number;
-};
-
-const CHAINS: ChainSeed[] = [
-  // Україна
-  {
-    slug: 'silpo',
-    name: 'Сільпо',
-    website: 'https://silpo.ua',
-    countryCode: 'UA',
-    scrapeEnabled: true,
-  },
-  {
-    slug: 'novus',
-    name: 'NOVUS',
-    website: 'https://novus.zakaz.ua',
-    countryCode: 'UA',
-    scrapeEnabled: true,
-  },
-  {
-    slug: 'auchan',
-    name: 'Ашан',
-    website: 'https://auchan.zakaz.ua',
-    countryCode: 'UA',
-    scrapeEnabled: true,
-  },
-  {
-    slug: 'metro-ua',
-    name: 'METRO',
-    website: 'https://metro.zakaz.ua',
-    countryCode: 'UA',
-    scrapeEnabled: true,
-  },
-  {
-    slug: 'eko',
-    name: 'ЕКО маркет',
-    website: 'https://eko.zakaz.ua',
-    countryCode: 'UA',
-    scrapeEnabled: true,
-  },
-  {
-    slug: 'megamarket',
-    name: 'МегаМаркет',
-    website: 'https://megamarket.zakaz.ua',
-    countryCode: 'UA',
-    scrapeEnabled: true,
-  },
-  {
-    slug: 'varus',
-    name: 'VARUS',
-    website: 'https://varus.ua',
-    countryCode: 'UA',
-    scrapeEnabled: true,
-  },
-  // Парсер є, але сайт на технічних роботах (жовтень 2026)
-  {
-    slug: 'atb',
-    name: 'АТБ',
-    website: 'https://www.atbmarket.com',
-    countryCode: 'UA',
-  },
-  // Німеччина
-  {
-    slug: 'aldi-sued',
-    name: 'ALDI SÜD',
-    website: 'https://www.aldi-sued.de',
-    countryCode: 'DE',
-    scrapeEnabled: true,
-  },
-  {
-    slug: 'aldi-nord',
-    name: 'ALDI Nord',
-    website: 'https://www.aldi-nord.de',
-    countryCode: 'DE',
-    scrapeEnabled: true,
-  },
-  {
-    slug: 'globus-de',
-    name: 'Globus',
-    website: 'https://produkte.globus.de',
-    countryCode: 'DE',
-    scrapeEnabled: true,
-  },
-  // Lidl не публікує ціни на продукти онлайн — беремо їх з Open Prices (prices.openfoodfacts.org)
-  {
-    slug: 'lidl-de',
-    name: 'Lidl',
-    website: 'https://www.lidl.de',
-    countryCode: 'DE',
-    scrapeEnabled: true,
-  },
-  // Kaufland, PENNY, NORMA публікують лише щотижневі акції, повного асортименту з цінами немає
-  {
-    slug: 'kaufland-de',
-    name: 'Kaufland',
-    website: 'https://filiale.kaufland.de',
-    countryCode: 'DE',
-    scrapeEnabled: true,
-  },
-  {
-    slug: 'penny-de',
-    name: 'PENNY',
-    website: 'https://www.penny.de',
-    countryCode: 'DE',
-    scrapeEnabled: true,
-  },
-  {
-    slug: 'norma-de',
-    name: 'NORMA',
-    website: 'https://www.norma-online.de',
-    countryCode: 'DE',
-    scrapeEnabled: true,
-  },
-];
 
 const CATEGORIES: { slug: string; name: string; parent?: string }[] = [
   { slug: 'drinks', name: 'Напої' },
@@ -150,29 +30,33 @@ const CATEGORIES: { slug: string; name: string; parent?: string }[] = [
 ];
 
 async function seedCountries() {
-  await prisma.country.upsert({
-    where: { code: 'UA' },
-    create: { code: 'UA', name: 'Україна', currency: 'UAH' },
-    update: {},
-  });
-  await prisma.country.upsert({
-    where: { code: 'DE' },
-    create: { code: 'DE', name: 'Німеччина', currency: 'EUR' },
-    update: {},
-  });
+  for (const country of COUNTRIES) {
+    await prisma.country.upsert({
+      where: { code: country.code },
+      create: country,
+      update: { name: country.name, currency: country.currency },
+    });
+  }
 }
 
 async function seedChains() {
+  const currency = new Map(COUNTRIES.map((c) => [c.code, c.currency]));
   for (const chain of CHAINS) {
     const data = {
       name: chain.name,
       website: chain.website,
       countryCode: chain.countryCode,
-      currency:
-        chain.countryCode === 'UA' ? ('UAH' as const) : ('EUR' as const),
-      scrapeEnabled: chain.scrapeEnabled ?? false,
+      currency: currency.get(chain.countryCode)!,
+      status: chain.status,
+      onlinePrices: chain.onlinePrices,
+      notes: chain.notes ?? null,
+      // Обходимо лише мережі з робочим парсером
+      scrapeEnabled: chain.status === 'ACTIVE',
       crawlDelayMs: chain.crawlDelayMs ?? 3000,
-      robotsCheckedAt: ROBOTS_CHECKED_AT,
+      robotsCheckedAt:
+        chain.status === 'ACTIVE' || chain.status === 'PAUSED'
+          ? ROBOTS_CHECKED_AT
+          : null,
     };
     await prisma.storeChain.upsert({
       where: { slug: chain.slug },
@@ -206,7 +90,7 @@ async function main() {
   await seedChains();
   await seedCategories();
   console.log(
-    `Seed завершено: ${CHAINS.length} мереж, ${CATEGORIES.length} категорій`,
+    `Seed завершено: ${COUNTRIES.length} країн, ${CHAINS.length} мереж, ${CATEGORIES.length} категорій`,
   );
 }
 

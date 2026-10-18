@@ -7,6 +7,7 @@
  */
 import type {
   ChainSummaryDto,
+  GetChainsParams,
   GetListingsParams,
   GetScrapeRunsParams,
   ListingDetailsDto,
@@ -64,20 +65,35 @@ export type getChainsResponseSuccess = (getChainsResponse200) & {
 
 export type getChainsResponse = (getChainsResponseSuccess)
 
-export const getGetChainsUrl = () => {
+export const getGetChainsUrl = (params?: GetChainsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["status"];
 
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
-  return `http://localhost:3001/api/v1/chains`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `http://localhost:3001/api/v1/chains?${stringifiedParams}` : `http://localhost:3001/api/v1/chains`
 }
 
 /**
  * @summary Мережі з кількістю товарів і останнім запуском
  */
-export const getChains = async ( options?: Parameters<typeof customFetch>[1]): Promise<getChainsResponse> => {
+export const getChains = async (params?: GetChainsParams, options?: Parameters<typeof customFetch>[1]): Promise<getChainsResponse> => {
 
-  return customFetch<getChainsResponse>(getGetChainsUrl(),
+  return customFetch<getChainsResponse>(getGetChainsUrl(params),
   {
     ...options,
     method: 'GET'

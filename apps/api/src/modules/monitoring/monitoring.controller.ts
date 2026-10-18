@@ -9,6 +9,19 @@ import {
   StatsDto,
 } from './dto/monitoring.dto';
 import { MonitoringService } from './monitoring.service';
+import { CHAIN_STATUSES, ChainStatus } from './dto/monitoring.dto';
+
+/** "ACTIVE,PAUSED" або ?status=ACTIVE&status=PAUSED → відомі статуси */
+function parseStatuses(value?: string | string[]): ChainStatus[] | undefined {
+  if (!value) return undefined;
+  const list = (Array.isArray(value) ? value : [value])
+    .flatMap((v) => v.split(','))
+    .map((v) => v.trim().toUpperCase());
+  const known = list.filter((v): v is ChainStatus =>
+    (CHAIN_STATUSES as readonly string[]).includes(v),
+  );
+  return known.length ? known : undefined;
+}
 
 @ApiTags('monitoring')
 @Controller('api/v1')
@@ -28,8 +41,23 @@ export class MonitoringController {
     operationId: 'getChains',
   })
   @ApiResponse({ status: 200, type: [ChainSummaryDto] })
-  getChains(): Promise<ChainSummaryDto[]> {
-    return this.monitoring.getChains();
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: CHAIN_STATUSES,
+    isArray: true,
+    description: 'Лише мережі з цими статусами (через кому)',
+  })
+  @ApiQuery({
+    name: 'country',
+    required: false,
+    description: 'ISO 3166-1 alpha-2',
+  })
+  getChains(
+    @Query('status') status?: string | string[],
+    @Query('country') country?: string,
+  ): Promise<ChainSummaryDto[]> {
+    return this.monitoring.getChains(parseStatuses(status), country);
   }
 
   @Get('scrape-runs')
