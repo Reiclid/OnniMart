@@ -147,6 +147,10 @@ export function scorePair(
   if (conflict) return { score: 0, name: 0, brand: 0, conflict };
   const brand = brandSimilarity(a.brand, b.brand);
   if (brand === 0) return { score: 0, name: 0, brand: 0, conflict: 'brand' };
+  // Ні бренду, ні значущих слів ("Пакет 0,5 л") — порівнювати нічого
+  if (!a.brand && !b.brand && !a.tokens.length && !b.tokens.length) {
+    return { score: 0, name: 0, brand, conflict: 'empty' };
+  }
   const name = nameSimilarity(
     a.tokens.map((t) => t.norm),
     b.tokens.map((t) => t.norm),

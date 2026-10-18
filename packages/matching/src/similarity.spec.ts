@@ -96,6 +96,14 @@ describe('scorePair на реальних назвах', () => {
   const score = (a: [string, string?], b: [string, string?]) =>
     scorePair(extractFeatures(...a), extractFeatures(...b), flat).score;
 
+  it('назви лише зі службових слів і без бренду — не той самий товар', () => {
+    expect(score(['Пакет 0,5 л'], ['Пляшка ПЕТ 0,5 л'])).toBe(0);
+  });
+
+  it('лише бренд з обох боків — той самий товар', () => {
+    expect(score(['Coca-Cola 0,5л', 'Coca-Cola'], ['Coca-Cola 0,5 л', 'Coca-Cola'])).toBe(1);
+  });
+
   it('Сільпо і Ашан: та сама вода', () => {
     expect(
       score(
