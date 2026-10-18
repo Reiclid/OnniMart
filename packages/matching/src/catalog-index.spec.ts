@@ -1,6 +1,7 @@
 import {
   CatalogIndex,
   ListingInput,
+  matchKeys,
   quantityKey,
   QuantityInfo,
 } from './catalog-index';
@@ -177,5 +178,36 @@ describe('CatalogIndex.decide', () => {
     // Zero — інший товар; часткові збіги між мовами на модерацію не йдуть
     expect(index.decide(de('Cola Zero 1,25 l')).kind).toBe('product');
     expect(index.decide(de('Cola Mix 1,25 l')).kind).toBe('product');
+  });
+});
+
+describe('matchKeys', () => {
+  const key = quantityKey(LITRE_1_5);
+
+  it('ключі пошуку — фасування зі словом і бренд', () => {
+    const keys = matchKeys(
+      key,
+      extractFeatures('Вода мінеральна Моршинська негазована 1,5л', 'Моршинська'),
+    );
+    expect(keys).toContain('VOLUME:1500:1|вода');
+    expect(keys).toContain('VOLUME:1500:1|міне');
+    expect(keys).toContain('b:morshynska');
+  });
+
+  it('ті самі ключі знаходять кандидата, що й блоки CatalogIndex', () => {
+    const stored = listing('Вода мінеральна Моршинська негазована 1,5л', 'Моршинська');
+    const incoming = listing('Мінеральна вода «Моршинська» негазована', 'Моршинська', {
+      chainId: 'silpo',
+    });
+    const shared = matchKeys(key, stored.features).filter((k) =>
+      matchKeys(key, incoming.features).includes(k),
+    );
+    expect(shared.length).toBeGreaterThan(0);
+
+    const index = new CatalogIndex();
+    index.addProduct('p1', stored.features, 'UA');
+    index.addVariant('v1', 'p1', key);
+    index.addName('v1', stored.features, 'UA', stored.chainId);
+    expect(index.scoreCandidates(incoming).map((c) => c.variantId)).toEqual(['v1']);
   });
 });

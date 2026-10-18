@@ -113,6 +113,11 @@ export class CatalogIndex {
     this.idfs.set(country, buildIdf(documents));
   }
 
+  /** Готовий IDF (кешований між пакетами інкрементального зіставлення) */
+  setIdf(country: string, idf: Idf): void {
+    this.idfs.set(country, idf);
+  }
+
   idf(country: string): Idf {
     let idf = this.idfs.get(country);
     if (!idf) {
@@ -129,7 +134,8 @@ export class CatalogIndex {
       this.products.set(id, product);
     }
     product.countries.add(country);
-    if (features.brand) this.block(this.productBlocks, features.brand, id);
+    const brand = brandBlockKey(features);
+    if (brand) this.block(this.productBlocks, brand, id);
   }
 
   addVariant(id: string, productId: string, quantity: string): void {
@@ -164,18 +170,14 @@ export class CatalogIndex {
     variant.names.push(features);
     variant.countries.add(country);
     if (chainId) variant.chains.add(chainId);
-    for (const stem of stems(features)) {
-      this.block(
-        this.variantBlocks,
-        `${variant.quantityKey}|${stem}`,
-        variantId,
-      );
+    for (const key of variantBlockKeys(variant.quantityKey, features)) {
+      this.block(this.variantBlocks, key, variantId);
     }
     const product = this.products.get(variant.productId);
     if (product) {
       product.countries.add(country);
-      if (features.brand)
-        this.block(this.productBlocks, features.brand, product.id);
+      const brand = brandBlockKey(features);
+      if (brand) this.block(this.productBlocks, brand, product.id);
     }
   }
 
@@ -199,10 +201,8 @@ export class CatalogIndex {
     const idf = this.idf(listing.country);
     const key = quantityKey(listing.quantity);
     const ids = new Set<string>();
-    for (const stem of stems(listing.features)) {
-      for (const id of this.variantBlocks.get(`${key}|${stem}`) ?? []) {
-        ids.add(id);
-      }
+    for (const block of variantBlockKeys(key, listing.features)) {
+      for (const id of this.variantBlocks.get(block) ?? []) ids.add(id);
     }
 
     const scored: CandidateScore[] = [];
@@ -283,11 +283,12 @@ export class CatalogIndex {
   private bestProduct(
     listing: ListingInput,
   ): { productId: string; score: number } | null {
-    if (!listing.features.brand) return null;
+    const brand = brandBlockKey(listing.features);
+    if (!brand) return null;
     const key = quantityKey(listing.quantity);
     const idf = this.idf(listing.country);
     let best: { productId: string; score: number } | null = null;
-    for (const id of this.productBlocks.get(listing.features.brand) ?? []) {
+    for (const id of this.productBlocks.get(brand) ?? []) {
       const product = this.products.get(id)!;
       if (product.quantityKeys.has(key)) continue;
       const { score } = scorePair(listing.features, product.features, idf);
@@ -319,4 +320,26 @@ export class CatalogIndex {
 function stems(features: NameFeatures): string[] {
   if (features.tokens.length === 0) return ['∅'];
   return [...new Set(features.tokens.map((t) => t.norm.slice(0, 4)))];
+}
+
+/** Блоки кандидатів-фасувань: "VOLUME:500:1|морш" — те саме фасування й спільне слово */
+export function variantBlockKeys(
+  quantity: string,
+  features: NameFeatures,
+): string[] {
+  return stems(features).map((stem) => `${quantity}|${stem}`);
+}
+
+/** Блок товарів того самого бренду (для нового фасування наявного товару) */
+export function brandBlockKey(features: NameFeatures): string | null {
+  return features.brand ? `b:${features.brand}` : null;
+}
+
+/**
+ * Ключі пошуку, які зберігаються в БД (match_keys), щоб інкрементальне зіставлення
+ * відбирало кандидатів без завантаження всього каталогу. Ті самі, що блоки CatalogIndex.
+ */
+export function matchKeys(quantity: string, features: NameFeatures): string[] {
+  const brand = brandBlockKey(features);
+  return [...variantBlockKeys(quantity, features), ...(brand ? [brand] : [])];
 }

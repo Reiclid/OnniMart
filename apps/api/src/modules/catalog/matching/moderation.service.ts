@@ -60,6 +60,8 @@ export class ModerationService {
         skipDuplicates: true,
       }),
     ]);
+    // Воркер допише ключі пошуку з назви цієї картки (match_keys)
+    await this.matching.request();
   }
 
   /** Модератор відхилив усіх кандидатів — картка стане окремим товаром */
@@ -98,6 +100,8 @@ export class ModerationService {
         },
         update: { status: 'REJECTED', decidedAt: new Date() },
       });
+      // Ключі з назви картки належали старому фасуванню
+      await tx.matchKey.deleteMany({ where: { listingId } });
       await tx.listing.update({
         where: { id: listingId },
         data: {

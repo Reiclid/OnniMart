@@ -9,12 +9,19 @@ import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { createRedis } from '../../../redis';
 import {
+  BrandDictionaries,
+  buildDictionaries,
+  buildIdf,
   CatalogIndex,
+  detectBrand,
   extractFeatures,
+  Idf,
   lineOf,
   ListingInput,
+  listingInput,
   MatchDecision,
-  prepareListings,
+  matchKeys,
+  QuantityInfo,
   quantityKey,
   slugify,
   stripQuantity,
@@ -22,7 +29,47 @@ import {
   variantLabelOf,
 } from '@repo/matching';
 
-type Row = Awaited<ReturnType<MatchingService['loadListings']>>[number];
+const rowSelect = {
+  id: true,
+  chainId: true,
+  rawName: true,
+  rawBrand: true,
+  imageUrl: true,
+  barcodes: true,
+  measure: true,
+  netQuantity: true,
+  packCount: true,
+  isWeighted: true,
+  chain: { select: { slug: true, countryCode: true } },
+} satisfies Prisma.ListingSelect;
+
+type Row = Prisma.ListingGetPayload<{ select: typeof rowSelect }>;
+
+const quantitySelect = {
+  measure: true,
+  netQuantity: true,
+  packCount: true,
+  isWeighted: true,
+} satisfies Prisma.ProductVariantSelect;
+
+/** Словник брендів, IDF і написання брендів — за назвами всіх карток */
+interface Vocabulary {
+  builtAt: number;
+  dictionaries: BrandDictionaries;
+  idfs: Map<string, Idf>;
+  /** Як бренд записаний у мережах: ключ → перша назва ("coca-cola" → "Coca-Cola") */
+  brandNames: Map<string, string>;
+}
+
+/**
+ * shortcut: словник і IDF перебудовуються з назв усіх карток раз на добу (і при старті
+ * воркера); на мільйонах карток — зберігати частоти слів у таблиці й оновлювати при прийомі.
+ */
+const VOCABULARY_TTL_MS = 24 * 60 * 60 * 1000;
+/** Скільки фасувань / карток обробляти за раз під час заповнення match_keys */
+const KEYS_CHUNK = 2000;
+/** Не більше стількох значень в одному `IN (...)` */
+const IN_CHUNK = 5000;
 
 /**
  * Зіставлення карток мереж з каталогом (docs/02-database.md):
@@ -31,7 +78,13 @@ type Row = Awaited<ReturnType<MatchingService['loadListings']>>[number];
  *   3. 0,70–0,90 → кандидати в чергу модерації;
  *   4. той самий бренд і назва, але інше фасування → нове фасування товару;
  *   5. інакше → новий товар у каталозі.
- * Працює пакетно у воркері (src/worker.ts): після кожного запуску парсера і на запит API
+ *
+ * Інкрементально: каталог — постійна база, а кожен пакет читає лише нові картки й ті
+ * фасування, з якими вони мають спільний ключ пошуку (match_keys: фасування + слово,
+ * бренд) або штрихкод. Рішення ті самі, що й при завантаженні всього каталогу, бо
+ * CatalogIndex і так порівнює картку лише з фасуваннями своїх блоків.
+ *
+ * Працює у воркері (src/worker.ts): після кожного запуску парсера і на запит API
  * (черга matching:requests). Стан публікує в Redis (matching:state) для API.
  */
 @Injectable()
@@ -41,6 +94,7 @@ export class MatchingService implements OnModuleDestroy {
   private current: Promise<MatchReport> | null = null;
   private again = false;
   private last: MatchReport | null = null;
+  private vocabulary: Vocabulary | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -55,7 +109,9 @@ export class MatchingService implements OnModuleDestroy {
   /** Запустити у фоні; якщо зіставлення вже йде — повторити після нього */
   schedule(): void {
     void this.run().catch((error: unknown) =>
-      this.logger.error(`Зіставлення впало: ${String(error)}`),
+      this.logger.error(
+        `Зіставлення впало: ${(error as Error).stack ?? String(error)}`,
+      ),
     );
   }
 
@@ -90,41 +146,26 @@ export class MatchingService implements OnModuleDestroy {
     }
   }
 
-  private loadListings() {
-    return this.prisma.listing.findMany({
-      select: {
-        id: true,
-        chainId: true,
-        rawName: true,
-        rawBrand: true,
-        imageUrl: true,
-        barcodes: true,
-        measure: true,
-        netQuantity: true,
-        packCount: true,
-        isWeighted: true,
-        variantId: true,
-        matchStatus: true,
-        chain: { select: { slug: true, countryCode: true } },
-      },
-    });
-  }
-
   private async execute(): Promise<MatchReport> {
     const startedAt = new Date();
-    const rows = await this.loadListings();
-    const { inputs, vocabulary } = prepareListings(
-      rows.map((r) => ({
-        ...r,
-        country: r.chain.countryCode,
-        netQuantity: r.netQuantity === null ? null : Number(r.netQuantity),
-      })),
+    const vocabulary = await this.loadVocabulary();
+    await this.syncKeys(vocabulary);
+
+    const rows = await this.prisma.listing.findMany({
+      where: {
+        variantId: null,
+        matchStatus: 'PENDING',
+        matchCandidates: { none: { status: 'SUGGESTED' } },
+      },
+      select: rowSelect,
+    });
+    const inputs = new Map(
+      rows.map((row) => [row.id, toInput(row, vocabulary.dictionaries)]),
     );
     const index = new CatalogIndex();
-    for (const [country, docs] of vocabulary)
-      index.setVocabulary(country, docs);
+    for (const [country, idf] of vocabulary.idfs) index.setIdf(country, idf);
+    await this.loadCandidates(index, [...inputs.values()], vocabulary);
 
-    const context = await this.loadCatalog(index, rows, inputs);
     const report: MatchReport = {
       startedAt: startedAt.toISOString(),
       finishedAt: '',
@@ -139,25 +180,18 @@ export class MatchingService implements OnModuleDestroy {
     };
 
     // Спершу картки зі штрихкодами: вони створюють надійні "якорі" для решти
-    const pending = rows
-      .filter(
-        (r) =>
-          !r.variantId &&
-          r.matchStatus === 'PENDING' &&
-          !context.waiting.has(r.id),
-      )
-      .sort(
-        (a, b) =>
-          Number(b.barcodes.length > 0) - Number(a.barcodes.length > 0) ||
-          a.chain.slug.localeCompare(b.chain.slug) ||
-          a.rawName.localeCompare(b.rawName),
-      );
+    const pending = rows.sort(
+      (a, b) =>
+        Number(b.barcodes.length > 0) - Number(a.barcodes.length > 0) ||
+        a.chain.slug.localeCompare(b.chain.slug) ||
+        a.rawName.localeCompare(b.rawName),
+    );
 
     for (const row of pending) {
       const listing = inputs.get(row.id)!;
       const decision = index.decide(listing);
       try {
-        await this.apply(decision, row, listing, index, context);
+        await this.apply(decision, row, listing, index, vocabulary);
       } catch (error) {
         // Одна картка не зупиняє весь пакет
         if (error instanceof StaleListing) report.skipped++;
@@ -188,62 +222,177 @@ export class MatchingService implements OnModuleDestroy {
     return report;
   }
 
-  /** Наявний каталог → індекс у памʼяті */
-  private async loadCatalog(
-    index: CatalogIndex,
-    rows: Row[],
-    inputs: Map<string, ListingInput>,
-  ) {
-    const [variants, candidates, brands, lines] = await Promise.all([
-      this.prisma.productVariant.findMany({
+  /** Словник брендів і IDF за назвами всіх карток (кеш на добу) */
+  private async loadVocabulary(): Promise<Vocabulary> {
+    if (
+      this.vocabulary &&
+      Date.now() - this.vocabulary.builtAt < VOCABULARY_TTL_MS
+    ) {
+      return this.vocabulary;
+    }
+    const rows = await this.prisma.listing.findMany({
+      select: {
+        rawName: true,
+        rawBrand: true,
+        chain: { select: { countryCode: true } },
+      },
+    });
+    const named = rows.map((r) => ({ ...r, country: r.chain.countryCode }));
+    const dictionaries = buildDictionaries(named);
+    const documents = new Map<string, string[][]>();
+    const brandNames = new Map<string, string>();
+    for (const row of named) {
+      const features = detectBrand(
+        extractFeatures(row.rawName, row.rawBrand),
+        dictionaries.get(row.country) ?? [],
+      );
+      const docs = documents.get(row.country) ?? [];
+      docs.push(features.tokens.map((t) => t.norm));
+      documents.set(row.country, docs);
+      if (row.rawBrand && features.brand && !brandNames.has(features.brand)) {
+        brandNames.set(features.brand, row.rawBrand.trim());
+      }
+    }
+    this.vocabulary = {
+      builtAt: Date.now(),
+      dictionaries,
+      idfs: new Map(
+        [...documents].map(([country, docs]) => [country, buildIdf(docs)]),
+      ),
+      brandNames,
+    };
+    return this.vocabulary;
+  }
+
+  /**
+   * Дописує ключі пошуку, яких бракує: для назв фасувань і карток, зіставлених поза
+   * пакетом (модератор, прийом даних за штрихкодом), і разово — для каталогу, створеного
+   * до появи match_keys.
+   */
+  private async syncKeys(vocabulary: Vocabulary): Promise<void> {
+    let added = 0;
+    for (;;) {
+      const variants = await this.prisma.productVariant.findMany({
+        where: { matchKeys: { none: { listingId: null } } },
         select: {
           id: true,
-          productId: true,
-          measure: true,
-          netQuantity: true,
-          packCount: true,
-          isWeighted: true,
-          barcodes: { select: { gtin: true } },
+          ...quantitySelect,
           product: {
             select: { name: true, brand: { select: { name: true } } },
           },
         },
-      }),
-      this.prisma.matchCandidate.findMany({
-        select: { listingId: true, variantId: true, status: true },
-      }),
-      this.prisma.brand.findMany({ select: { id: true, slug: true } }),
-      this.prisma.productLine.findMany({ select: { id: true, slug: true } }),
-    ]);
-
-    const listingsByVariant = new Map<string, ListingInput[]>();
-    for (const row of rows) {
-      if (!row.variantId) continue;
-      const list = listingsByVariant.get(row.variantId) ?? [];
-      list.push(inputs.get(row.id)!);
-      listingsByVariant.set(row.variantId, list);
+        take: KEYS_CHUNK,
+      });
+      if (variants.length === 0) break;
+      const data = variants.flatMap((v) =>
+        productKeys(v.id, toQuantity(v), v.product.name, v.product.brand?.name),
+      );
+      await this.prisma.matchKey.createMany({ data });
+      added += data.length;
     }
+    for (;;) {
+      const listings = await this.prisma.listing.findMany({
+        where: { variantId: { not: null }, matchKeys: { none: {} } },
+        select: {
+          ...rowSelect,
+          variant: { select: { id: true, ...quantitySelect } },
+        },
+        take: KEYS_CHUNK,
+      });
+      if (listings.length === 0) break;
+      const data = listings.flatMap((row) =>
+        listingKeys(
+          row.variant!.id,
+          toQuantity(row.variant!),
+          row.id,
+          toInput(row, vocabulary.dictionaries),
+        ),
+      );
+      await this.prisma.matchKey.createMany({ data });
+      added += data.length;
+    }
+    if (added > 0) this.logger.log(`Ключі пошуку дописано: ${added}`);
+  }
+
+  /** Лише ті фасування, що можуть збігтися з новими картками → індекс у памʼяті */
+  private async loadCandidates(
+    index: CatalogIndex,
+    inputs: ListingInput[],
+    vocabulary: Vocabulary,
+  ): Promise<void> {
+    if (inputs.length === 0) return;
+    const gtins = [...new Set(inputs.flatMap((l) => l.barcodes))];
+    const keys = [
+      ...new Set(
+        inputs.flatMap((l) => matchKeys(quantityKey(l.quantity), l.features)),
+      ),
+    ];
+    const [owners, keyed, rejected] = await Promise.all([
+      inChunks(gtins, (part) =>
+        this.prisma.barcode.findMany({
+          where: { gtin: { in: part } },
+          select: { variant: { select: { productId: true } } },
+        }),
+      ),
+      inChunks(keys, (part) =>
+        this.prisma.matchKey.findMany({
+          where: { key: { in: part } },
+          select: { variant: { select: { productId: true } } },
+          distinct: ['variantId'],
+        }),
+      ),
+      inChunks(
+        inputs.map((l) => l.id),
+        (part) =>
+          this.prisma.matchCandidate.findMany({
+            where: { listingId: { in: part }, status: 'REJECTED' },
+            select: { listingId: true, variantId: true },
+          }),
+      ),
+    ]);
+    for (const { listingId, variantId } of rejected)
+      index.reject(listingId, variantId);
+
+    // Цілі товари: щоб знати всі їхні фасування ("такого розміру ще немає")
+    const productIds = [
+      ...new Set([...owners, ...keyed].map((k) => k.variant.productId)),
+    ];
+    const variants = await inChunks(productIds, (part) =>
+      this.prisma.productVariant.findMany({
+        where: { productId: { in: part } },
+        select: {
+          id: true,
+          productId: true,
+          ...quantitySelect,
+          barcodes: { select: { gtin: true } },
+          product: {
+            select: { name: true, brand: { select: { name: true } } },
+          },
+          listings: { select: rowSelect },
+        },
+      }),
+    );
 
     for (const variant of variants) {
       const productFeatures = extractFeatures(
         variant.product.name,
         variant.product.brand?.name,
       );
-      const key = quantityKey({
-        measure: variant.measure,
-        netQuantity:
-          variant.netQuantity === null ? null : Number(variant.netQuantity),
-        packCount: variant.packCount,
-        isWeighted: variant.isWeighted,
-      });
-      const linked = listingsByVariant.get(variant.id) ?? [];
-      for (const country of new Set(linked.map((l) => l.country))) {
+      const linked = variant.listings.map((row) =>
+        toInput(row, vocabulary.dictionaries),
+      );
+      const countries = new Set(linked.map((l) => l.country));
+      for (const country of countries) {
         index.addProduct(variant.productId, productFeatures, country);
       }
-      index.addVariant(variant.id, variant.productId, key);
+      index.addVariant(
+        variant.id,
+        variant.productId,
+        quantityKey(toQuantity(variant)),
+      );
       for (const { gtin } of variant.barcodes)
         index.addBarcode(variant.id, gtin);
-      for (const country of new Set(linked.map((l) => l.country))) {
+      for (const country of countries) {
         index.addName(variant.id, productFeatures, country);
       }
       for (const listing of linked) {
@@ -255,31 +404,6 @@ export class MatchingService implements OnModuleDestroy {
         );
       }
     }
-
-    const waiting = new Set<string>();
-    for (const candidate of candidates) {
-      if (candidate.status === 'REJECTED') {
-        index.reject(candidate.listingId, candidate.variantId);
-      } else if (candidate.status === 'SUGGESTED') {
-        waiting.add(candidate.listingId);
-      }
-    }
-
-    // Як бренд записаний у мережах: ключ → перша назва ("coca-cola" → "Coca-Cola")
-    const brandNames = new Map<string, string>();
-    for (const row of rows) {
-      const key = row.rawBrand ? inputs.get(row.id)!.features.brand : null;
-      if (key && row.rawBrand && !brandNames.has(key)) {
-        brandNames.set(key, row.rawBrand.trim());
-      }
-    }
-
-    return {
-      waiting,
-      brandNames,
-      brandIds: new Map(brands.map((b) => [b.slug, b.id])),
-      lineIds: new Map(lines.map((l) => [l.slug, l.id])),
-    };
   }
 
   private async apply(
@@ -287,7 +411,7 @@ export class MatchingService implements OnModuleDestroy {
     row: Row,
     listing: ListingInput,
     index: CatalogIndex,
-    context: Awaited<ReturnType<MatchingService['loadCatalog']>>,
+    vocabulary: Vocabulary,
   ): Promise<void> {
     const now = new Date();
     const auto = (
@@ -317,6 +441,15 @@ export class MatchingService implements OnModuleDestroy {
             ),
           );
           await this.barcodesFor(decision.variantId, row, index, tx);
+          await tx.matchKey.createMany({
+            data: listingKeys(
+              decision.variantId,
+              listing.quantity,
+              row.id,
+              listing,
+              index.variantOf(decision.variantId)?.quantityKey,
+            ),
+          });
         });
         this.register(index, decision.variantId, row, listing);
         return;
@@ -350,6 +483,21 @@ export class MatchingService implements OnModuleDestroy {
               auto(created.id, 'CREATED', decision.score),
             );
             await this.barcodesFor(created.id, row, index, tx);
+            const product = await tx.product.findUniqueOrThrow({
+              where: { id: decision.productId },
+              select: { name: true, brand: { select: { name: true } } },
+            });
+            await tx.matchKey.createMany({
+              data: [
+                ...productKeys(
+                  created.id,
+                  listing.quantity,
+                  product.name,
+                  product.brand?.name,
+                ),
+                ...listingKeys(created.id, listing.quantity, row.id, listing),
+              ],
+            });
             return created;
           });
           index.addVariant(
@@ -363,11 +511,11 @@ export class MatchingService implements OnModuleDestroy {
           // Фасування такого розміру вже є (ваговий і фасований 1 кг) — окремий товар
           if (!isUniqueViolation(error)) throw error;
         }
-        await this.createProduct(row, listing, index, context);
+        await this.createProduct(row, listing, index, vocabulary);
         return;
       }
       case 'product':
-        await this.createProduct(row, listing, index, context);
+        await this.createProduct(row, listing, index, vocabulary);
         return;
     }
   }
@@ -377,12 +525,12 @@ export class MatchingService implements OnModuleDestroy {
     row: Row,
     listing: ListingInput,
     index: CatalogIndex,
-    context: Awaited<ReturnType<MatchingService['loadCatalog']>>,
+    vocabulary: Vocabulary,
   ): Promise<void> {
     const features = listing.features;
     const name = stripQuantity(row.rawName) || row.rawName;
     const brandName = features.brand
-      ? (context.brandNames.get(features.brand) ??
+      ? (vocabulary.brandNames.get(features.brand) ??
         row.rawBrand ??
         features.brand)
       : null;
@@ -392,25 +540,19 @@ export class MatchingService implements OnModuleDestroy {
       let brandId: string | null = null;
       let lineId: string | null = null;
       if (features.brand && brandName) {
-        brandId = context.brandIds.get(features.brand) ?? null;
-        if (!brandId) {
-          const brand = await tx.brand.upsert({
-            where: { slug: features.brand },
-            create: { slug: features.brand, name: brandName },
-            update: {},
-          });
-          brandId = brand.id;
-        }
+        const brand = await tx.brand.upsert({
+          where: { slug: features.brand },
+          create: { slug: features.brand, name: brandName },
+          update: {},
+        });
+        brandId = brand.id;
         const line = lineOf(features, brandName);
-        lineId = context.lineIds.get(line.slug) ?? null;
-        if (!lineId) {
-          const created = await tx.productLine.upsert({
-            where: { slug: line.slug },
-            create: { slug: line.slug, name: line.name, brandId },
-            update: {},
-          });
-          lineId = created.id;
-        }
+        const created = await tx.productLine.upsert({
+          where: { slug: line.slug },
+          create: { slug: line.slug, name: line.name, brandId },
+          update: {},
+        });
+        lineId = created.id;
       }
 
       const product = await tx.product.create({
@@ -434,19 +576,14 @@ export class MatchingService implements OnModuleDestroy {
         matchedAt: new Date(),
       });
       await this.barcodesFor(created.id, row, index, tx);
-      return {
-        variant: created,
-        productId: product.id,
-        brandId,
-        lineId,
-        lineSlug:
-          features.brand && brandName ? lineOf(features, brandName).slug : null,
-      };
+      await tx.matchKey.createMany({
+        data: [
+          ...productKeys(created.id, listing.quantity, name, brandName),
+          ...listingKeys(created.id, listing.quantity, row.id, listing),
+        ],
+      });
+      return { variant: created, productId: product.id };
     });
-    if (features.brand && result.brandId)
-      context.brandIds.set(features.brand, result.brandId);
-    if (result.lineSlug && result.lineId)
-      context.lineIds.set(result.lineSlug, result.lineId);
     const { variant, productId } = result;
 
     index.addProduct(productId, features, listing.country);
@@ -504,6 +641,66 @@ export async function claim(
     data,
   });
   if (count === 0) throw new StaleListing();
+}
+
+function toQuantity(v: {
+  measure: QuantityInfo['measure'];
+  netQuantity: Prisma.Decimal | null;
+  packCount: number | null;
+  isWeighted: boolean;
+}): QuantityInfo {
+  return {
+    measure: v.measure,
+    netQuantity: v.netQuantity === null ? null : Number(v.netQuantity),
+    packCount: v.packCount ?? 1,
+    isWeighted: v.isWeighted,
+  };
+}
+
+function toInput(row: Row, dictionaries: BrandDictionaries): ListingInput {
+  return listingInput(
+    { ...row, country: row.chain.countryCode, ...toQuantity(row) },
+    dictionaries,
+  );
+}
+
+/** Ключі з назви товару — так, як її бачить CatalogIndex (extractFeatures(name, brand)) */
+function productKeys(
+  variantId: string,
+  quantity: QuantityInfo,
+  name: string,
+  brand?: string | null,
+) {
+  return matchKeys(quantityKey(quantity), extractFeatures(name, brand)).map(
+    (key) => ({ key, variantId, listingId: null }),
+  );
+}
+
+/** Ключі з назви зіставленої картки; фасування — те, до якого її приєднано */
+function listingKeys(
+  variantId: string,
+  quantity: QuantityInfo,
+  listingId: string,
+  listing: ListingInput,
+  variantQuantityKey = quantityKey(quantity),
+) {
+  return matchKeys(variantQuantityKey, listing.features).map((key) => ({
+    key,
+    variantId,
+    listingId,
+  }));
+}
+
+/** Великий `IN (...)` — кількома запитами */
+async function inChunks<T, R>(
+  values: T[],
+  query: (part: T[]) => Promise<R[]>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < values.length; i += IN_CHUNK) {
+    results.push(...(await query(values.slice(i, i + IN_CHUNK))));
+  }
+  return results;
 }
 
 function variantData(listing: ListingInput) {
