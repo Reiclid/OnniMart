@@ -60,7 +60,7 @@ describe('ScraperService', () => {
     });
 
     expect(prisma.scrapeRun.create).toHaveBeenCalledWith({
-      data: { chainId: 'chain-silpo', trigger: 'manual' },
+      data: { chainId: 'chain-silpo', trigger: 'manual', maxPages: 2 },
     });
     const [queue, payload] = redis.lpush.mock.calls[0] as [string, string];
     expect(queue).toBe(SCRAPER_TASKS_QUEUE);

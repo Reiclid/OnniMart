@@ -22,6 +22,7 @@ const LISTING = {
   unitPrice: '168.99',
   isOnPromo: true,
   inStock: true,
+  delistedAt: null,
   matchStatus: 'PENDING',
   barcodes: ['05000112552218'],
   firstSeenAt: new Date('2026-10-10T08:00:00Z'),
@@ -188,6 +189,7 @@ describe('buildWhere', () => {
     ).toEqual({
       chain: { slug: 'novus' },
       isOnPromo: true,
+      delistedAt: null,
       variantId: { not: null },
     });
   });

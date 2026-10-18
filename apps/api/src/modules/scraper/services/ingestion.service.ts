@@ -13,6 +13,12 @@ import { RunEventMessage, ScrapedProductMessage } from '@repo/contracts';
 export type IngestResult = 'skipped' | 'unchanged' | 'changed';
 
 /**
+ * Повний обхід, що побачив менше цієї частки активних карток мережі, підозрілий
+ * (зламався парсер, сайт змінив верстку) — зниклі картки за ним не знімаємо.
+ */
+export const MIN_SEEN_SHARE_TO_DELIST = 0.5;
+
+/**
  * Зберігає товар, отриманий від парсера:
  *   1. upsert картки мережі (Listing) за (мережа, externalId);
  *   2. новий PriceSnapshot — лише якщо змінилась ціна / акція / наявність;
@@ -87,6 +93,9 @@ export class IngestionService {
       isOnPromo,
       inStock,
       lastSeenAt: seenAt,
+      // Картку знову бачимо на сайті
+      delistedAt: null,
+      ...(runId && { lastRunId: runId }),
     };
 
     const listing = await this.prisma.$transaction(async (tx) => {
@@ -158,8 +167,43 @@ export class IngestionService {
 
     await this.prisma.scrapeRun.update({ where: { id: runId }, data });
     this.logger.log(`Запуск ${event.store}: ${event.kind}`);
+    if (event.kind === 'run_finished' && !event.error) {
+      await this.delistMissing(runId, event.items_seen, at);
+    }
     // Після запуску зіставляємо нові картки з каталогом (у фоні)
     if (event.kind !== 'run_started') this.matching.schedule();
+  }
+
+  /**
+   * Після успішного повного обходу: картки мережі, яких у ньому не було, зникли з сайту
+   * (тижнева акція закінчилась, товар зняли) — позначаємо delistedAt, щоб каталог їх не показував.
+   */
+  async delistMissing(runId: string, itemsSeen: number, at: Date) {
+    const run = await this.prisma.scrapeRun.findUnique({
+      where: { id: runId },
+      select: { chainId: true, maxPages: true },
+    });
+    if (!run || run.maxPages !== null) return 0;
+    const active = await this.prisma.listing.count({
+      where: { chainId: run.chainId, delistedAt: null },
+    });
+    if (itemsSeen < active * MIN_SEEN_SHARE_TO_DELIST) {
+      this.logger.warn(
+        `Обхід ${runId} побачив ${itemsSeen} з ${active} активних карток — зниклі не знімаємо`,
+      );
+      return 0;
+    }
+    const { count } = await this.prisma.listing.updateMany({
+      where: {
+        chainId: run.chainId,
+        delistedAt: null,
+        OR: [{ lastRunId: null }, { lastRunId: { not: runId } }],
+      },
+      data: { delistedAt: at, isOnPromo: false },
+    });
+    if (count > 0)
+      this.logger.log(`Зникли з сайту: ${count} карток (${runId})`);
+    return count;
   }
 
   private async existingRun(runId?: string | null): Promise<string | null> {

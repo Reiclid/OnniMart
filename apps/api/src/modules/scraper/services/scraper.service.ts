@@ -61,7 +61,7 @@ export class ScraperService implements OnModuleDestroy {
     }
 
     const run = await this.prisma.scrapeRun.create({
-      data: { chainId: chain.id, trigger },
+      data: { chainId: chain.id, trigger, maxPages: maxPages ?? null },
     });
 
     const task: ScraperTask = {

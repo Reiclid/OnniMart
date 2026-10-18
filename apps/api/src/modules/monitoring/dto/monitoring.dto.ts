@@ -83,6 +83,13 @@ export class ListingSummaryDto {
   unitLabel!: string | null;
   @ApiProperty() isOnPromo!: boolean;
   @ApiProperty() inStock!: boolean;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Коли картка зникла з сайту мережі (немає в повному обході); null — актуальна',
+  })
+  delistedAt!: string | null;
   @ApiProperty({ enum: ['PENDING', 'AUTO_MATCHED', 'CONFIRMED', 'REJECTED'] })
   matchStatus!: string;
   @ApiProperty({

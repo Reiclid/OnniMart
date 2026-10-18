@@ -43,7 +43,7 @@ export class CatalogService {
     }
     if (query.chain) {
       filters.push(
-        Prisma.sql`EXISTS (SELECT 1 FROM listings cl JOIN product_variants cv ON cv.id = cl."variantId" JOIN store_chains cc ON cc.id = cl."chainId" WHERE cv."productId" = p.id AND cc.slug = ${query.chain})`,
+        Prisma.sql`EXISTS (SELECT 1 FROM listings cl JOIN product_variants cv ON cv.id = cl."variantId" JOIN store_chains cc ON cc.id = cl."chainId" WHERE cv."productId" = p.id AND cl."delistedAt" IS NULL AND cc.slug = ${query.chain})`,
       );
     }
     const where = filters.length
@@ -55,7 +55,7 @@ export class CatalogService {
       SELECT p.id, p.name, count(DISTINCT l."chainId")::int AS chains, count(l.id)::int AS listings
       FROM products p
       JOIN product_variants v ON v."productId" = p.id
-      JOIN listings l ON l."variantId" = v.id
+      JOIN listings l ON l."variantId" = v.id AND l."delistedAt" IS NULL
       LEFT JOIN brands b ON b.id = p."brandId"
       ${where}
       GROUP BY p.id
@@ -78,6 +78,7 @@ export class CatalogService {
           select: {
             id: true,
             listings: {
+              where: { delistedAt: null },
               select: {
                 currentPrice: true,
                 isOnPromo: true,
@@ -139,7 +140,7 @@ export class CatalogService {
         variants: {
           include: {
             barcodes: { select: { gtin: true } },
-            listings: { include: listingInclude },
+            listings: { where: { delistedAt: null }, include: listingInclude },
           },
         },
       },
@@ -233,7 +234,7 @@ export class CatalogService {
       }),
       this.prisma.$queryRaw<{ count: number }[]>`
           SELECT count(*)::int AS count FROM (
-            SELECT "variantId" FROM listings WHERE "variantId" IS NOT NULL
+            SELECT "variantId" FROM listings WHERE "variantId" IS NOT NULL AND "delistedAt" IS NULL
             GROUP BY "variantId" HAVING count(DISTINCT "chainId") >= 2
           ) AS t`,
       this.matching.state(),

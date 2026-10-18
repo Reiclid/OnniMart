@@ -53,7 +53,9 @@ export class MonitoringService {
       this.prisma.storeChain.count({ where: { scrapeEnabled: true } }),
       this.prisma.listing.count(),
       this.prisma.listing.count({ where: { variantId: { not: null } } }),
-      this.prisma.listing.count({ where: { isOnPromo: true } }),
+      this.prisma.listing.count({
+        where: { isOnPromo: true, delistedAt: null },
+      }),
       this.prisma.priceSnapshot.count(),
       this.prisma.listing.count({ where: { barcodes: { isEmpty: false } } }),
       this.prisma.scrapeRun.findFirst({ orderBy: { startedAt: 'desc' } }),
@@ -79,7 +81,7 @@ export class MonitoringService {
       }),
       this.prisma.listing.groupBy({
         by: ['chainId'],
-        where: { isOnPromo: true },
+        where: { isOnPromo: true, delistedAt: null },
         _count: { _all: true },
       }),
       // distinct + orderBy: останній запуск кожної мережі
@@ -204,7 +206,10 @@ export class MonitoringService {
 export function buildWhere(query: ListingsQueryDto): Prisma.ListingWhereInput {
   const where: Prisma.ListingWhereInput = {};
   if (query.chain) where.chain = { slug: query.chain };
-  if (isTrue(query.promo)) where.isOnPromo = true;
+  if (isTrue(query.promo)) {
+    where.isOnPromo = true;
+    where.delistedAt = null;
+  }
   if (isTrue(query.matched)) where.variantId = { not: null };
 
   const q = query.q?.trim();
@@ -252,6 +257,7 @@ export function toListingDto(listing: ListingWithChain): ListingSummaryDto {
       : null,
     isOnPromo: listing.isOnPromo,
     inStock: listing.inStock,
+    delistedAt: listing.delistedAt?.toISOString() ?? null,
     matchStatus: listing.matchStatus,
     matchMethod: listing.matchMethod,
     matchScore: listing.matchScore,

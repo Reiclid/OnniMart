@@ -339,3 +339,63 @@ describe('IngestionService', () => {
     });
   });
 });
+
+describe('IngestionService.delistMissing', () => {
+  const AT = new Date('2026-10-18T12:00:00Z');
+
+  function setup(
+    run: { chainId: string; maxPages: number | null } | null,
+    active: number,
+  ) {
+    const prisma = {
+      scrapeRun: { findUnique: jest.fn(() => Promise.resolve(run)) },
+      listing: {
+        count: jest.fn(() => Promise.resolve(active)),
+        updateMany: jest.fn((_args: Args) => Promise.resolve({ count: 7 })),
+      },
+    };
+    const service = new IngestionService(
+      prisma as unknown as PrismaService,
+      { schedule: jest.fn() } as unknown as MatchingService,
+    );
+    return { service, prisma };
+  }
+
+  beforeAll(() => Logger.overrideLogger(false));
+
+  it('повний обхід знімає картки, яких у ньому не було', async () => {
+    const { service, prisma } = setup(
+      { chainId: 'chain-atb', maxPages: null },
+      100,
+    );
+    await expect(service.delistMissing(RUN_ID, 90, AT)).resolves.toBe(7);
+    const args = prisma.listing.updateMany.mock.calls[0][0];
+    expect(args.where).toMatchObject({
+      chainId: 'chain-atb',
+      delistedAt: null,
+    });
+    expect(args.where.OR).toEqual([
+      { lastRunId: null },
+      { lastRunId: { not: RUN_ID } },
+    ]);
+    expect(args.data).toEqual({ delistedAt: AT, isOnPromo: false });
+  });
+
+  it('тестовий обхід (maxPages) нічого не знімає', async () => {
+    const { service, prisma } = setup(
+      { chainId: 'chain-atb', maxPages: 1 },
+      100,
+    );
+    await expect(service.delistMissing(RUN_ID, 90, AT)).resolves.toBe(0);
+    expect(prisma.listing.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('обхід побачив підозріло мало — нічого не знімає', async () => {
+    const { service, prisma } = setup(
+      { chainId: 'chain-atb', maxPages: null },
+      100,
+    );
+    await expect(service.delistMissing(RUN_ID, 10, AT)).resolves.toBe(0);
+    expect(prisma.listing.updateMany).not.toHaveBeenCalled();
+  });
+});

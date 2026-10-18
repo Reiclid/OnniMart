@@ -45,6 +45,11 @@ export interface ListingDetailsDto {
   unitLabel: string | null;
   isOnPromo: boolean;
   inStock: boolean;
+  /**
+     * Коли картка зникла з сайту мережі (немає в повному обході); null — актуальна
+     * @nullable
+     */
+  delistedAt: string | null;
   matchStatus: ListingDetailsDtoMatchStatus;
   /** @nullable */
   matchMethod: ListingDetailsDtoMatchMethod;
