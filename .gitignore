@@ -4,14 +4,36 @@
 node_modules/
 .pnpm-store/
 
+# ==========================================
+# AI-асистенти: налаштування, скіли та згенеровані ними документи (лише локально)
+# ==========================================
 .agents/
 .claude/
 .windsurf/
+.cursor/
+.cursorrules
+.cursorignore
+.codex/
+.gemini/
+.aider*
+.continue/
+.clinerules
+.roo/
+.kiro/
+.github/copilot-instructions.md
+.github/instructions/
+.github/prompts/
+.mcp.json
+skills/
+skills-lock.json
 
 AGENTS.md
 CLAUDE.md
-skills-lock.json
+CLAUDE.local.md
+GEMINI.md
 Rule.md
+ARCHITECTURE.md
+AUDIT.md
 
 # ==========================================
 # 2. Змінні оточення та секрети (Secrets & Env)
