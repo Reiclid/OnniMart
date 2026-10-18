@@ -72,8 +72,8 @@ Bun 1.3 (workspaces) · Turborepo 2 · TypeScript · NestJS 11 · Prisma 7 · Po
 
 ```bash
 bun install
-cp .env.example .env
-cp apps/api/.env.example apps/api/.env
+cp .env.example .env                    # задайте REDIS_PASSWORD (і паролі БД)
+cp apps/api/.env.example apps/api/.env  # той самий пароль у REDIS_URL
 bun run infra:up        # PostgreSQL, Redis, Meilisearch і Rust-скрапер (воркер)
 bun run dev:generate    # Prisma Client
 bun run dev:migrate     # міграції
@@ -88,8 +88,8 @@ bun run dev:web         # UI:  http://localhost:3000
 Повідомлення від скрапера не губляться: воркер видаляє їх із Redis лише після запису в БД, а некоректні чи ті, що не вдалося записати за 10 спроб, кладе в `scraper:results:dead`. Повернути їх у чергу:
 
 ```bash
-docker exec onnimart-redis redis-cli LLEN scraper:results:dead
-docker exec onnimart-redis redis-cli LMOVE scraper:results:dead scraper:results RIGHT LEFT
+docker exec onnimart-redis redis-cli -a "$REDIS_PASSWORD" LLEN scraper:results:dead
+docker exec onnimart-redis redis-cli -a "$REDIS_PASSWORD" LMOVE scraper:results:dead scraper:results RIGHT LEFT
 ```
 
 Після успішного **повного** обходу мережі картки, яких у ньому не було (тижнева акція закінчилась, товар зняли), позначаються `delistedAt` і зникають з каталогу.

@@ -107,7 +107,7 @@ impl Sink for PrintSink {
 
 async fn run_worker() -> Result<()> {
     let url = redis_url();
-    eprintln!("[scraper] воркер запущено, Redis: {url}");
+    eprintln!("[scraper] воркер запущено, Redis: {}", redact(&url));
     let client = redis::Client::open(url)?;
     let mut con = client.get_multiplexed_async_connection().await?;
 
@@ -188,6 +188,14 @@ async fn handle_task(con: &mut MultiplexedConnection, task: ScraperTask) -> Resu
     send_event(con, &finished).await
 }
 
+/// Адреса Redis для логів: пароль не друкуємо ("redis://:***@redis:6379")
+fn redact(url: &str) -> String {
+    match (url.find("://"), url.rfind('@')) {
+        (Some(scheme), Some(at)) if at > scheme => format!("{}://***{}", &url[..scheme], &url[at..]),
+        _ => url.to_string(),
+    }
+}
+
 /// Пауза не менша за MIN_DELAY_MS, навіть якщо завдання чи CLI просять менше
 fn polite_delay(ms: u64) -> Duration {
     Duration::from_millis(ms.max(MIN_DELAY_MS))
@@ -242,6 +250,12 @@ async fn run_cli(args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn redis_password_is_not_logged() {
+        assert_eq!(redact("redis://:secret@redis:6379"), "redis://***@redis:6379");
+        assert_eq!(redact("redis://127.0.0.1:6379"), "redis://127.0.0.1:6379");
+    }
 
     #[test]
     fn delay_is_never_below_minimum() {

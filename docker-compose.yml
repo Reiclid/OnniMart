@@ -1,3 +1,6 @@
+# Фіксована назва: ті самі контейнери й томи з будь-якої копії репозиторію (worktree)
+name: onnimart
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -26,6 +29,8 @@ services:
     image: redis:alpine
     container_name: onnimart-redis
     restart: unless-stopped
+    # Пароль обовʼязковий: без нього черги можна було б читати й підробляти
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Задайте REDIS_PASSWORD у .env (див. .env.example)}"]
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
@@ -36,7 +41,7 @@ services:
     container_name: onnimart-scraper
     restart: unless-stopped
     environment:
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
     depends_on:
       - redis
 
