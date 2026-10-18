@@ -86,7 +86,14 @@ export class IngestionService {
       existing.isOnPromo !== isOnPromo ||
       existing.inStock !== inStock;
 
+    // Назва чи бренд змінились — слова назви для IDF порахує воркер заново
+    const renamed =
+      !existing ||
+      existing.rawName !== item.name ||
+      existing.rawBrand !== (item.brand ?? null);
+
     const fields = {
+      ...(renamed && { tokenizedAt: null }),
       url: item.url ?? null,
       rawName: item.name,
       rawBrand: item.brand ?? null,

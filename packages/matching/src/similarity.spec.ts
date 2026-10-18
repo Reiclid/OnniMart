@@ -3,12 +3,29 @@ import {
   attributeConflict,
   brandSimilarity,
   buildIdf,
+  idfFromCounts,
   nameSimilarity,
   scorePair,
   tokenSimilarity,
 } from './similarity';
 
 const flat = () => 1;
+
+describe('idfFromCounts', () => {
+  it('дає ті самі ваги, що й buildIdf за документами', () => {
+    const docs = [['молоко', 'слива'], ['молоко'], ['молоко', 'молоко']];
+    const fromDocs = buildIdf(docs);
+    const fromCounts = idfFromCounts(
+      3,
+      new Map([
+        ['молоко', 3],
+        ['слива', 1],
+      ]),
+    );
+    for (const token of ['молоко', 'слива', 'невідоме'])
+      expect(fromCounts(token)).toBe(fromDocs(token));
+  });
+});
 
 describe('tokenSimilarity', () => {
   it('враховує відмінки та роди, але не різні слова', () => {

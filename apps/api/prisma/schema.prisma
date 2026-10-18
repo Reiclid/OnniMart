@@ -284,6 +284,10 @@ model Listing {
   barcodes    String[]
   /// Сирі дані парсера — щоб можна було перепарсити без повторного скрейпінгу
   rawData     Json?
+  /// Значущі слова назви (як їх бачить зіставлення) — для частот слів (IDF) у SQL
+  nameTokens  String[]
+  /// Коли пораховано nameTokens; null — порахувати заново (нова картка, змінилась назва)
+  tokenizedAt DateTime?
 
   // Розпізнана кількість (нормалізація назви, див. catalog/normalization)
   measure     Measure?
@@ -328,6 +332,7 @@ model Listing {
   @@index([matchStatus])
   @@index([chainId, lastRunId])
   @@index([promoEndsAt])
+  @@index([tokenizedAt])
   @@map("listings")
 }
 

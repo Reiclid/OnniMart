@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import {
   MATCHING_STATE_KEY,
@@ -10,12 +10,13 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { createRedis } from '../../../redis';
 import {
   BrandDictionaries,
+  brandKey,
   buildDictionaries,
-  buildIdf,
   CatalogIndex,
   detectBrand,
   extractFeatures,
   Idf,
+  idfFromCounts,
   lineOf,
   ListingInput,
   listingInput,
@@ -62,10 +63,12 @@ interface Vocabulary {
 }
 
 /**
- * shortcut: словник і IDF перебудовуються з назв усіх карток раз на добу (і при старті
- * воркера); на мільйонах карток — зберігати частоти слів у таблиці й оновлювати при прийомі.
+ * Як часто оновлювати словник брендів і IDF. Дешево: частоти слів рахує PostgreSQL
+ * з listings.nameTokens, у памʼять приходить лише словник, а не всі картки.
  */
-const VOCABULARY_TTL_MS = 24 * 60 * 60 * 1000;
+const VOCABULARY_TTL_MS = 60 * 60 * 1000;
+/** Відбиток словника брендів: змінився — слова карток без бренду рахуються заново */
+const BRAND_DICTIONARY_KEY = 'matching:brand-dictionary';
 /** Скільки фасувань / карток обробляти за раз під час заповнення match_keys */
 const KEYS_CHUNK = 2000;
 /** Не більше стількох значень в одному `IN (...)` */
@@ -222,7 +225,11 @@ export class MatchingService implements OnModuleDestroy {
     return report;
   }
 
-  /** Словник брендів і IDF за назвами всіх карток (кеш на добу) */
+  /**
+   * Словник брендів і IDF. Бренди — DISTINCT з карток; слова кожної картки рахуються
+   * один раз (listings.nameTokens) і перераховуються, коли змінилась назва або словник;
+   * частоти слів по країнах — одним GROUP BY у PostgreSQL.
+   */
   private async loadVocabulary(): Promise<Vocabulary> {
     if (
       this.vocabulary &&
@@ -230,38 +237,113 @@ export class MatchingService implements OnModuleDestroy {
     ) {
       return this.vocabulary;
     }
-    const rows = await this.prisma.listing.findMany({
-      select: {
-        rawName: true,
-        rawBrand: true,
-        chain: { select: { countryCode: true } },
-      },
-    });
-    const named = rows.map((r) => ({ ...r, country: r.chain.countryCode }));
-    const dictionaries = buildDictionaries(named);
-    const documents = new Map<string, string[][]>();
+    const brands = await this.prisma.$queryRaw<
+      { country: string; rawBrand: string; n: number }[]
+    >`
+      SELECT c."countryCode" AS country, l."rawBrand" AS "rawBrand", count(*)::int AS n
+      FROM listings l JOIN store_chains c ON c.id = l."chainId"
+      WHERE l."rawBrand" IS NOT NULL
+      GROUP BY 1, 2
+      ORDER BY n DESC, 2`;
+    const dictionaries = buildDictionaries(brands);
+    // Як бренд записаний найчастіше: ключ → назва ("coca-cola" → "Coca-Cola")
     const brandNames = new Map<string, string>();
-    for (const row of named) {
-      const features = detectBrand(
-        extractFeatures(row.rawName, row.rawBrand),
-        dictionaries.get(row.country) ?? [],
-      );
-      const docs = documents.get(row.country) ?? [];
-      docs.push(features.tokens.map((t) => t.norm));
-      documents.set(row.country, docs);
-      if (row.rawBrand && features.brand && !brandNames.has(features.brand)) {
-        brandNames.set(features.brand, row.rawBrand.trim());
-      }
+    for (const { rawBrand } of brands) {
+      const key = brandKey(rawBrand);
+      if (key && !brandNames.has(key)) brandNames.set(key, rawBrand.trim());
+    }
+
+    const signature = createHash('sha1')
+      .update(
+        [...dictionaries]
+          .flatMap(([country, entries]) =>
+            entries.map((e) => `${country}:${e.key}:${e.words.join(' ')}`),
+          )
+          .sort()
+          .join('\n'),
+      )
+      .digest('hex');
+    const known = await this.redis.get(BRAND_DICTIONARY_KEY).catch(() => null);
+    if (known !== signature) {
+      // Новий бренд у словнику може бути в назвах карток без бренду
+      await this.prisma.listing.updateMany({
+        where: { rawBrand: null },
+        data: { tokenizedAt: null },
+      });
+    }
+    await this.tokenize(dictionaries);
+    if (known !== signature) {
+      await this.redis.set(BRAND_DICTIONARY_KEY, signature).catch(() => null);
+    }
+
+    const [frequencies, totals] = await Promise.all([
+      this.prisma.$queryRaw<{ country: string; token: string; df: number }[]>`
+        SELECT country, token, count(*)::int AS df FROM (
+          SELECT DISTINCT l.id, c."countryCode" AS country, t.token
+          FROM listings l
+          JOIN store_chains c ON c.id = l."chainId"
+          CROSS JOIN LATERAL unnest(l."nameTokens") AS t(token)
+        ) d
+        GROUP BY country, token`,
+      this.prisma.$queryRaw<{ country: string; total: number }[]>`
+        SELECT c."countryCode" AS country, count(*)::int AS total
+        FROM listings l JOIN store_chains c ON c.id = l."chainId"
+        GROUP BY 1`,
+    ]);
+    const df = new Map<string, Map<string, number>>();
+    for (const row of frequencies) {
+      const counts = df.get(row.country) ?? new Map<string, number>();
+      counts.set(row.token, row.df);
+      df.set(row.country, counts);
     }
     this.vocabulary = {
       builtAt: Date.now(),
       dictionaries,
       idfs: new Map(
-        [...documents].map(([country, docs]) => [country, buildIdf(docs)]),
+        totals.map(({ country, total }) => [
+          country,
+          idfFromCounts(total, df.get(country) ?? new Map()),
+        ]),
       ),
       brandNames,
     };
     return this.vocabulary;
+  }
+
+  /** Значущі слова назв карток, для яких їх ще не пораховано (listings.nameTokens) */
+  private async tokenize(dictionaries: BrandDictionaries): Promise<void> {
+    let done = 0;
+    for (;;) {
+      const rows = await this.prisma.listing.findMany({
+        where: { tokenizedAt: null },
+        select: {
+          id: true,
+          rawName: true,
+          rawBrand: true,
+          chain: { select: { countryCode: true } },
+        },
+        take: KEYS_CHUNK,
+      });
+      if (rows.length === 0) break;
+      const data = rows.map((row) => ({
+        id: row.id,
+        tokens: detectBrand(
+          extractFeatures(row.rawName, row.rawBrand),
+          dictionaries.get(row.chain.countryCode) ?? [],
+        ).tokens.map((t) => t.norm),
+      }));
+      const updated = await this.prisma.$executeRaw`
+        UPDATE listings l
+        SET "nameTokens" = v.tokens, "tokenizedAt" = now()
+        FROM jsonb_to_recordset(${JSON.stringify(data)}::jsonb) AS v(id text, tokens text[])
+        WHERE l.id = v.id`;
+      // Інакше той самий пакет вибирався б знову й знову
+      if (updated < rows.length) {
+        throw new Error(`nameTokens: оновлено ${updated} з ${rows.length}`);
+      }
+      done += rows.length;
+    }
+    if (done > 0) this.logger.log(`Слова назв пораховано: ${done} карток`);
   }
 
   /**

@@ -14,6 +14,11 @@ export function buildIdf(documents: Iterable<string[]>): Idf {
     total++;
     for (const word of new Set(words)) df.set(word, (df.get(word) ?? 0) + 1);
   }
+  return idfFromCounts(total, df);
+}
+
+/** IDF з готових частот: total документів, df — у скількох із них є слово */
+export function idfFromCounts(total: number, df: Map<string, number>): Idf {
   return (token) => Math.log((total + 1) / ((df.get(token) ?? 0) + 1)) + 1;
 }
 
