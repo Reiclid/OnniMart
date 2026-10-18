@@ -89,7 +89,7 @@ erDiagram
 ## Потік даних
 
 ```
-Rust-парсер ──JSON──▶ Redis "scraper:results" ──▶ IngestionWorker ──▶ IngestionService
+Rust-парсер ──JSON──▶ Redis "scraper:results" ──▶ воркер: IngestionWorker ──▶ IngestionService
                                                                            │
           ┌────────────────────────────────────────────────────────────────┘
           ▼
@@ -100,7 +100,7 @@ Rust-парсер ──JSON──▶ Redis "scraper:results" ──▶ Ingestio
    5. зіставлення за штрихкодом → Listing.variantId (AUTO_MATCHED, BARCODE)
 ```
 
-Код: [`ingestion.service.ts`](../apps/api/src/modules/scraper/services/ingestion.service.ts), [`quantity.ts`](../apps/api/src/modules/catalog/normalization/quantity.ts), [`gtin.ts`](../apps/api/src/modules/catalog/normalization/gtin.ts).
+Код: [`ingestion.service.ts`](../apps/api/src/modules/scraper/services/ingestion.service.ts), [`quantity.ts`](../packages/matching/src/normalization/quantity.ts), [`gtin.ts`](../packages/matching/src/normalization/gtin.ts).
 
 ## Зіставлення товарів (головна наукова частина)
 
@@ -118,9 +118,9 @@ Rust-парсер ──JSON──▶ Redis "scraper:results" ──▶ Ingestio
 
 ### Етап 2. Нечітке зіставлення (реалізовано)
 
-Потрібен для мереж без штрихкодів: Сільпо, VARUS, ALDI, PENNY, NORMA. Код — [`catalog/matching`](../apps/api/src/modules/catalog/matching).
+Потрібен для мереж без штрихкодів: Сільпо, VARUS, ALDI, PENNY, NORMA. Код — [`packages/matching`](../packages/matching/src) (бібліотека без залежностей від БД; запис у БД — [`matching.service.ts`](../apps/api/src/modules/catalog/matching/matching.service.ts) у воркері).
 
-1. **Нормалізація назви** ([`features.ts`](../apps/api/src/modules/catalog/matching/features.ts)):
+1. **Нормалізація назви** ([`features.ts`](../packages/matching/src/features.ts)):
    - нижній регістр, `ß → ss`, без діакритики й апострофів, латинські літери в кириличних словах («дiтей» з латинською i) замінюються кириличними;
    - прибирається фасування («0,5л», «6х0,33 л», «1,5-L-Flasche») і службові слова («напій», «ПЕТ», «Flasche», «versch. Sorten»);
    - прибираються слова бренду; якщо мережа бренд не вказала, він шукається в назві за словником брендів тієї ж країни (ALDI Nord «Coca-Cola» без бренду → `coca-cola`);
@@ -129,12 +129,12 @@ Rust-парсер ──JSON──▶ Redis "scraper:results" ──▶ Ingestio
    - `sugar` (Zero / «без цукру» / zuckerfrei, Light), `caffeine`, `lactose` («безлактозне», laktosefrei), `organic` (Bio, «органічний», а також бренд «GUT BIO») — **сувора** група: якщо ознака є лише з одного боку, це інший товар (Coca-Cola ≠ Coca-Cola Zero);
    - `gas` (негазована / слабо- / сильногазована), відсоток жирності чи міцності, кількість штук («60л 20шт» ≠ «60л 40шт») — конфлікт лише якщо обидва значення відомі й різні.
 3. **Блокування кандидатів**: те саме розпізнане фасування (міра, кількість, мультипак, ваговий) і хоча б одне спільне слово (за першими 4 літерами).
-4. **Оцінка схожості** ([`similarity.ts`](../apps/api/src/modules/catalog/matching/similarity.ts)):
+4. **Оцінка схожості** ([`similarity.ts`](../packages/matching/src/similarity.ts)):
    - слова зважуються за IDF окремо для кожної країни — рідкісне «слива» важить більше за часте «молоко»;
    - слова порівнюються нечітко: різні закінчення («мінеральна» / «мінеральний») — 0,9, описки (біграмний коефіцієнт Дайса ≥ 0,8);
    - схожість назв = середнє зваженого коефіцієнта Жаккара і коефіцієнта включення;
    - множник бренду: той самий — 1; суббренд — 0,8; відомий лише з одного боку — 0,85; різні — 0.
-5. **Рішення** ([`catalog-index.ts`](../apps/api/src/modules/catalog/matching/catalog-index.ts)):
+5. **Рішення** ([`catalog-index.ts`](../packages/matching/src/catalog-index.ts)):
    - ≥ 0,90 і відрив від другого кандидата ≥ 0,05 — `AUTO_MATCHED` (FUZZY);
    - 0,70–0,90, нічия або різні штрихкоди при неповному збігу назви — `MatchCandidate`, черга модерації;
    - нижче — той самий бренд і назва іншого фасування → нове `ProductVariant` наявного товару, інакше новий `Product` (`matchMethod = CREATED`).
