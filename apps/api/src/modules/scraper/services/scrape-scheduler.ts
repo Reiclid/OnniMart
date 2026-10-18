@@ -7,6 +7,7 @@ import {
 import { SCRAPER_HEARTBEAT_KEY } from '@repo/contracts';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { createRedis } from '../../../redis';
+import { IngestionService } from './ingestion.service';
 import { ScraperService } from './scraper.service';
 
 /** Як часто перевіряти, чи не настав час для наступного обходу */
@@ -66,6 +67,7 @@ export class ScrapeScheduler
   constructor(
     private readonly prisma: PrismaService,
     private readonly scraper: ScraperService,
+    private readonly ingestion: IngestionService,
   ) {}
 
   onApplicationBootstrap() {
@@ -87,9 +89,14 @@ export class ScrapeScheduler
     this.redis.disconnect();
   }
 
-  /** Кожні 10 хв: зняти втрачені запуски, далі — заплановані обходи (якщо увімкнено) */
+  /** Кожні 10 хв: зняти втрачені запуски й акції, що закінчились, далі — заплановані обходи */
   async maintain(now = new Date()): Promise<void> {
     await this.reapLostRuns(now);
+    await this.ingestion
+      .expirePromos(now)
+      .catch((error) =>
+        this.logger.error(`Закінчення акцій: ${String(error)}`),
+      );
     if (this.enabled) await this.tick(now);
   }
 

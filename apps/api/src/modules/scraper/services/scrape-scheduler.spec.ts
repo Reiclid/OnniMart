@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { dueChains, ScrapeScheduler } from './scrape-scheduler';
+import { IngestionService } from './ingestion.service';
 import { ScraperService } from './scraper.service';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -76,6 +77,7 @@ describe('ScrapeScheduler.tick', () => {
     const scheduler = new ScrapeScheduler(
       prisma as unknown as PrismaService,
       scraper as unknown as ScraperService,
+      {} as IngestionService,
     );
 
     await expect(scheduler.tick(NOW)).resolves.toEqual(['silpo']);
@@ -102,6 +104,7 @@ describe('ScrapeScheduler.reapLostRuns', () => {
     const scheduler = new ScrapeScheduler(
       prisma as unknown as PrismaService,
       {} as ScraperService,
+      {} as IngestionService,
     );
     Object.assign(scheduler, {
       redis: { get: jest.fn(() => Promise.resolve(heartbeat)) },

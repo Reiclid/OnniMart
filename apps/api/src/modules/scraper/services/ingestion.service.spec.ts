@@ -409,3 +409,84 @@ describe('IngestionService.delistMissing', () => {
     expect(prisma.listing.updateMany).not.toHaveBeenCalled();
   });
 });
+
+describe('IngestionService.expirePromos', () => {
+  const NOW = new Date('2026-10-18T12:00:00Z');
+
+  function setup(listings: object[]) {
+    const prisma = {
+      listing: {
+        findMany: jest.fn((_args: Args) => Promise.resolve(listings)),
+        update: jest.fn((args: Args) => args),
+      },
+      priceSnapshot: { create: jest.fn((args: Args) => args) },
+      $transaction: jest.fn((ops: unknown[]) => Promise.resolve(ops)),
+    };
+    const service = new IngestionService(
+      prisma as unknown as PrismaService,
+      { schedule: jest.fn() } as unknown as MatchingService,
+    );
+    return { service, prisma };
+  }
+
+  beforeAll(() => Logger.overrideLogger(false));
+
+  it('шукає акції, що закінчились щонайменше 30 год тому', async () => {
+    const { service, prisma } = setup([]);
+    await service.expirePromos(NOW);
+    const where = prisma.listing.findMany.mock.calls[0][0].where;
+    expect(where.isOnPromo).toBe(true);
+    expect(where.promoEndsAt.lte).toEqual(new Date('2026-10-17T06:00:00Z'));
+  });
+
+  it('повертає звичайну ціну й пише запис історії без акції', async () => {
+    const { service, prisma } = setup([
+      {
+        id: 'l1',
+        currentPrice: '19.99',
+        regularPrice: '29.99',
+        unitPrice: '39.98',
+        inStock: true,
+        measure: 'VOLUME',
+        netQuantity: '500',
+        packCount: 1,
+        isWeighted: false,
+      },
+    ]);
+    await expect(service.expirePromos(NOW)).resolves.toBe(1);
+    expect(prisma.listing.update.mock.calls[0][0].data).toEqual({
+      isOnPromo: false,
+      promoEndsAt: null,
+      currentPrice: 29.99,
+      regularPrice: null,
+      unitPrice: 59.98,
+    });
+    expect(prisma.priceSnapshot.create.mock.calls[0][0].data).toMatchObject({
+      listingId: 'l1',
+      price: 29.99,
+      capturedAt: NOW,
+    });
+  });
+
+  it('акція без закресленої ціни (картка лояльності) — ціна та сама, акцію знято', async () => {
+    const { service, prisma } = setup([
+      {
+        id: 'l2',
+        currentPrice: '49.90',
+        regularPrice: null,
+        unitPrice: '99.80',
+        inStock: true,
+        measure: 'VOLUME',
+        netQuantity: '500',
+        packCount: 1,
+        isWeighted: false,
+      },
+    ]);
+    await service.expirePromos(NOW);
+    expect(prisma.listing.update.mock.calls[0][0].data).toMatchObject({
+      isOnPromo: false,
+      currentPrice: 49.9,
+      unitPrice: 99.8,
+    });
+  });
+});

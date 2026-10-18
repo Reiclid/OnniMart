@@ -19,6 +19,12 @@ export type IngestResult = 'skipped' | 'unchanged' | 'changed';
 export const MIN_SEEN_SHARE_TO_DELIST = 0.5;
 
 /**
+ * Дата закінчення акції — останній день її дії (YYYY-MM-DD → 00:00 UTC), тож знімаємо
+ * не раніше ніж через добу, з запасом на часові пояси мереж.
+ */
+export const PROMO_GRACE_MS = 30 * 60 * 60 * 1000;
+
+/**
  * Зберігає товар, отриманий від парсера:
  *   1. upsert картки мережі (Listing) за (мережа, externalId);
  *   2. новий PriceSnapshot — лише якщо змінилась ціна / акція / наявність;
@@ -62,6 +68,9 @@ export class IngestionService {
     const unitPrice = computeUnitPrice(price, quantity);
     const inStock = item.in_stock ?? true;
     const isOnPromo = regularPrice !== null || Boolean(item.promo_label);
+    const promoEndsAt = isOnPromo
+      ? parseOptionalDate(item.promo_ends_at)
+      : null;
     const seenAt = parseDate(item.scraper_at);
     const runId = await this.existingRun(item.run_id);
 
@@ -93,6 +102,7 @@ export class IngestionService {
       regularPrice,
       unitPrice,
       isOnPromo,
+      promoEndsAt,
       inStock,
       lastSeenAt: seenAt,
       // Картку знову бачимо на сайті
@@ -116,7 +126,7 @@ export class IngestionService {
             unitPrice,
             promoType: promoTypeOf(regularPrice, item.promo_label),
             promoLabel: item.promo_label ?? null,
-            promoEndsAt: parseOptionalDate(item.promo_ends_at),
+            promoEndsAt,
             inStock,
             capturedAt: seenAt,
             scrapeRunId: runId,
@@ -206,6 +216,69 @@ export class IngestionService {
     if (count > 0)
       this.logger.log(`Зникли з сайту: ${count} карток (${runId})`);
     return count;
+  }
+
+  /**
+   * Акції, що закінчились між обходами: картка повертається до звичайної ціни (якщо
+   * вона відома), а в історії зʼявляється запис без акції. Наступний обхід однаково
+   * перезапише картку справжніми даними сайту.
+   */
+  async expirePromos(now = new Date()): Promise<number> {
+    const expired = await this.prisma.listing.findMany({
+      where: {
+        isOnPromo: true,
+        promoEndsAt: { lte: new Date(now.getTime() - PROMO_GRACE_MS) },
+      },
+      select: {
+        id: true,
+        currentPrice: true,
+        regularPrice: true,
+        unitPrice: true,
+        inStock: true,
+        measure: true,
+        netQuantity: true,
+        packCount: true,
+        isWeighted: true,
+      },
+      take: 1000,
+    });
+    for (const listing of expired) {
+      const price = Number(listing.regularPrice ?? listing.currentPrice);
+      const unitPrice =
+        listing.regularPrice !== null && listing.measure
+          ? computeUnitPrice(price, {
+              measure: listing.measure,
+              netQuantity: Number(listing.netQuantity),
+              packCount: listing.packCount ?? 1,
+              isWeighted: listing.isWeighted,
+            })
+          : toNumberOrNull(listing.unitPrice);
+      await this.prisma.$transaction([
+        this.prisma.listing.update({
+          where: { id: listing.id },
+          data: {
+            isOnPromo: false,
+            promoEndsAt: null,
+            currentPrice: price,
+            regularPrice: null,
+            unitPrice,
+          },
+        }),
+        this.prisma.priceSnapshot.create({
+          data: {
+            listingId: listing.id,
+            price,
+            unitPrice,
+            inStock: listing.inStock,
+            capturedAt: now,
+          },
+        }),
+      ]);
+    }
+    if (expired.length > 0) {
+      this.logger.log(`Акції закінчились: ${expired.length} карток`);
+    }
+    return expired.length;
   }
 
   private async existingRun(runId?: string | null): Promise<string | null> {

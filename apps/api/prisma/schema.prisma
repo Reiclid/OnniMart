@@ -305,6 +305,8 @@ model Listing {
   /// Ціна за 1 кг / 1 л / 1 шт
   unitPrice    Decimal? @db.Decimal(12, 2)
   isOnPromo    Boolean  @default(false)
+  /// До якого дня діє поточна акція (з сайту); після нього воркер знімає акцію
+  promoEndsAt  DateTime?
   inStock      Boolean  @default(true)
 
   firstSeenAt DateTime @default(now())
@@ -325,6 +327,7 @@ model Listing {
   @@index([variantId])
   @@index([matchStatus])
   @@index([chainId, lastRunId])
+  @@index([promoEndsAt])
   @@map("listings")
 }
 
