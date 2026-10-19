@@ -1,9 +1,12 @@
 import { Controller, Get, Res } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { HealthDto } from './health.dto';
 import { HealthService } from './health.service';
 
+// Health-check опитують системи моніторингу — без обмеження частоти
+@SkipThrottle()
 @ApiTags('health')
 @Controller('api/v1/health')
 export class HealthController {

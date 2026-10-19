@@ -1,3 +1,4 @@
+import { MutationLimit } from '../../common/throttle';
 import { Controller, Post, Body } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -16,6 +17,7 @@ import {
 export class ScraperController {
   constructor(private readonly scraperService: ScraperService) {}
 
+  @MutationLimit()
   @ApiBearerAuth()
   @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
   @Post('trigger')

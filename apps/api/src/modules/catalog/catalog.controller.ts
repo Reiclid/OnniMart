@@ -1,3 +1,4 @@
+import { MutationLimit } from '../../common/throttle';
 import { Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -75,6 +76,7 @@ export class MatchingController {
     return this.catalog.getMatchingStatus();
   }
 
+  @MutationLimit()
   @ApiBearerAuth()
   @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
   @Post('run')
@@ -105,6 +107,7 @@ export class MatchingController {
     return this.catalog.getReviewQueue(page, pageSize);
   }
 
+  @MutationLimit()
   @ApiBearerAuth()
   @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
   @Post('candidates/:id/accept')
@@ -118,6 +121,7 @@ export class MatchingController {
     await this.moderation.acceptCandidate(id);
   }
 
+  @MutationLimit()
   @ApiBearerAuth()
   @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
   @Post('listings/:id/reject')
@@ -131,6 +135,7 @@ export class MatchingController {
     await this.moderation.rejectCandidates(id);
   }
 
+  @MutationLimit()
   @ApiBearerAuth()
   @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
   @Post('listings/:id/unlink')
