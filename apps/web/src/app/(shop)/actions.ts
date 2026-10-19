@@ -105,6 +105,6 @@ export async function readAllNotifications() {
 }
 
 /** Наступна сторінка каталогу для нескінченної прокрутки */
-export async function moreProducts({ q, chain, page }: { q?: string; chain?: string; page: number }) {
-  return (await getProducts({ q, chain, page, pageSize: PRODUCTS_PAGE_SIZE })).data.items;
+export async function moreProducts(query: { q?: string; chain?: string; category?: string; page: number }) {
+  return (await getProducts({ ...query, pageSize: PRODUCTS_PAGE_SIZE })).data.items;
 }

@@ -39,6 +39,10 @@ export class ProductsQueryDto {
   @IsOptional()
   @Matches(/^[a-z0-9-]{2,60}$/, { message: 'slug мережі: a-z, 0-9, дефіс' })
   chain?: string;
+  @ApiPropertyOptional({ description: 'Category.slug: drinks, dairy-eggs…' })
+  @IsOptional()
+  @Matches(/^[a-z0-9-]{2,40}$/, { message: 'slug категорії: a-z, 0-9, дефіс' })
+  category?: string;
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)
@@ -111,12 +115,23 @@ export class ProductLineDto {
   products!: LineProductDto[];
 }
 
+export class CategoryRefDto {
+  @ApiProperty({ example: 'drinks' }) slug!: string;
+  @ApiProperty({ example: 'Drinks' }) name!: string;
+}
+
+export class CategoryDto extends CategoryRefDto {
+  @ApiProperty({ description: 'Товарів у категорії' }) productsCount!: number;
+}
+
 export class ProductDetailsDto {
   @ApiProperty() id!: string;
   @ApiProperty() name!: string;
   @ApiProperty({ type: String, nullable: true }) brand!: string | null;
   @ApiProperty({ type: String, nullable: true }) variantLabel!: string | null;
   @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+  @ApiProperty({ type: CategoryRefDto, nullable: true })
+  category!: CategoryRefDto | null;
   @ApiProperty({ type: ProductLineDto, nullable: true })
   line!: ProductLineDto | null;
   @ApiProperty({ type: [ProductVariantDto] }) variants!: ProductVariantDto[];

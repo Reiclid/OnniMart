@@ -7,6 +7,7 @@
  */
 import type {
   BarcodeLookupDto,
+  CategoryDto,
   GetProductsParams,
   ProductDetailsDto,
   ProductPageDto
@@ -47,6 +48,41 @@ export const getGetProductsUrl = (params?: GetProductsParams,) => {
 export const getProducts = async (params?: GetProductsParams, options?: Parameters<typeof customFetch>[1]): Promise<getProductsResponse> => {
 
   return customFetch<getProductsResponse>(getGetProductsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type getCategoriesResponse200 = {
+  data: CategoryDto[]
+  status: 200
+}
+
+export type getCategoriesResponseSuccess = (getCategoriesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getCategoriesResponse = (getCategoriesResponseSuccess)
+
+export const getGetCategoriesUrl = () => {
+
+
+
+
+  return `/api/v1/categories`
+}
+
+/**
+ * @summary Категорії каталогу
+ */
+export const getCategories = async ( options?: Parameters<typeof customFetch>[1]): Promise<getCategoriesResponse> => {
+
+  return customFetch<getCategoriesResponse>(getGetCategoriesUrl(),
   {
     ...options,
     method: 'GET'

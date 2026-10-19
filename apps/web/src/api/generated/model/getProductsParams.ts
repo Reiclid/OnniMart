@@ -19,6 +19,10 @@ multiChain?: boolean;
  * StoreChain.slug — лише товари цієї мережі
  */
 chain?: string;
+/**
+ * Category.slug: drinks, dairy-eggs…
+ */
+category?: string;
 page?: number;
 /**
  * @maximum 200

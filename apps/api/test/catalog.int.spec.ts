@@ -118,6 +118,15 @@ const COLA_EAN = '5449000000996';
     });
   });
 
+  it('категорія товару — з категорій і назв карток', async () => {
+    const categories = await catalog.getCategories();
+    expect(categories.find((c) => c.slug === 'drinks')).toMatchObject({
+      productsCount: 2,
+    });
+    expect((await catalog.getProducts({ category: 'drinks' })).total).toBe(2);
+    expect((await catalog.getProducts({ category: 'alcohol' })).total).toBe(0);
+  });
+
   it('пошук за назвою, штрихкодом і мережею', async () => {
     const byName = await catalog.getProducts({ q: 'моршин' });
     expect(byName.items.map((p) => p.name)).toEqual([

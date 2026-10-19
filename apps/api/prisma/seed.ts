@@ -6,28 +6,13 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { CHAINS } from './data/chains';
 import { COUNTRIES } from './data/countries';
+import { CATEGORIES } from '@repo/matching';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
 const ROBOTS_CHECKED_AT = new Date('2026-10-11T00:00:00Z');
-
-const CATEGORIES: { slug: string; name: string; parent?: string }[] = [
-  { slug: 'drinks', name: 'Напої' },
-  { slug: 'soft-drinks', name: 'Солодка вода', parent: 'drinks' },
-  { slug: 'water', name: 'Вода', parent: 'drinks' },
-  { slug: 'juices', name: 'Соки та нектари', parent: 'drinks' },
-  { slug: 'dairy', name: 'Молочні продукти та яйця' },
-  { slug: 'grocery', name: 'Бакалія' },
-  { slug: 'meat-fish', name: "М'ясо та риба" },
-  { slug: 'fruits-vegetables', name: 'Овочі та фрукти' },
-  { slug: 'bakery', name: 'Хліб та випічка' },
-  { slug: 'sweets-snacks', name: 'Солодощі та снеки' },
-  { slug: 'frozen', name: 'Заморожені продукти' },
-  { slug: 'household', name: 'Побутова хімія' },
-  { slug: 'personal-care', name: 'Гігієна та догляд' },
-];
 
 async function seedCountries() {
   for (const country of COUNTRIES) {
@@ -66,23 +51,22 @@ async function seedChains() {
   }
 }
 
+/** Єдиний довідник категорій — той самий, за яким воркер класифікує товари (@repo/matching) */
 async function seedCategories() {
-  for (const category of CATEGORIES) {
-    const parent = category.parent
-      ? await prisma.category.findUniqueOrThrow({
-          where: { slug: category.parent },
-        })
-      : null;
+  for (const { slug, name } of CATEGORIES) {
     await prisma.category.upsert({
-      where: { slug: category.slug },
-      create: {
-        slug: category.slug,
-        name: category.name,
-        parentId: parent?.id,
-      },
-      update: { name: category.name, parentId: parent?.id ?? null },
+      where: { slug },
+      create: { slug, name },
+      update: { name, parentId: null },
     });
   }
+  // Категорії з давніх версій довідника, до яких не привʼязано жодного товару
+  await prisma.category.deleteMany({
+    where: {
+      slug: { notIn: CATEGORIES.map((c) => c.slug) },
+      products: { none: {} },
+    },
+  });
 }
 
 async function main() {

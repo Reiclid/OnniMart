@@ -16,6 +16,7 @@ import {
   ProductsQueryDto,
   ReviewPageDto,
   RunMatchingResponseDto,
+  CategoryDto,
 } from './dto/catalog.dto';
 import { MatchingClient } from './matching/matching.client';
 import { ModerationService } from './matching/moderation.service';
@@ -33,6 +34,13 @@ export class CatalogController {
   @ApiResponse({ status: 200, type: ProductPageDto })
   getProducts(@Query() query: ProductsQueryDto): Promise<ProductPageDto> {
     return this.catalog.getProducts(query);
+  }
+
+  @Get('categories')
+  @ApiOperation({ summary: 'Категорії каталогу', operationId: 'getCategories' })
+  @ApiResponse({ status: 200, type: [CategoryDto] })
+  getCategories(): Promise<CategoryDto[]> {
+    return this.catalog.getCategories();
   }
 
   @Get('products/:id')

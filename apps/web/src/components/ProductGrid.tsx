@@ -6,7 +6,15 @@ import { moreProducts } from '@/app/(shop)/actions';
 import { ProductCard, productCard } from './ProductCard';
 
 /** Каталог у дві колонки (Figma: For you); наступні сторінки — під час прокручування */
-export function ProductGrid({ first, total, q, chain }: { first: ProductSummaryDto[]; total: number; q?: string; chain?: string }) {
+export function ProductGrid({
+  first,
+  total,
+  filters,
+}: {
+  first: ProductSummaryDto[];
+  total: number;
+  filters: { q?: string; chain?: string; category?: string };
+}) {
   const [items, setItems] = useState(first);
   // Кінець списку або збій: більше не підвантажуємо
   const [done, setDone] = useState(false);
@@ -22,7 +30,7 @@ export function ProductGrid({ first, total, q, chain }: { first: ProductSummaryD
         if (!entry.isIntersecting || loading.current) return;
         loading.current = true;
         try {
-          const next = await moreProducts({ q, chain, page: page.current + 1 });
+          const next = await moreProducts({ ...filters, page: page.current + 1 });
           page.current += 1;
           // Каталог міг змінитись між сторінками — без дублів
           setItems((prev) => [...prev, ...next.filter((p) => !prev.some((x) => x.id === p.id))]);
@@ -38,7 +46,7 @@ export function ProductGrid({ first, total, q, chain }: { first: ProductSummaryD
     observer.observe(end.current);
     return () => observer.disconnect();
     // Після кожної сторінки — заново: якщо кінець списку ще видно, підвантажимо далі
-  }, [hasMore, items.length, q, chain]);
+  }, [hasMore, items.length, filters]);
 
   return (
     <>

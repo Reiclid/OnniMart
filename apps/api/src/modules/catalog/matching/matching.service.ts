@@ -16,6 +16,8 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { withFields } from '../../../logger';
 import { createRedis } from '../../../redis';
 import {
+  CATEGORIES,
+  productCategory,
   BrandDictionaries,
   brandKey,
   buildDictionaries,
@@ -242,6 +244,9 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     }
 
     await this.refreshProductStats();
+    await this.assignCategories().catch((error: unknown) =>
+      this.logger.error(`Категорії: ${errorText(error)}`),
+    );
     report.finishedAt = new Date().toISOString();
     this.last = report;
     await this.prisma.matchRun
@@ -435,6 +440,59 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
    * каталогу — зіставлення, рішення модератора, зняття зниклих карток, — тож тут вони
    * й оновлюються; CONCURRENTLY не блокує читання каталогу під час перерахунку.
    */
+  /**
+   * Категорія кожного товару — найчастіша серед його карток (правила в @repo/matching).
+   * shortcut: перераховує весь каталог після кожного пакета (~10 тис. карток, частки секунди);
+   * для мільйонів — лише товари, чиї картки змінились.
+   */
+  private async assignCategories(): Promise<void> {
+    await this.prisma.category.createMany({
+      data: [...CATEGORIES],
+      skipDuplicates: true,
+    });
+    const ids = new Map(
+      (
+        await this.prisma.category.findMany({
+          select: { id: true, slug: true },
+        })
+      ).map((c) => [c.slug, c.id]),
+    );
+    const rows = await this.prisma.$queryRaw<
+      { productId: string; rawCategory: string | null; rawName: string }[]
+    >`
+      SELECT v."productId", l."rawCategory", l."rawName"
+      FROM listings l JOIN product_variants v ON v.id = l."variantId"
+      WHERE l."delistedAt" IS NULL`;
+    const byProduct = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const list = byProduct.get(row.productId) ?? [];
+      list.push(row);
+      byProduct.set(row.productId, list);
+    }
+    const byCategory = new Map<string | null, string[]>();
+    for (const [productId, listings] of byProduct) {
+      const categoryId = ids.get(productCategory(listings) ?? '') ?? null;
+      byCategory.set(categoryId, [
+        ...(byCategory.get(categoryId) ?? []),
+        productId,
+      ]);
+    }
+    for (const [categoryId, productIds] of byCategory) {
+      await this.prisma.product.updateMany({
+        where: {
+          id: { in: productIds },
+          // Лише ті, що змінились; NULL явно, бо NOT (categoryId = x) для NULL — не true
+          ...(categoryId
+            ? {
+                OR: [{ categoryId: null }, { categoryId: { not: categoryId } }],
+              }
+            : { categoryId: { not: null } }),
+        },
+        data: { categoryId },
+      });
+    }
+  }
+
   private async refreshProductStats(): Promise<void> {
     try {
       await this.prisma

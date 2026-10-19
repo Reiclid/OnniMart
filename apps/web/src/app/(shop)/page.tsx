@@ -1,5 +1,6 @@
-import { getChains, getListings } from '@/api/generated/monitoring/monitoring';
-import { ChainChips } from '@/components/ChainChips';
+import { getCategories } from '@/api/generated/catalog/catalog';
+import { getListings } from '@/api/generated/monitoring/monitoring';
+import { FilterChips } from '@/components/FilterChips';
 import { listingCard, ProductCard } from '@/components/ProductCard';
 import { SearchField } from '@/components/SearchField';
 import Link from 'next/link';
@@ -8,8 +9,8 @@ import { BellIcon } from '@/components/ui';
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [{ data: chains }, { data: deals }] = await Promise.all([
-    getChains({ status: ['ACTIVE'] }),
+  const [{ data: categories }, { data: deals }] = await Promise.all([
+    getCategories(),
     getListings({ promo: true, matched: true, pageSize: 12 }),
   ]);
 
@@ -25,7 +26,12 @@ export default async function HomePage() {
             <BellIcon width={24} height={24} />
           </Link>
         </div>
-        <ChainChips chains={chains} />
+        <FilterChips
+          label="Categories"
+          param="category"
+          items={categories.filter((c) => c.productsCount > 0).map((c) => ({ value: c.slug, label: c.name }))}
+          filters={{}}
+        />
       </div>
 
       <section className="space-y-3">

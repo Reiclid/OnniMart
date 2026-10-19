@@ -36,7 +36,7 @@ export default async function ProfilePage() {
       </nav>
 
       <form action={signOut}>
-        <button type="submit" className={`${row} w-full rounded-lg border border-line bg-surface text-danger`}>
+        <button type="submit" className={`${row} w-full rounded-lg border border-line bg-surface`}>
           Sign out
         </button>
       </form>

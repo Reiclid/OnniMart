@@ -27,6 +27,13 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
       <ProductImage src={product.imageUrl} className="aspect-square w-full border border-line md:sticky md:top-6" />
 
       <div className="space-y-6">
+        {product.category && (
+          <nav aria-label="Breadcrumb" className="text-body-sm text-fg-muted">
+            <Link href="/products" className="hover:text-fg">Catalog</Link>
+            {' › '}
+            <Link href={`/products?category=${product.category.slug}`} className="hover:text-fg">{product.category.name}</Link>
+          </nav>
+        )}
         <div className="space-y-1">
           {product.brand && <div className="text-body-sm font-semibold text-brand">{product.brand}</div>}
           <h1 className="text-display font-bold">{product.name}</h1>

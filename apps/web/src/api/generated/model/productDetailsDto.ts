@@ -5,6 +5,7 @@
  * API для моніторингу цін та скрейпінгу
  * OpenAPI spec version: 1.0
  */
+import type { CategoryRefDto } from './categoryRefDto';
 import type { ProductLineDto } from './productLineDto';
 import type { ProductVariantDto } from './productVariantDto';
 
@@ -17,6 +18,8 @@ export interface ProductDetailsDto {
   variantLabel: string | null;
   /** @nullable */
   imageUrl: string | null;
+  /** @nullable */
+  category: CategoryRefDto | null;
   /** @nullable */
   line: ProductLineDto | null;
   variants: ProductVariantDto[];

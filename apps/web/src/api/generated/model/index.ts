@@ -8,6 +8,8 @@
 
 export * from './barcodeLookupDto';
 export * from './candidateOfferDto';
+export * from './categoryDto';
+export * from './categoryRefDto';
 export * from './chainSummaryDto';
 export * from './chainSummaryDtoOnlinePrices';
 export * from './chainSummaryDtoStatus';

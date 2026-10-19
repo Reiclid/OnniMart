@@ -16,3 +16,4 @@ export * from './similarity';
 export * from './catalog-index';
 export * from './prepare';
 export * from './naming';
+export * from './categories';

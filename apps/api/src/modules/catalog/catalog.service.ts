@@ -6,6 +6,7 @@ import { clampPageSize, isTrue, pageOf, toNumber } from '../../common/query';
 import {
   BarcodeLookupDto,
   MatchingStatusDto,
+  CategoryDto,
   PriceRangeDto,
   ProductDetailsDto,
   ProductPageDto,
@@ -38,6 +39,11 @@ export class CatalogService {
     } else if (q) {
       const like = `%${q}%`;
       filters.push(Prisma.sql`(p.name ILIKE ${like} OR b.name ILIKE ${like})`);
+    }
+    if (query.category) {
+      filters.push(
+        Prisma.sql`p."categoryId" = (SELECT id FROM categories WHERE slug = ${query.category})`,
+      );
     }
     if (query.chain) {
       filters.push(
@@ -117,11 +123,29 @@ export class CatalogService {
     };
   }
 
+  /** Категорії з кількістю товарів (порожні — теж, щоб меню було стабільним) */
+  async getCategories(): Promise<CategoryDto[]> {
+    const categories = await this.prisma.category.findMany({
+      where: { parentId: null },
+      select: {
+        slug: true,
+        name: true,
+        _count: { select: { products: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return categories.map(({ _count, ...c }) => ({
+      ...c,
+      productsCount: _count.products,
+    }));
+  }
+
   async getProduct(id: string): Promise<ProductDetailsDto> {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
         brand: { select: { name: true } },
+        category: { select: { slug: true, name: true } },
         line: {
           include: {
             products: {
@@ -147,6 +171,7 @@ export class CatalogService {
       brand: product.brand?.name ?? null,
       variantLabel: product.variantLabel,
       imageUrl: product.imageUrl,
+      category: product.category,
       line: product.line
         ? {
             id: product.line.id,
