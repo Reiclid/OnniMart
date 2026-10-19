@@ -36,7 +36,7 @@ export const getTriggerScrapeUrl = () => {
 
 
 
-  return `http://localhost:3001/api/v1/scraper/trigger`
+  return `/api/v1/scraper/trigger`
 }
 
 /**

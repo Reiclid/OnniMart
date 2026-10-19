@@ -38,7 +38,7 @@ export const getGetProductsUrl = (params?: GetProductsParams,) => {
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `http://localhost:3001/api/v1/products?${stringifiedParams}` : `http://localhost:3001/api/v1/products`
+  return stringifiedParams.length > 0 ? `/api/v1/products?${stringifiedParams}` : `/api/v1/products`
 }
 
 /**
@@ -73,7 +73,7 @@ export const getGetProductUrl = (id: string,) => {
 
 
 
-  return `http://localhost:3001/api/v1/products/${id}`
+  return `/api/v1/products/${id}`
 }
 
 /**
@@ -115,7 +115,7 @@ export const getLookupBarcodeUrl = (gtin: string,) => {
 
 
 
-  return `http://localhost:3001/api/v1/barcodes/${gtin}`
+  return `/api/v1/barcodes/${gtin}`
 }
 
 /**

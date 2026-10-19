@@ -30,7 +30,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="text-lg font-bold text-slate-900">
               OnniMart
             </Link>
-            <Link href="/" className="text-sm text-slate-600 hover:text-slate-900">
+            <Link
+              href="/"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
               Огляд
             </Link>
             <Link
@@ -52,7 +55,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               Зіставлення
             </Link>
             <a
-              href="http://localhost:3001/api/docs"
+              href={`${process.env.API_URL ?? "http://localhost:3001"}/api/docs`}
               className="ml-auto text-sm text-slate-500 hover:text-slate-900"
             >
               API docs

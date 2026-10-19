@@ -31,7 +31,7 @@ export const getGetMatchingStatusUrl = () => {
 
 
 
-  return `http://localhost:3001/api/v1/matching/status`
+  return `/api/v1/matching/status`
 }
 
 /**
@@ -73,7 +73,7 @@ export const getRunMatchingUrl = () => {
 
 
 
-  return `http://localhost:3001/api/v1/matching/run`
+  return `/api/v1/matching/run`
 }
 
 /**
@@ -115,7 +115,7 @@ export const getGetReviewQueueUrl = (params?: GetReviewQueueParams,) => {
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `http://localhost:3001/api/v1/matching/review?${stringifiedParams}` : `http://localhost:3001/api/v1/matching/review`
+  return stringifiedParams.length > 0 ? `/api/v1/matching/review?${stringifiedParams}` : `/api/v1/matching/review`
 }
 
 /**
@@ -157,7 +157,7 @@ export const getAcceptCandidateUrl = (id: string,) => {
 
 
 
-  return `http://localhost:3001/api/v1/matching/candidates/${id}/accept`
+  return `/api/v1/matching/candidates/${id}/accept`
 }
 
 /**
@@ -199,7 +199,7 @@ export const getRejectCandidatesUrl = (id: string,) => {
 
 
 
-  return `http://localhost:3001/api/v1/matching/listings/${id}/reject`
+  return `/api/v1/matching/listings/${id}/reject`
 }
 
 /**
@@ -241,7 +241,7 @@ export const getUnlinkListingUrl = (id: string,) => {
 
 
 
-  return `http://localhost:3001/api/v1/matching/listings/${id}/unlink`
+  return `/api/v1/matching/listings/${id}/unlink`
 }
 
 /**

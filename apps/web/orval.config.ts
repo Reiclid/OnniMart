@@ -12,7 +12,8 @@ export default defineConfig({
       schemas: 'src/api/generated/model',
       client: 'fetch',
       httpClient: 'fetch',
-      baseUrl: 'http://localhost:3001',
+      // Адресу API додає customFetch з API_URL (див. src/api/custom-fetch.ts)
+      baseUrl: '',
       clean: true,
       override: {
         mutator: {

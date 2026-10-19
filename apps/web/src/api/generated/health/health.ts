@@ -35,7 +35,7 @@ export const getGetHealthUrl = () => {
 
 
 
-  return `http://localhost:3001/api/v1/health`
+  return `/api/v1/health`
 }
 
 /**

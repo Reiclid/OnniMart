@@ -35,7 +35,7 @@ export const getGetStatsUrl = () => {
 
 
 
-  return `http://localhost:3001/api/v1/stats`
+  return `/api/v1/stats`
 }
 
 /**
@@ -85,7 +85,7 @@ export const getGetChainsUrl = (params?: GetChainsParams,) => {
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `http://localhost:3001/api/v1/chains?${stringifiedParams}` : `http://localhost:3001/api/v1/chains`
+  return stringifiedParams.length > 0 ? `/api/v1/chains?${stringifiedParams}` : `/api/v1/chains`
 }
 
 /**
@@ -127,7 +127,7 @@ export const getGetScrapeRunsUrl = (params?: GetScrapeRunsParams,) => {
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `http://localhost:3001/api/v1/scrape-runs?${stringifiedParams}` : `http://localhost:3001/api/v1/scrape-runs`
+  return stringifiedParams.length > 0 ? `/api/v1/scrape-runs?${stringifiedParams}` : `/api/v1/scrape-runs`
 }
 
 /**
@@ -169,7 +169,7 @@ export const getGetListingsUrl = (params?: GetListingsParams,) => {
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `http://localhost:3001/api/v1/listings?${stringifiedParams}` : `http://localhost:3001/api/v1/listings`
+  return stringifiedParams.length > 0 ? `/api/v1/listings?${stringifiedParams}` : `/api/v1/listings`
 }
 
 /**
@@ -204,7 +204,7 @@ export const getGetListingUrl = (id: string,) => {
 
 
 
-  return `http://localhost:3001/api/v1/listings/${id}`
+  return `/api/v1/listings/${id}`
 }
 
 /**

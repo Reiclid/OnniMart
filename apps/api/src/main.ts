@@ -2,10 +2,12 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { assertEnv } from './config';
 import { createOpenApiDocument } from './swagger';
 import { createValidationPipe } from './validation';
 
 async function bootstrap() {
+  assertEnv('api');
   const app = await NestFactory.create(AppModule);
 
   // Лише веб-адмінка; інші сайти не можуть слати запити з браузера адміністратора

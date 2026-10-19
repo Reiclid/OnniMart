@@ -12,17 +12,21 @@ export const customFetch = async <T>(
   url: string,
   options: RequestInit,
 ): Promise<T> => {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      // Лише на сервері Next.js (серверні дії): у браузері змінної немає
-      ...(process.env.ADMIN_TOKEN && {
-        Authorization: `Bearer ${process.env.ADMIN_TOKEN}`,
-      }),
-      ...options.headers,
+  // Запити йдуть із сервера Next.js (серверні компоненти й дії) — адреса з оточення
+  const response = await fetch(
+    `${process.env.API_URL ?? "http://localhost:3001"}${url}`,
+    {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        // Лише на сервері Next.js (серверні дії): у браузері змінної немає
+        ...(process.env.ADMIN_TOKEN && {
+          Authorization: `Bearer ${process.env.ADMIN_TOKEN}`,
+        }),
+        ...options.headers,
+      },
     },
-  });
+  );
 
   const data = await response.json().catch(() => ({}));
 
