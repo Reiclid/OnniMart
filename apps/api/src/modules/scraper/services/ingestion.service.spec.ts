@@ -50,6 +50,7 @@ function createPrismaMock() {
 
 /** Картка, що вже є в базі з ціною 25 без акції */
 const EXISTING = {
+  id: 'listing-1',
   currentPrice: '25.00',
   regularPrice: null,
   isOnPromo: false,
@@ -149,7 +150,11 @@ describe('IngestionService', () => {
     prisma.listing.findUnique.mockResolvedValue(EXISTING);
 
     await expect(service.ingest(product())).resolves.toBe('unchanged');
-    expect(prisma.listing.upsert).toHaveBeenCalled();
+    // Один UPDATE без транзакції — оновлює lastSeenAt, назву тощо
+    expect(prisma.listing.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'listing-1' } }),
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(prisma.priceSnapshot.create).not.toHaveBeenCalled();
   });
 

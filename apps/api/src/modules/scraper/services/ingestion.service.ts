@@ -120,17 +120,14 @@ export class IngestionService {
       ...(runId && { lastRunId: runId }),
     };
 
-    const listing = await this.prisma.$transaction(async (tx) => {
-      const saved = await tx.listing.upsert({
-        where: { chainId_externalId: key },
-        create: { ...key, ...fields, firstSeenAt: seenAt },
-        update: fields,
-      });
-
-      if (changed) {
-        await tx.priceSnapshot.create({
-          data: {
-            listingId: saved.id,
+    // Ціна й наявність ті самі (більшість щоденного обходу) — один запит без транзакції
+    const listing =
+      existing && !changed
+        ? await this.prisma.listing.update({
+            where: { id: existing.id },
+            data: fields,
+          })
+        : await this.save(key, fields, seenAt, {
             price,
             regularPrice,
             unitPrice,
@@ -140,24 +137,39 @@ export class IngestionService {
             inStock,
             capturedAt: seenAt,
             scrapeRunId: runId,
-          },
-        });
-        if (runId) {
-          await tx.scrapeRun.update({
-            where: { id: runId },
-            data: { itemsChanged: { increment: 1 } },
           });
-        }
-      }
-
-      return saved;
-    });
 
     if (!listing.variantId && barcodes.length > 0) {
       await this.matchByBarcode(listing.id, barcodes);
     }
 
     return changed ? 'changed' : 'unchanged';
+  }
+
+  /** Нова або змінена картка: збереження + запис історії цін в одній транзакції */
+  private save(
+    key: { chainId: string; externalId: string },
+    fields: Omit<Prisma.ListingUncheckedCreateInput, 'chainId' | 'externalId'>,
+    seenAt: Date,
+    snapshot: Omit<Prisma.PriceSnapshotUncheckedCreateInput, 'listingId'>,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const saved = await tx.listing.upsert({
+        where: { chainId_externalId: key },
+        create: { ...key, ...fields, firstSeenAt: seenAt },
+        update: fields,
+      });
+      await tx.priceSnapshot.create({
+        data: { ...snapshot, listingId: saved.id },
+      });
+      if (snapshot.scrapeRunId) {
+        await tx.scrapeRun.update({
+          where: { id: snapshot.scrapeRunId },
+          data: { itemsChanged: { increment: 1 } },
+        });
+      }
+      return saved;
+    });
   }
 
   /** Оновлює ScrapeRun за подією від парсера */
