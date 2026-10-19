@@ -27,9 +27,12 @@ jobs:
         run: bun x prisma generate
       - name: Типи (пакети + API)
         run: bun run typecheck
+      - name: Збірка API (nest build → dist, як для start:prod)
+        working-directory: apps/api
+        run: bun run build
       - name: Лінтер API
         working-directory: apps/api
-        run: bun x eslint "src/**/*.ts"
+        run: bun x eslint "{src,test,scripts,prisma}/**/*.ts"
       - name: Типи й лінтер web
         working-directory: apps/web
         # PageProps / LayoutProps генерує Next.js у .next/types

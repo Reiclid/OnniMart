@@ -7,7 +7,7 @@ import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { computeUnitPrice } from '@repo/matching';
-import type { ScrapedProductMessage } from '@repo/contracts';
+import { parseScraperMessage } from '@repo/contracts';
 import { resolveQuantity } from '../src/modules/scraper/services/ingestion.service';
 
 const prisma = new PrismaClient({
@@ -29,11 +29,16 @@ async function main() {
   });
 
   const changedIds: string[] = [];
+  let invalid = 0;
   for (const listing of listings) {
     if (!listing.rawData || listing.currentPrice === null) continue;
-    const quantity = resolveQuantity(
-      listing.rawData as unknown as ScrapedProductMessage,
-    );
+    // rawData — збережене повідомлення скрапера: перевіряємо, а не довіряємо типу
+    const parsed = parseScraperMessage(JSON.stringify(listing.rawData));
+    if (!parsed.ok || parsed.message.kind !== 'product') {
+      invalid++;
+      continue;
+    }
+    const quantity = resolveQuantity(parsed.message);
     const unitPrice = computeUnitPrice(Number(listing.currentPrice), quantity);
     const same =
       (quantity?.measure ?? null) === listing.measure &&
@@ -70,7 +75,7 @@ async function main() {
         WHERE l.id = s."listingId" AND l.id = ANY(${changedIds})`
     : 0;
   console.log(
-    `Перевірено карток: ${listings.length}, оновлено: ${changedIds.length}, записів історії: ${snapshots}`,
+    `Перевірено карток: ${listings.length}, оновлено: ${changedIds.length}, записів історії: ${snapshots}, некоректних rawData: ${invalid}`,
   );
 }
 

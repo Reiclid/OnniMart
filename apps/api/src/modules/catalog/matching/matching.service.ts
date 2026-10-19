@@ -340,7 +340,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       idfs: new Map(
         totals.map(({ country, total }) => [
           country,
-          idfFromCounts(total, df.get(country) ?? new Map()),
+          idfFromCounts(total, df.get(country) ?? new Map<string, number>()),
         ]),
       ),
       brandNames,
