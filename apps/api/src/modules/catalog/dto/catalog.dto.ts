@@ -1,4 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  IsBooleanString,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { ListingSummaryDto } from '../../monitoring/dto/monitoring.dto';
 
 export class PriceRangeDto {
@@ -11,17 +22,36 @@ export class ProductsQueryDto {
   @ApiPropertyOptional({
     description: 'Пошук за назвою, брендом або штрихкодом',
   })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   q?: string;
   @ApiPropertyOptional({
     description: 'Лише товари, що продаються щонайменше у 2 мережах',
   })
+  @IsOptional()
+  @IsBooleanString()
   multiChain?: boolean;
   @ApiPropertyOptional({
     description: 'StoreChain.slug — лише товари цієї мережі',
   })
+  @IsOptional()
+  @Matches(/^[a-z0-9-]{2,60}$/, { message: 'slug мережі: a-z, 0-9, дефіс' })
   chain?: string;
-  @ApiPropertyOptional({ default: 1 }) page?: number;
-  @ApiPropertyOptional({ default: 50, maximum: 200 }) pageSize?: number;
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  page?: number;
+  @ApiPropertyOptional({ default: 50, maximum: 200 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  pageSize?: number;
 }
 
 export class ProductSummaryDto {

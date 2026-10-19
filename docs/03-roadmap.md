@@ -79,7 +79,7 @@ Rust-парсер (`apps/scraper`, збирається й тестується 
 - [ ] Підписки (CRUD) і `NotificationsService`:
   - нова зміна ціни → пошук підписок → `Notification` з `dedupeKey`;
   - доставка через Expo Push і/або email.
-- [ ] Валідація DTO: `class-validator` + `ValidationPipe`.
+- [x] Валідація DTO: `class-validator` + `ValidationPipe` (некоректні запити — 400).
 - [ ] Регенерація клієнта для web (`bun run dev:orval`).
 
 ## Етап 4. Вебклієнт (лютий)

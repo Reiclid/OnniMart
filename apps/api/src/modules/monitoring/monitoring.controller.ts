@@ -57,7 +57,10 @@ export class MonitoringController {
     @Query('status') status?: string | string[],
     @Query('country') country?: string,
   ): Promise<ChainSummaryDto[]> {
-    return this.monitoring.getChains(parseStatuses(status), country);
+    return this.monitoring.getChains(
+      parseStatuses(status),
+      typeof country === 'string' ? country : undefined,
+    );
   }
 
   @Get('scrape-runs')
