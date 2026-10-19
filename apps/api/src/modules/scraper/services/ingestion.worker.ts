@@ -1,3 +1,4 @@
+import { errorText } from '../../../common/errors';
 import {
   Injectable,
   Logger,
@@ -107,7 +108,7 @@ export class IngestionWorker
       return 0;
     } catch (error) {
       if (!this.running) return 0;
-      const reason = (error as Error).stack ?? String(error);
+      const reason = errorText(error);
       if (raw === null) {
         this.logger.error(`Redis: ${reason}`);
         return 2000;
@@ -127,11 +128,22 @@ export class IngestionWorker
 
   private async deadLetter(raw: string, reason: string) {
     this.logger.error(`→ ${SCRAPER_RESULTS_DEAD} (${reason}): ${raw}`);
+    await this.ingestion.countFailed(runIdOf(raw)).catch(() => undefined);
     await this.redis
       .multi()
       .lpush(SCRAPER_RESULTS_DEAD, raw)
       .lrem(SCRAPER_RESULTS_PROCESSING, -1, raw)
       .exec();
     this.attempts = 0;
+  }
+}
+
+/** run_id з повідомлення, навіть некоректного (щоб зарахувати збій у журнал запуску) */
+function runIdOf(raw: string): string | null {
+  try {
+    const value = JSON.parse(raw) as { run_id?: unknown };
+    return typeof value.run_id === 'string' ? value.run_id : null;
+  } catch {
+    return null;
   }
 }

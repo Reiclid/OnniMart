@@ -28,7 +28,7 @@ async function main() {
     },
   });
 
-  let changed = 0;
+  const changedIds: string[] = [];
   for (const listing of listings) {
     if (!listing.rawData || listing.currentPrice === null) continue;
     const quantity = resolveQuantity(
@@ -55,9 +55,23 @@ async function main() {
         unitPrice,
       },
     });
-    changed++;
+    changedIds.push(listing.id);
   }
-  console.log(`Перевірено карток: ${listings.length}, оновлено: ${changed}`);
+  // Ціна за одиницю в історії — за тими самими правилами, що computeUnitPrice
+  const snapshots = changedIds.length
+    ? await prisma.$executeRaw`
+        UPDATE price_snapshots s SET "unitPrice" = CASE
+          WHEN l.measure IS NULL OR l."netQuantity" IS NULL OR l."netQuantity" <= 0 THEN NULL
+          WHEN l."isWeighted" THEN round(s.price, 2)
+          WHEN l.measure = 'COUNT' THEN round(s.price / l."netQuantity", 2)
+          ELSE round(s.price / l."netQuantity" * 1000, 2)
+        END
+        FROM listings l
+        WHERE l.id = s."listingId" AND l.id = ANY(${changedIds})`
+    : 0;
+  console.log(
+    `Перевірено карток: ${listings.length}, оновлено: ${changedIds.length}, записів історії: ${snapshots}`,
+  );
 }
 
 main()

@@ -271,6 +271,8 @@ export class CatalogService {
                 include: {
                   product: { include: { brand: { select: { name: true } } } },
                   listings: {
+                    where: { delistedAt: null },
+                    take: 20,
                     select: {
                       rawName: true,
                       currentPrice: true,

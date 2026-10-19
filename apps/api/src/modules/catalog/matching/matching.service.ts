@@ -1,3 +1,4 @@
+import { errorText } from '../../../common/errors';
 import { createHash, randomUUID } from 'node:crypto';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import {
@@ -112,9 +113,7 @@ export class MatchingService implements OnModuleDestroy {
   /** Запустити у фоні; якщо зіставлення вже йде — повторити після нього */
   schedule(): void {
     void this.run().catch((error: unknown) =>
-      this.logger.error(
-        `Зіставлення впало: ${(error as Error).stack ?? String(error)}`,
-      ),
+      this.logger.error(`Зіставлення впало: ${errorText(error)}`),
     );
   }
 
@@ -145,7 +144,7 @@ export class MatchingService implements OnModuleDestroy {
     try {
       await this.redis.set(MATCHING_STATE_KEY, JSON.stringify(state));
     } catch (error) {
-      this.logger.warn(`Не вдалося опублікувати стан: ${String(error)}`);
+      this.logger.warn(`Не вдалося опублікувати стан: ${errorText(error)}`);
     }
   }
 
@@ -201,7 +200,7 @@ export class MatchingService implements OnModuleDestroy {
         else {
           report.failed++;
           this.logger.error(
-            `Картка ${row.id} (${row.rawName}): ${(error as Error).stack ?? String(error)}`,
+            `Картка ${row.id} (${row.rawName}): ${errorText(error)}`,
           );
         }
         continue;
@@ -407,7 +406,7 @@ export class MatchingService implements OnModuleDestroy {
       await this.prisma
         .$executeRaw`REFRESH MATERIALIZED VIEW CONCURRENTLY product_stats`;
     } catch (error) {
-      this.logger.error(`product_stats: ${String(error)}`);
+      this.logger.error(`product_stats: ${errorText(error)}`);
     }
   }
 

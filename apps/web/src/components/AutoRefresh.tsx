@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 /** Поки є активні запуски, перезавантажує дані сторінки кожні кілька секунд */
 export function AutoRefresh({
   active,
-  intervalMs = 4000,
+  intervalMs = 15000,
 }: {
   active: boolean;
   intervalMs?: number;

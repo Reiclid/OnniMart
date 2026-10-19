@@ -36,6 +36,11 @@ export class IngestionService {
   private readonly logger = new Logger(IngestionService.name);
   /** Кеш: чи існує ScrapeRun з таким id (щоб не перевіряти на кожен товар) */
   private readonly knownRuns = new Map<string, boolean>();
+  /** Мережі за slug — щоб не читати store_chains на кожен товар (10 хв) */
+  private readonly chains = new Map<
+    string,
+    { chain: { id: string } | null; at: number }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -50,9 +55,7 @@ export class IngestionService {
       return 'skipped';
     }
 
-    const chain = await this.prisma.storeChain.findUnique({
-      where: { slug: item.store },
-    });
+    const chain = await this.chainBySlug(item.store);
     if (!chain) {
       this.logger.warn(`Невідома мережа "${item.store}" — додайте її в seed`);
       return 'skipped';
@@ -172,7 +175,10 @@ export class IngestionService {
         ? { status: 'RUNNING', startedAt: at }
         : event.kind === 'run_finished'
           ? {
-              status: event.error ? 'PARTIAL' : 'SUCCESS',
+              status:
+                event.error || (await this.failedItems(runId)) > 0
+                  ? 'PARTIAL'
+                  : 'SUCCESS',
               finishedAt: at,
               error: event.error ?? null,
               ...counters,
@@ -302,10 +308,40 @@ export class IngestionService {
     return expired.length;
   }
 
+  private async chainBySlug(slug: string) {
+    const cached = this.chains.get(slug);
+    if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.chain;
+    const chain = await this.prisma.storeChain.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+    this.chains.set(slug, { chain, at: Date.now() });
+    return chain;
+  }
+
+  private async failedItems(runId: string): Promise<number> {
+    const run = await this.prisma.scrapeRun.findUnique({
+      where: { id: runId },
+      select: { itemsFailed: true },
+    });
+    return run?.itemsFailed ?? 0;
+  }
+
+  /** Повідомлення запуску не вдалося обробити (dead-letter) — рахуємо в журналі */
+  async countFailed(runId?: string | null): Promise<void> {
+    const id = await this.existingRun(runId);
+    if (!id) return;
+    await this.prisma.scrapeRun.update({
+      where: { id },
+      data: { itemsFailed: { increment: 1 } },
+    });
+  }
+
   private async existingRun(runId?: string | null): Promise<string | null> {
     if (!runId) return null;
     let exists = this.knownRuns.get(runId);
     if (exists === undefined) {
+      if (this.knownRuns.size > 1000) this.knownRuns.clear();
       const run = await this.prisma.scrapeRun.findUnique({
         where: { id: runId },
         select: { id: true },

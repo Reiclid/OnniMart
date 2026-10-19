@@ -37,6 +37,10 @@ export class ScrapeRunDto {
   @ApiProperty() pagesFetched!: number;
   @ApiProperty() itemsSeen!: number;
   @ApiProperty() itemsChanged!: number;
+  @ApiProperty({
+    description: 'Товарів, які не вдалося обробити (dead-letter)',
+  })
+  itemsFailed!: number;
   @ApiProperty({ type: String, nullable: true }) error!: string | null;
 }
 

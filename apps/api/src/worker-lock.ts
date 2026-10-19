@@ -1,3 +1,4 @@
+import { errorText } from './common/errors';
 import { randomUUID } from 'node:crypto';
 import {
   Injectable,
@@ -63,7 +64,7 @@ export class WorkerLock implements OnModuleInit, OnModuleDestroy {
         this.logger.error('Замок воркера втрачено — перезапустіть воркер');
       return ok === 1;
     } catch (error) {
-      this.logger.error(`Замок воркера: ${String(error)}`);
+      this.logger.error(`Замок воркера: ${errorText(error)}`);
       return false;
     }
   }

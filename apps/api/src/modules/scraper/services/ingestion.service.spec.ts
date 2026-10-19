@@ -305,6 +305,19 @@ describe('IngestionService', () => {
   });
 
   describe('handleRunEvent', () => {
+    it('запуск зі збійними товарами (dead-letter) завершується як PARTIAL', async () => {
+      prisma.scrapeRun.findUnique.mockResolvedValue({
+        id: RUN_ID,
+        itemsFailed: 3,
+      } as never);
+      await service.handleRunEvent(
+        event({ kind: 'run_finished', pages_fetched: 0, items_seen: 10 }),
+      );
+      expect(prisma.scrapeRun.update.mock.calls[0][0].data.status).toBe(
+        'PARTIAL',
+      );
+    });
+
     it('після запуску зі сторінками оновлює дату перевірки robots.txt', async () => {
       prisma.scrapeRun.update.mockResolvedValueOnce({ chainId: 'chain-atb' });
       Object.assign(prisma.storeChain, { update: jest.fn() });

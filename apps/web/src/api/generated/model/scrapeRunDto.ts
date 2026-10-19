@@ -19,6 +19,8 @@ export interface ScrapeRunDto {
   pagesFetched: number;
   itemsSeen: number;
   itemsChanged: number;
+  /** Товарів, які не вдалося обробити (dead-letter) */
+  itemsFailed: number;
   /** @nullable */
   error: string | null;
 }

@@ -457,6 +457,8 @@ model ScrapeRun {
   pagesFetched Int          @default(0)
   itemsSeen    Int          @default(0)
   itemsChanged Int          @default(0)
+  /// Товарів, які не вдалося обробити (потрапили в scraper:results:dead)
+  itemsFailed  Int          @default(0)
   error        String?
 
   chain          StoreChain      @relation(fields: [chainId], references: [id], onDelete: Cascade)

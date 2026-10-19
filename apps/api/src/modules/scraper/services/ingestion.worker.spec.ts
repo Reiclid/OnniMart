@@ -60,7 +60,11 @@ const product = JSON.stringify({
 });
 
 function setup(ingest: jest.Mock = jest.fn(() => Promise.resolve('changed'))) {
-  const ingestion = { ingest, handleRunEvent: jest.fn() };
+  const ingestion = {
+    ingest,
+    handleRunEvent: jest.fn(),
+    countFailed: jest.fn(() => Promise.resolve()),
+  };
   const worker = new IngestionWorker(ingestion as unknown as IngestionService);
   const redis = fakeRedis();
   Object.assign(worker, { redis, running: true });
@@ -109,6 +113,7 @@ describe('IngestionWorker.step', () => {
     await worker.step();
     expect(ingestion.ingest).not.toHaveBeenCalled();
     expect(redis.lists.get(SCRAPER_RESULTS_DEAD)).toEqual(['{"price":0}']);
+    expect(ingestion.countFailed).toHaveBeenCalledWith(null);
   });
 
   it(`після ${MAX_ATTEMPTS} невдалих спроб — у dead-letter, черга йде далі`, async () => {

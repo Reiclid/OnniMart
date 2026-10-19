@@ -1,3 +1,4 @@
+import { errorText } from '../../../common/errors';
 import {
   Injectable,
   Logger,
@@ -40,7 +41,7 @@ export class MatchingRequestsWorker
         }
       } catch (error) {
         if (!this.running) break;
-        this.logger.error(`Черга запитів зіставлення: ${String(error)}`);
+        this.logger.error(`Черга запитів зіставлення: ${errorText(error)}`);
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }

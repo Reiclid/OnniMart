@@ -228,6 +228,7 @@ function toRunDto(run: RunWithChain): ScrapeRunDto {
     pagesFetched: run.pagesFetched,
     itemsSeen: run.itemsSeen,
     itemsChanged: run.itemsChanged,
+    itemsFailed: run.itemsFailed,
     error: run.error,
   };
 }

@@ -1,3 +1,4 @@
+import { errorText } from '../../../common/errors';
 import {
   Injectable,
   Logger,
@@ -95,7 +96,7 @@ export class ScrapeScheduler
     await this.ingestion
       .expirePromos(now)
       .catch((error) =>
-        this.logger.error(`Закінчення акцій: ${String(error)}`),
+        this.logger.error(`Закінчення акцій: ${errorText(error)}`),
       );
     if (this.enabled) await this.tick(now);
   }
@@ -125,7 +126,7 @@ export class ScrapeScheduler
       this.logger.warn(`Втрачені запуски → FAILED: ${lost.join(', ')}`);
       return lost;
     } catch (error) {
-      this.logger.error(`Перевірка завислих запусків: ${String(error)}`);
+      this.logger.error(`Перевірка завислих запусків: ${errorText(error)}`);
       return [];
     }
   }
@@ -155,7 +156,7 @@ export class ScrapeScheduler
         this.logger.log(`Заплановано обхід: ${due.join(', ')}`);
       return due;
     } catch (error) {
-      this.logger.error(`Планувальник: ${String(error)}`);
+      this.logger.error(`Планувальник: ${errorText(error)}`);
       return [];
     }
   }
