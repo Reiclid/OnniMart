@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdminGuard } from './auth/admin.guard';
+import { AccountsModule } from './modules/accounts/accounts.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { HealthModule } from './modules/health/health.module';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
@@ -17,6 +18,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ScraperModule,
     MonitoringModule,
     HealthModule,
+    AccountsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -7,6 +7,7 @@ import { NestFactory } from '@nestjs/core';
 import { MATCHING_REQUESTS_QUEUE } from '@repo/contracts';
 import type Redis from 'ioredis';
 import { AppModule } from '../src/app.module';
+import { AlertsChecker } from '../src/modules/accounts/alerts.checker';
 import { MatchingService } from '../src/modules/catalog/matching/matching.service';
 import { IngestionService } from '../src/modules/scraper/services/ingestion.service';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -53,7 +54,7 @@ const ORIGIN = 'http://localhost:3000';
     // Дані: одна картка, зіставлена в каталог
     const prisma = new PrismaService();
     await prisma.$executeRawUnsafe(`
-      TRUNCATE match_runs, match_keys, match_candidates, price_snapshots, scrape_runs,
+      TRUNCATE sessions, notifications, match_runs, match_keys, match_candidates, price_snapshots, scrape_runs,
         barcodes, listings, product_variants, products, product_lines, brands, stores,
         store_chains, countries, subscriptions, users RESTART IDENTITY CASCADE`);
     await prisma.country.create({
@@ -160,6 +161,105 @@ const ORIGIN = 'http://localhost:3000';
     expect(own.headers.get('x-request-id')).toBe('req-42');
     const generated = await get('/api/v1/stats', { 'x-request-id': 'a b' });
     expect(generated.headers.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('акаунт: реєстрація → підписка на ціну → сповіщення → вихід', async () => {
+    const credentials = {
+      email: 'Olena@Example.com',
+      password: 'correct horse',
+    };
+    const registered = await post('/api/v1/auth/register', {
+      ...credentials,
+      name: 'Olena',
+    });
+    expect(registered.status).toBe(201);
+    expect((await post('/api/v1/auth/register', credentials)).status).toBe(409);
+    expect(
+      (
+        await post('/api/v1/auth/register', {
+          email: 'x@y.z',
+          password: 'short',
+        })
+      ).status,
+    ).toBe(400);
+
+    expect(
+      (
+        await post('/api/v1/auth/login', {
+          ...credentials,
+          password: 'wrong password',
+        })
+      ).status,
+    ).toBe(401);
+    const login = await post('/api/v1/auth/login', {
+      email: 'olena@example.com',
+      password: credentials.password,
+    });
+    expect(login.status).toBe(200);
+    const { token } = (await login.json()) as { token: string };
+    const auth = { authorization: `Bearer ${token}` };
+    const send = (method: string, path: string, body?: unknown) =>
+      fetch(`${base}${path}`, {
+        method,
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+
+    expect((await get('/api/v1/me')).status).toBe(401);
+    const me = await (await get('/api/v1/me', auth)).json();
+    expect(me).toMatchObject({
+      email: 'olena@example.com',
+      name: 'Olena',
+      minDiscount: 0,
+    });
+    expect(
+      await (await send('PATCH', '/api/v1/me', { minDiscount: 10 })).json(),
+    ).toMatchObject({ minDiscount: 10 });
+
+    const page = await (await get('/api/v1/products?q=coca')).json();
+    const product = await (
+      await get(`/api/v1/products/${page.items[0].id}`)
+    ).json();
+    const created = await send('POST', '/api/v1/me/subscriptions', {
+      variantId: product.variants[0].id,
+      targetPrice: 30,
+    });
+    expect(created.status).toBe(201);
+    const subscription = await created.json();
+    expect(subscription).toMatchObject({
+      targetPrice: 30,
+      isActive: true,
+      lowest: { price: 29.9, chainName: 'NOVUS' },
+    });
+
+    // Воркер: ціна 29.90 ≤ 30 → сповіщення, повторна перевірка не дублює
+    const prisma = new PrismaService();
+    const checker = new AlertsChecker(prisma);
+    expect(await checker.check()).toBe(1);
+    expect(await checker.check()).toBe(0);
+    await prisma.$disconnect();
+    const notifications = await (
+      await get('/api/v1/me/notifications', auth)
+    ).json();
+    expect(notifications).toMatchObject([
+      { type: 'TARGET_PRICE_REACHED', productId: product.id, readAt: null },
+    ]);
+    expect((await send('POST', '/api/v1/me/notifications/read')).status).toBe(
+      204,
+    );
+
+    expect(
+      (await send('DELETE', `/api/v1/me/subscriptions/${subscription.id}`))
+        .status,
+    ).toBe(204);
+    expect(
+      (await send('DELETE', `/api/v1/me/subscriptions/${subscription.id}`))
+        .status,
+    ).toBe(404);
+    expect((await post('/api/v1/auth/logout', undefined, token)).status).toBe(
+      204,
+    );
+    expect((await get('/api/v1/me', auth)).status).toBe(401);
   });
 
   it('CORS — лише для веб-адмінки', async () => {

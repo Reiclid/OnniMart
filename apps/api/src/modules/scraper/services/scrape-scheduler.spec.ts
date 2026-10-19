@@ -1,3 +1,4 @@
+import type { AlertsChecker } from '../../accounts/alerts.checker';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { dueChains, ScrapeScheduler } from './scrape-scheduler';
@@ -78,6 +79,7 @@ describe('ScrapeScheduler.tick', () => {
       prisma as unknown as PrismaService,
       scraper as unknown as ScraperService,
       {} as IngestionService,
+      {} as AlertsChecker,
     );
 
     await expect(scheduler.tick(NOW)).resolves.toEqual(['silpo']);
@@ -105,6 +107,7 @@ describe('ScrapeScheduler.reapLostRuns', () => {
       prisma as unknown as PrismaService,
       {} as ScraperService,
       {} as IngestionService,
+      {} as AlertsChecker,
     );
     Object.assign(scheduler, {
       redis: { get: jest.fn(() => Promise.resolve(heartbeat)) },

@@ -5,10 +5,14 @@ import {
 } from '@nestjs/common';
 import { AdminGuard } from './admin.guard';
 
-function context(method: string, authorization?: string): ExecutionContext {
+function context(
+  method: string,
+  authorization?: string,
+  path = '/api/v1/scraper/trigger',
+): ExecutionContext {
   return {
     switchToHttp: () => ({
-      getRequest: () => ({ method, headers: { authorization } }),
+      getRequest: () => ({ method, path, headers: { authorization } }),
     }),
   } as unknown as ExecutionContext;
 }
@@ -23,6 +27,19 @@ describe('AdminGuard', () => {
   it('читання дозволене без токена', () => {
     process.env.ADMIN_TOKEN = 'secret';
     expect(guard.canActivate(context('GET'))).toBe(true);
+  });
+
+  it('вхід і /me — без токена адміністратора (їх захищає UserGuard)', () => {
+    process.env.ADMIN_TOKEN = 'secret';
+    for (const path of [
+      '/api/v1/auth/login',
+      '/api/v1/me',
+      '/api/v1/me/subscriptions',
+    ])
+      expect(guard.canActivate(context('POST', undefined, path))).toBe(true);
+    expect(() =>
+      guard.canActivate(context('POST', undefined, '/api/v1/meta')),
+    ).toThrow(UnauthorizedException);
   });
 
   it('зміна з правильним токеном дозволена', () => {

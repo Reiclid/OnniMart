@@ -9,6 +9,8 @@ import {
 import type { Request } from 'express';
 
 const READ_ONLY = new Set(['GET', 'HEAD', 'OPTIONS']);
+/** Вхід і власні дані користувача — свій захист (UserGuard), не токен адміністратора */
+const USER_ROUTES = /^\/api\/v1\/(auth|me)(\/|$)/;
 
 /**
  * Читання каталогу публічне, а будь-яка зміна (запуск парсингу, модерація) —
@@ -19,7 +21,8 @@ const READ_ONLY = new Set(['GET', 'HEAD', 'OPTIONS']);
 export class AdminGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
-    if (READ_ONLY.has(request.method)) return true;
+    if (READ_ONLY.has(request.method) || USER_ROUTES.test(request.path ?? ''))
+      return true;
 
     const expected = process.env.ADMIN_TOKEN;
     if (!expected) {

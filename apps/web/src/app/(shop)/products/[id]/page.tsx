@@ -6,6 +6,9 @@ import { ChainPriceRow } from '@/components/ChainPriceRow';
 import { Chip, ProductImage } from '@/components/ui';
 import { formatMoney, formatUnitPrice, lineChipLabel } from '@/lib/format';
 import { productView } from '@/lib/offers';
+import { currentUser } from '@/lib/session';
+import { buttonStyles } from '@/components/ui';
+import { trackPrice } from '../../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +21,7 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
   const v = typeof params.v === 'string' ? params.v : undefined;
   const { local, abroad, cheapest, sizes, updatedAt, variant } = productView(product, v);
   const flavours = product.line?.products ?? [];
+  const user = await currentUser();
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
@@ -72,6 +76,41 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
                 </Chip>
               ))}
             </div>
+          </section>
+        )}
+
+        {variant && cheapest?.currentPrice != null && (
+          <section className="space-y-3 rounded-lg border border-line bg-surface p-4">
+            <h2 className="text-title-sm font-semibold">Track price</h2>
+            {user ? (
+              <form action={trackPrice} className="space-y-3">
+                <input type="hidden" name="productId" value={product.id} />
+                <input type="hidden" name="variantId" value={variant.id} />
+                <label className="flex items-center gap-3 text-body">
+                  <input type="radio" name="mode" value="any" defaultChecked className="size-5 accent-brand" />
+                  Any discount in any chain
+                </label>
+                <label className="flex items-center gap-3 text-body">
+                  <input type="radio" name="mode" value="below" className="size-5 accent-brand" />
+                  <span className="flex-1">Below a price</span>
+                  <input
+                    name="targetPrice"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0.01"
+                    defaultValue={(cheapest.currentPrice * 0.9).toFixed(2)}
+                    aria-label="Target price"
+                    className="w-28 rounded-sm border border-line px-3 py-2 text-right text-body"
+                  />
+                </label>
+                <button type="submit" className={`${buttonStyles.primary} w-full`}>Start tracking {variant.label}</button>
+              </form>
+            ) : (
+              <Link href={`/login?next=/products/${product.id}`} className={`${buttonStyles.secondary} w-full`}>
+                Sign in to track this price
+              </Link>
+            )}
           </section>
         )}
 

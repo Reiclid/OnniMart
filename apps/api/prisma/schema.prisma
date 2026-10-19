@@ -502,14 +502,36 @@ model User {
   name         String?
   locale       String   @default("uk")
   countryCode  String?  @db.Char(2)
+  /// Канали сповіщень
+  notifyPush   Boolean  @default(true)
+  notifyEmail  Boolean  @default(false)
+  /// Повідомляти лише про знижки від N % (0 — будь-яка акція)
+  minDiscount  Int      @default(0)
+  /// Улюблені мережі (StoreChain.id) — фільтр за замовчуванням для нових підписок
+  chainIds     String[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   subscriptions Subscription[]
   notifications Notification[]
   devices       PushDevice[]
+  sessions      Session[]
 
   @@map("users")
+}
+
+/// Сесія входу: у БД лише SHA-256 токена, сам токен — у httpOnly-cookie вебу
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
 }
 
 /// Підписка на товар. Заповнюється рівно одне з полів productId / variantId:

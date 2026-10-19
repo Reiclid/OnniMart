@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AlertsChecker } from './modules/accounts/alerts.checker';
 import { MatchingRequestsWorker } from './modules/catalog/matching/matching-requests.worker';
 import { MatchingService } from './modules/catalog/matching/matching.service';
 import { ScraperModule } from './modules/scraper/scraper.module';
@@ -21,6 +22,7 @@ import { WorkerLock } from './worker-lock';
     ScrapeScheduler,
     MatchingService,
     MatchingRequestsWorker,
+    AlertsChecker,
   ],
 })
 export class WorkerModule {}

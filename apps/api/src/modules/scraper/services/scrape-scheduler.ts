@@ -6,6 +6,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { SCRAPER_HEARTBEAT_KEY } from '@repo/contracts';
+import { AlertsChecker } from '../../accounts/alerts.checker';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { createRedis } from '../../../redis';
 import { IngestionService } from './ingestion.service';
@@ -69,6 +70,7 @@ export class ScrapeScheduler
     private readonly prisma: PrismaService,
     private readonly scraper: ScraperService,
     private readonly ingestion: IngestionService,
+    private readonly alerts: AlertsChecker,
   ) {}
 
   onApplicationBootstrap() {
@@ -90,13 +92,18 @@ export class ScrapeScheduler
     this.redis.disconnect();
   }
 
-  /** Кожні 10 хв: зняти втрачені запуски й акції, що закінчились, далі — заплановані обходи */
+  /** Кожні 10 хв: зняти втрачені запуски й акції, що закінчились, сповіщення за підписками, далі — заплановані обходи */
   async maintain(now = new Date()): Promise<void> {
     await this.reapLostRuns(now);
     await this.ingestion
       .expirePromos(now)
       .catch((error) =>
         this.logger.error(`Закінчення акцій: ${errorText(error)}`),
+      );
+    await this.alerts
+      .check()
+      .catch((error) =>
+        this.logger.error(`Сповіщення за підписками: ${errorText(error)}`),
       );
     if (this.enabled) await this.tick(now);
   }

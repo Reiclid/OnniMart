@@ -1,7 +1,11 @@
 import Link from 'next/link';
+import { currentUser } from '@/lib/session';
+
+const nav = 'text-body-sm font-semibold text-fg-muted hover:text-fg';
 
 /** Вітрина для покупців (Figma: Screens). Службова частина — /admin */
-export default function ShopLayout({ children }: { children: React.ReactNode }) {
+export default async function ShopLayout({ children }: { children: React.ReactNode }) {
+  const user = await currentUser();
   return (
     <>
       <header className="border-b border-line bg-surface">
@@ -10,11 +14,11 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
             <span className="grid size-8 place-items-center rounded-sm bg-brand text-white">O</span>
             OnniMart
           </Link>
-          <Link href="/products" className="text-body-sm font-semibold text-fg-muted hover:text-fg">
-            Catalog
-          </Link>
-          <Link href="/scan" className="text-body-sm font-semibold text-fg-muted hover:text-fg">
-            Scan
+          <Link href="/products" className={nav}>Catalog</Link>
+          <Link href="/scan" className={nav}>Scan</Link>
+          <Link href="/alerts" className={nav}>Alerts</Link>
+          <Link href={user ? '/profile' : '/login'} className={`${nav} ml-auto`}>
+            {user ? (user.name ?? 'Profile') : 'Sign in'}
           </Link>
         </nav>
       </header>
