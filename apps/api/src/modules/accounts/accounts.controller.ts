@@ -20,6 +20,7 @@ import {
 import type { Request } from 'express';
 import { bearerToken, CurrentUser, UserGuard } from '../../auth/user.guard';
 import { MutationLimit } from '../../common/throttle';
+import { ProductSummaryDto } from '../catalog/dto/catalog.dto';
 import { AccountsService } from './accounts.service';
 import { AlertsService } from './alerts.service';
 import {
@@ -166,6 +167,16 @@ export class MeController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.alerts.remove(userId, id);
+  }
+
+  @Get('recommendations')
+  @ApiOperation({
+    summary: 'For you: популярне з категорій підписок',
+    operationId: 'getRecommendations',
+  })
+  @ApiResponse({ status: 200, type: [ProductSummaryDto] })
+  recommendations(@CurrentUser() userId: string): Promise<ProductSummaryDto[]> {
+    return this.alerts.recommendations(userId);
   }
 
   @Get('notifications')

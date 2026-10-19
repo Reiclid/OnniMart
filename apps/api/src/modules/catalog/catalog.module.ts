@@ -7,5 +7,6 @@ import { ModerationService } from './matching/moderation.service';
 @Module({
   controllers: [CatalogController, MatchingController],
   providers: [CatalogService, MatchingClient, ModerationService],
+  exports: [CatalogService],
 })
 export class CatalogModule {}

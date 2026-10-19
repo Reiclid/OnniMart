@@ -234,6 +234,13 @@ const ORIGIN = 'http://localhost:3000';
       lowest: { price: 29.9, chainName: 'NOVUS' },
     });
 
+    // For you: з категорії підписки, але без самого підписаного товару
+    const forYou = (await (
+      await get('/api/v1/me/recommendations', auth)
+    ).json()) as { id: string }[];
+    expect(Array.isArray(forYou)).toBe(true);
+    expect(forYou.map((p) => p.id)).not.toContain(product.id);
+
     // Воркер: ціна 29.90 ≤ 30 → сповіщення, повторна перевірка не дублює
     const prisma = new PrismaService();
     const checker = new AlertsChecker(prisma);

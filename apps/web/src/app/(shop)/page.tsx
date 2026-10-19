@@ -1,7 +1,9 @@
-import { getCategories } from '@/api/generated/catalog/catalog';
+import { getCategories, getProducts } from '@/api/generated/catalog/catalog';
+import { getRecommendations } from '@/api/generated/me/me';
 import { getListings } from '@/api/generated/monitoring/monitoring';
 import { FilterChips } from '@/components/FilterChips';
-import { listingCard, ProductCard } from '@/components/ProductCard';
+import { listingCard, ProductCard, productCard } from '@/components/ProductCard';
+import { currentUser } from '@/lib/session';
 import { SearchField } from '@/components/SearchField';
 import Link from 'next/link';
 import { BellIcon } from '@/components/ui';
@@ -9,9 +11,14 @@ import { BellIcon } from '@/components/ui';
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [{ data: categories }, { data: deals }] = await Promise.all([
+  const user = await currentUser();
+  const [{ data: categories }, { data: deals }, picks] = await Promise.all([
     getCategories(),
     getListings({ promo: true, matched: true, pageSize: 12 }),
+    // Увійшов — з категорій його підписок; гість — популярне в кількох мережах
+    user
+      ? getRecommendations().then((r) => r.data)
+      : getProducts({ multiChain: true, pageSize: 8 }).then((r) => r.data.items),
   ]);
 
   return (
@@ -46,6 +53,17 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
+      {picks.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-title font-bold">{user ? 'For you' : 'Popular'}</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {picks.map((product) => (
+              <ProductCard key={product.id} card={productCard(product)} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

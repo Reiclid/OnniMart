@@ -8,6 +8,7 @@
 import type {
   CreateSubscriptionDto,
   NotificationDto,
+  ProductSummaryDto,
   SubscriptionDto,
   UpdateMeDto,
   UpdateSubscriptionDto,
@@ -256,6 +257,41 @@ export const deleteSubscription = async (id: string, options?: Parameters<typeof
   {
     ...options,
     method: 'DELETE'
+
+
+  }
+);}
+
+
+export type getRecommendationsResponse200 = {
+  data: ProductSummaryDto[]
+  status: 200
+}
+
+export type getRecommendationsResponseSuccess = (getRecommendationsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getRecommendationsResponse = (getRecommendationsResponseSuccess)
+
+export const getGetRecommendationsUrl = () => {
+
+
+
+
+  return `/api/v1/me/recommendations`
+}
+
+/**
+ * @summary For you: популярне з категорій підписок
+ */
+export const getRecommendations = async ( options?: Parameters<typeof customFetch>[1]): Promise<getRecommendationsResponse> => {
+
+  return customFetch<getRecommendationsResponse>(getGetRecommendationsUrl(),
+  {
+    ...options,
+    method: 'GET'
 
 
   }
