@@ -27,6 +27,22 @@ export class ModerationService {
         'Кандидат уже неактуальний — оновіть сторінку',
       );
     }
+    // Штрихкод картки вже належить іншому фасуванню: підтвердження суперечило б йому
+    const foreign = await this.prisma.barcode.findMany({
+      where: {
+        gtin: { in: candidate.listing.barcodes },
+        variantId: { not: candidate.variantId },
+      },
+      select: {
+        gtin: true,
+        variant: { select: { product: { select: { name: true } } } },
+      },
+    });
+    if (foreign.length > 0) {
+      throw new ConflictException(
+        `Штрихкод ${foreign[0].gtin} уже належить товару «${foreign[0].variant.product.name}» — можливо, це дублікат у каталозі`,
+      );
+    }
     const now = new Date();
     await this.prisma.$transaction([
       this.prisma.matchCandidate.update({

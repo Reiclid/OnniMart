@@ -6,7 +6,7 @@ import { ModerationService } from './moderation.service';
 
 type Args = any;
 
-function service(candidate: object | null) {
+function service(candidate: object | null, foreign: unknown[] = []) {
   const prisma = {
     matchCandidate: {
       findUnique: jest.fn(() => Promise.resolve(candidate)),
@@ -14,7 +14,10 @@ function service(candidate: object | null) {
       updateMany: jest.fn(),
     },
     listing: { update: jest.fn() },
-    barcode: { createMany: jest.fn() },
+    barcode: {
+      createMany: jest.fn(),
+      findMany: jest.fn((): Promise<unknown[]> => Promise.resolve(foreign)),
+    },
     $transaction: jest.fn(() => Promise.resolve([])),
   };
   const matching = { request: jest.fn() };
@@ -54,6 +57,25 @@ describe('ModerationService.acceptCandidate', () => {
     ],
   ])('%s → 409', async (_case, stale) => {
     const { moderation, prisma } = service(stale);
+    await expect(moderation.acceptCandidate('c1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('ModerationService: конфлікт штрихкодів', () => {
+  it('штрихкод картки належить іншому товару → 409', async () => {
+    const { moderation, prisma } = service(
+      candidate({
+        listing: {
+          variantId: null,
+          barcodes: ['05449000132499'],
+          chain: { slug: 'novus' },
+        },
+      }),
+      [{ gtin: '05449000132499', variant: { product: { name: 'Fanta' } } }],
+    );
     await expect(moderation.acceptCandidate('c1')).rejects.toBeInstanceOf(
       ConflictException,
     );

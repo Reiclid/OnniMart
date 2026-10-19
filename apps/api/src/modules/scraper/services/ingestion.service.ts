@@ -304,15 +304,28 @@ export class IngestionService {
 
   /** Етап 1 зіставлення: точний збіг штрихкоду з уже відомим варіантом. */
   private async matchByBarcode(listingId: string, gtins: string[]) {
-    const barcode = await this.prisma.barcode.findFirst({
+    const owners = await this.prisma.barcode.findMany({
       where: { gtin: { in: gtins } },
+      select: { gtin: true, variantId: true },
     });
-    if (!barcode) return;
+    const variants = [...new Set(owners.map((o) => o.variantId))];
+    if (variants.length === 0) return;
+    if (variants.length > 1) {
+      // Штрихкоди картки належать різним фасуванням — схоже на дубль у каталозі;
+      // не вгадуємо, картку розгляне пакетне зіставлення
+      this.logger.warn(
+        `Картка ${listingId}: штрихкоди ведуть до різних фасувань (${owners
+          .map((o) => `${o.gtin}→${o.variantId}`)
+          .join(', ')})`,
+      );
+      return;
+    }
 
-    await this.prisma.listing.update({
-      where: { id: listingId },
+    // Лише якщо картку тим часом не зіставили (пакет зіставлення, модератор)
+    await this.prisma.listing.updateMany({
+      where: { id: listingId, variantId: null },
       data: {
-        variantId: barcode.variantId,
+        variantId: variants[0],
         matchStatus: 'AUTO_MATCHED',
         matchMethod: 'BARCODE',
         matchScore: 1,

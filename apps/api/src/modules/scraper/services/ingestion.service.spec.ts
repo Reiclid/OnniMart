@@ -25,11 +25,12 @@ function createPrismaMock() {
         Promise.resolve({ id: 'listing-1', variantId: null as string | null }),
       ),
       update: jest.fn((_args: Args) => Promise.resolve({})),
+      updateMany: jest.fn((_args: Args) => Promise.resolve({ count: 1 })),
     },
     priceSnapshot: { create: jest.fn((_args: Args) => Promise.resolve({})) },
     barcode: {
-      findFirst: jest.fn((_args: Args): Promise<unknown> =>
-        Promise.resolve(null),
+      findMany: jest.fn((_args: Args): Promise<unknown[]> =>
+        Promise.resolve([]),
       ),
     },
     scrapeRun: {
@@ -257,10 +258,9 @@ describe('IngestionService', () => {
   });
 
   it('зіставляє товар з каталогом за штрихкодом', async () => {
-    prisma.barcode.findFirst.mockResolvedValue({
-      gtin: '05449000132499',
-      variantId: 'variant-fanta',
-    });
+    prisma.barcode.findMany.mockResolvedValue([
+      { gtin: '05449000132499', variantId: 'variant-fanta' },
+    ]);
 
     await service.ingest(
       product({ barcodes: ['5449000132499', '0250013065514', '11824797'] }),
@@ -269,11 +269,11 @@ describe('IngestionService', () => {
     const upsert = prisma.listing.upsert.mock.calls[0][0];
     // Внутрішні коди мережі та невалідні коди відкидаються
     expect(upsert.create.barcodes).toEqual(['05449000132499']);
-    expect(prisma.barcode.findFirst).toHaveBeenCalledWith({
-      where: { gtin: { in: ['05449000132499'] } },
+    expect(prisma.barcode.findMany.mock.calls[0][0].where).toEqual({
+      gtin: { in: ['05449000132499'] },
     });
-    expect(prisma.listing.update).toHaveBeenCalledWith({
-      where: { id: 'listing-1' },
+    expect(prisma.listing.updateMany).toHaveBeenCalledWith({
+      where: { id: 'listing-1', variantId: null },
       data: expect.objectContaining({
         variantId: 'variant-fanta',
         matchStatus: 'AUTO_MATCHED',
@@ -290,7 +290,18 @@ describe('IngestionService', () => {
     });
 
     await service.ingest(product({ barcodes: ['5449000132499'] }));
-    expect(prisma.barcode.findFirst).not.toHaveBeenCalled();
+    expect(prisma.barcode.findMany).not.toHaveBeenCalled();
+  });
+
+  it('штрихкоди ведуть до різних фасувань — не вгадує', async () => {
+    prisma.barcode.findMany.mockResolvedValue([
+      { gtin: '05449000132499', variantId: 'variant-a' },
+      { gtin: '04820001234560', variantId: 'variant-b' },
+    ]);
+    await service.ingest(
+      product({ barcodes: ['5449000132499', '4820001234560'] }),
+    );
+    expect(prisma.listing.updateMany).not.toHaveBeenCalled();
   });
 
   describe('handleRunEvent', () => {
