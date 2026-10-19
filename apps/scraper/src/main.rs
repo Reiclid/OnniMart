@@ -12,7 +12,7 @@ use redis::AsyncCommands;
 use redis::Direction;
 use redis::aio::MultiplexedConnection;
 
-use crate::crawler::{CrawlOptions, CrawlStats, Sink, crawl};
+use crate::crawler::{CrawlOptions, CrawlStats, Sink, crawl, summarize_errors};
 use crate::http::Fetcher;
 use crate::model::{
     HEARTBEAT_KEY, HEARTBEAT_TTL_SECS, ProductMessage, RESULTS_QUEUE, RunEvent, ScrapedProduct,
@@ -164,22 +164,29 @@ async fn handle_task(con: &mut MultiplexedConnection, task: ScraperTask) -> Resu
         heartbeat(con, run_id).await?;
     }
 
-    let result = async {
-        let source = source_for(&task.store)?;
+    let prepared = source_for(&task.store).and_then(|source| {
         let delay = polite_delay(task.crawl_delay_ms.unwrap_or(MIN_DELAY_MS));
-        let mut fetcher = Fetcher::new(delay)?;
-        let options = CrawlOptions { max_pages: task.max_pages, category: None };
-        let mut sink = RedisSink { con: con.clone(), run_id: task.run_id.clone() };
-        crawl(&source, &mut fetcher, &options, &mut sink).await
-    }
-    .await;
-
-    let finished = match result {
-        Ok(stats) => {
-            let error = (!stats.errors.is_empty()).then(|| stats.errors.join("\n"));
-            event("run_finished", &stats, error)
+        Ok((source, Fetcher::new(delay)?))
+    });
+    let (stats, result) = match prepared {
+        Ok((source, mut fetcher)) => {
+            let options = CrawlOptions { max_pages: task.max_pages, category: None };
+            let mut sink = RedisSink { con: con.clone(), run_id: task.run_id.clone() };
+            crawl(&source, &mut fetcher, &options, &mut sink).await
         }
-        Err(error) => event("run_failed", &CrawlStats::default(), Some(format!("{error:#}"))),
+        Err(error) => (CrawlStats::default(), Err(error)),
+    };
+
+    // Статистика зібраного не губиться й тоді, коли обхід перервався
+    let finished = match result {
+        Ok(()) => event("run_finished", &stats, summarize_errors(&stats.errors)),
+        Err(error) => {
+            let mut text = format!("{error:#}");
+            if let Some(pages) = summarize_errors(&stats.errors) {
+                text.push_str(&format!("\nПомилки сторінок:\n{pages}"));
+            }
+            event("run_failed", &stats, Some(text))
+        }
     };
     eprintln!(
         "[scraper] {}: {} — сторінок {}, товарів {}",
@@ -226,12 +233,12 @@ async fn run_cli(args: &[String]) -> Result<()> {
     }
 
     let mut fetcher = Fetcher::new(polite_delay(delay_ms))?;
-    let stats = if push {
+    let (stats, result) = if push {
         let client = redis::Client::open(redis_url())?;
         let con = client.get_multiplexed_async_connection().await?;
-        crawl(&source, &mut fetcher, &options, &mut RedisSink { con, run_id: None }).await?
+        crawl(&source, &mut fetcher, &options, &mut RedisSink { con, run_id: None }).await
     } else {
-        crawl(&source, &mut fetcher, &options, &mut PrintSink { json, shown: 0 }).await?
+        crawl(&source, &mut fetcher, &options, &mut PrintSink { json, shown: 0 }).await
     };
 
     eprintln!(
@@ -244,7 +251,7 @@ async fn run_cli(args: &[String]) -> Result<()> {
     for error in &stats.errors {
         eprintln!("  - {error}");
     }
-    Ok(())
+    result
 }
 
 #[cfg(test)]

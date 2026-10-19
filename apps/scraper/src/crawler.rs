@@ -28,15 +28,33 @@ pub struct CrawlStats {
     pub errors: Vec<String>,
 }
 
+/// Скільки сторінок поспіль може не вдатися, перш ніж покинути категорію
+const MAX_PAGE_FAILURES: u32 = 3;
+/// Скільки помилок сторінок зберігати в журналі запуску (решта — лише кількість)
+const MAX_REPORTED_ERRORS: usize = 20;
+
 /// Обхід мережі: категорії → сторінки → товари.
-/// Помилка окремої сторінки не зупиняє обхід, а 403 від сайту — зупиняє.
+/// Збій сторінки пропускається (категорія покидається після кількох збоїв поспіль),
+/// а 403 чи вимога сайту почекати довше за 5 хв зупиняють обхід.
+/// Статистику повертає завжди — і коли обхід перервався помилкою.
 pub async fn crawl<S: Sink>(
     source: &Source,
     fetcher: &mut Fetcher,
     options: &CrawlOptions,
     sink: &mut S,
-) -> Result<CrawlStats> {
+) -> (CrawlStats, Result<()>) {
     let mut stats = CrawlStats::default();
+    let result = crawl_into(&mut stats, source, fetcher, options, sink).await;
+    (stats, result)
+}
+
+async fn crawl_into<S: Sink>(
+    stats: &mut CrawlStats,
+    source: &Source,
+    fetcher: &mut Fetcher,
+    options: &CrawlOptions,
+    sink: &mut S,
+) -> Result<()> {
     let start_url = source.start_url();
     let start_page = fetcher.get(&start_url).await?;
     stats.pages += 1;
@@ -52,6 +70,8 @@ pub async fn crawl<S: Sink>(
     let mut seen = HashSet::new();
     'categories: for category in &categories {
         let mut page = 1;
+        let mut last_page: Option<u32> = None;
+        let mut failures = 0;
         loop {
             let url = source.page_url(category, page);
             // Kaufland: усі акції на стартовій сторінці — не завантажуємо її вдруге
@@ -60,28 +80,37 @@ pub async fn crawl<S: Sink>(
             } else {
                 fetcher.get(&url).await.inspect(|_| stats.pages += 1)
             };
-            let html = match fetched {
-                Ok(html) => html,
-                Err(error) => {
-                    let blocked = matches!(
-                        error.downcast_ref::<FetchError>(),
-                        Some(FetchError::Blocked(_))
-                    );
-                    stats.errors.push(error.to_string());
-                    if blocked {
-                        break 'categories;
-                    }
-                    break;
-                }
+            let listing = match fetched {
+                Ok(html) => source
+                    .parse_page(&html, category, &now_iso())
+                    .map_err(|error| anyhow::anyhow!("{url}: {error}")),
+                Err(error) => Err(error),
             };
-
-            let listing = match source.parse_page(&html, category, &now_iso()) {
+            let listing = match listing {
                 Ok(listing) => listing,
                 Err(error) => {
-                    stats.errors.push(format!("{url}: {error}"));
-                    break;
+                    let kind = error.downcast_ref::<FetchError>();
+                    let stop = matches!(
+                        kind,
+                        Some(FetchError::Blocked(_) | FetchError::RateLimited(..))
+                    );
+                    let disallowed = matches!(kind, Some(FetchError::Disallowed(_)));
+                    stats.errors.push(error.to_string());
+                    if stop {
+                        break 'categories;
+                    }
+                    failures += 1;
+                    let at_end = last_page.is_some_and(|last| page >= last)
+                        || options.max_pages.is_some_and(|max| page >= max);
+                    if disallowed || failures >= MAX_PAGE_FAILURES || at_end {
+                        break;
+                    }
+                    // Пропускаємо сторінку, а не всю решту категорії
+                    page += 1;
+                    continue;
                 }
             };
+            failures = 0;
             if listing.products.is_empty() {
                 break;
             }
@@ -93,16 +122,53 @@ pub async fn crawl<S: Sink>(
                 }
             }
 
-            let last_page = listing.total_pages.unwrap_or(page);
+            let last = listing.total_pages.unwrap_or(page);
+            last_page = Some(last);
             eprintln!(
-                "[scraper] {} / {}: сторінка {page}/{last_page}, товарів усього {}",
+                "[scraper] {} / {}: сторінка {page}/{last}, товарів усього {}",
                 source.store, category.slug, stats.items
             );
-            if page >= last_page || options.max_pages.is_some_and(|max| page >= max) {
+            if page >= last || options.max_pages.is_some_and(|max| page >= max) {
                 break;
             }
             page += 1;
         }
     }
-    Ok(stats)
+    Ok(())
+}
+
+/// Помилки сторінок для журналу запуску: перші MAX_REPORTED_ERRORS і кількість решти
+pub fn summarize_errors(errors: &[String]) -> Option<String> {
+    if errors.is_empty() {
+        return None;
+    }
+    let mut text = errors
+        .iter()
+        .take(MAX_REPORTED_ERRORS)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    if errors.len() > MAX_REPORTED_ERRORS {
+        text.push_str(&format!(
+            "\n… і ще {} помилок",
+            errors.len() - MAX_REPORTED_ERRORS
+        ));
+    }
+    Some(text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn long_error_lists_are_truncated() {
+        assert_eq!(summarize_errors(&[]), None);
+        let errors: Vec<String> = (1..=25).map(|i| format!("e{i}")).collect();
+        let text = summarize_errors(&errors).unwrap();
+        assert!(text.starts_with("e1\ne2"));
+        assert!(text.contains("e20"));
+        assert!(!text.contains("e21"));
+        assert!(text.ends_with("… і ще 5 помилок"));
+    }
 }

@@ -184,7 +184,21 @@ export class IngestionService {
               ...counters,
             };
 
-    await this.prisma.scrapeRun.update({ where: { id: runId }, data });
+    const run = await this.prisma.scrapeRun.update({
+      where: { id: runId },
+      data,
+    });
+    // Сторінки отримано — robots.txt цим запуском прочитано й він дозволяє обхід
+    if (
+      event.kind !== 'run_started' &&
+      event.pages_fetched > 0 &&
+      run?.chainId
+    ) {
+      await this.prisma.storeChain.update({
+        where: { id: run.chainId },
+        data: { robotsCheckedAt: at },
+      });
+    }
     this.logger.log(`Запуск ${event.store}: ${event.kind}`);
     if (event.kind === 'run_finished' && !event.error) {
       await this.delistMissing(runId, event.items_seen, at);

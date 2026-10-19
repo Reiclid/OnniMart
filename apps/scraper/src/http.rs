@@ -13,6 +13,11 @@ pub const USER_AGENT: &str =
 /// Токен, який шукаємо в групах User-agent у robots.txt
 const ROBOTS_TOKEN: &str = "OnniMartBot";
 const MAX_ATTEMPTS: u32 = 4;
+/// Сайт просить почекати довше — зупиняємо обхід, а не чекаємо годинами
+const MAX_RETRY_AFTER_SECS: u64 = 300;
+/// shortcut: перевіряється лише Content-Length; відповіді без нього (chunked) не обмежені
+const MAX_BODY_BYTES: u64 = 20 * 1024 * 1024;
+const ROBOTS_ATTEMPTS: u32 = 3;
 
 #[derive(Debug)]
 pub enum FetchError {
@@ -20,6 +25,8 @@ pub enum FetchError {
     Disallowed(String),
     /// Сайт відповів 403 — антибот-захист. Не обходимо його, а зупиняємо обхід.
     Blocked(String),
+    /// 429/503 з Retry-After довшим за MAX_RETRY_AFTER_SECS — зупиняємо обхід
+    RateLimited(String, u64),
 }
 
 impl fmt::Display for FetchError {
@@ -27,6 +34,9 @@ impl fmt::Display for FetchError {
         match self {
             Self::Disallowed(url) => write!(f, "robots.txt забороняє {url}"),
             Self::Blocked(url) => write!(f, "сайт заблокував запит (403): {url}"),
+            Self::RateLimited(url, secs) => {
+                write!(f, "сайт просить почекати {secs} с (Retry-After): {url}")
+            }
         }
     }
 }
@@ -93,6 +103,7 @@ impl Fetcher {
         };
 
         for attempt in 1..=MAX_ATTEMPTS {
+            let mut retry_after = 0;
             self.wait_turn(&origin, delay).await;
             self.requests += 1;
             let response = self
@@ -103,7 +114,12 @@ impl Fetcher {
                 .await;
 
             match response {
-                Ok(resp) if resp.status().is_success() => return Ok(resp.text().await?),
+                Ok(resp) if resp.status().is_success() => {
+                    if resp.content_length().is_some_and(|n| n > MAX_BODY_BYTES) {
+                        bail!("{url}: відповідь більша за {MAX_BODY_BYTES} байт");
+                    }
+                    return Ok(resp.text().await?);
+                }
                 Ok(resp) if resp.status() == StatusCode::FORBIDDEN => {
                     return Err(FetchError::Blocked(url.into()).into());
                 }
@@ -111,6 +127,10 @@ impl Fetcher {
                     if resp.status() == StatusCode::TOO_MANY_REQUESTS
                         || resp.status().is_server_error() =>
                 {
+                    retry_after = retry_after_secs(resp.headers()).unwrap_or(0);
+                    if retry_after > MAX_RETRY_AFTER_SECS {
+                        return Err(FetchError::RateLimited(url.into(), retry_after).into());
+                    }
                     eprintln!(
                         "[scraper] {url} → {}, спроба {attempt}/{MAX_ATTEMPTS}",
                         resp.status()
@@ -122,8 +142,9 @@ impl Fetcher {
                 }
             }
             if attempt < MAX_ATTEMPTS {
-                // Експоненційна пауза: 5, 10, 20 с
-                tokio::time::sleep(Duration::from_secs(5 * 2u64.pow(attempt - 1))).await;
+                // Експоненційна пауза 5, 10, 20 с — або скільки просить сайт (Retry-After)
+                let backoff = 5 * 2u64.pow(attempt - 1);
+                tokio::time::sleep(Duration::from_secs(backoff.max(retry_after))).await;
             }
         }
         bail!("{url}: сайт не відповів після {MAX_ATTEMPTS} спроб")
@@ -140,18 +161,53 @@ impl Fetcher {
     }
 
     async fn load_robots(&mut self, origin: &str) -> RobotsPolicy {
-        self.wait_turn(origin, self.min_delay).await;
-        self.requests += 1;
         let url = format!("{origin}/robots.txt");
-        match self.client.get(&url).send().await {
-            Ok(resp) if resp.status().is_success() => match resp.text().await {
-                Ok(text) => RobotsPolicy::Rules(RobotsTxt::parse(&text)),
-                Err(_) => RobotsPolicy::DisallowAll,
-            },
-            // RFC 9309: robots.txt недоступний (4xx) — обмежень немає;
-            // помилка сервера чи мережі — вважаємо, що заборонено все
-            Ok(resp) if resp.status().is_client_error() => RobotsPolicy::AllowAll,
-            _ => RobotsPolicy::DisallowAll,
+        for attempt in 1..=ROBOTS_ATTEMPTS {
+            self.wait_turn(origin, self.min_delay).await;
+            self.requests += 1;
+            match self.client.get(&url).send().await {
+                Ok(resp) if resp.status().is_success() => {
+                    if let Ok(text) = resp.text().await {
+                        return RobotsPolicy::Rules(RobotsTxt::parse(&text));
+                    }
+                }
+                // RFC 9309: robots.txt недоступний (4xx) — обмежень немає
+                Ok(resp) if resp.status().is_client_error() => return RobotsPolicy::AllowAll,
+                _ => {}
+            }
+            // Помилка сервера чи мережі може бути тимчасовою — пробуємо ще
+            if attempt < ROBOTS_ATTEMPTS {
+                tokio::time::sleep(Duration::from_secs(5 * u64::from(attempt))).await;
+            }
         }
+        // Так і не отримали — за RFC 9309 вважаємо, що заборонено все
+        RobotsPolicy::DisallowAll
+    }
+}
+
+/// Retry-After у секундах; форма з HTTP-датою не підтримується (тоді — звичайна пауза)
+fn retry_after_secs(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    headers
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reqwest::header::{HeaderMap, HeaderValue, RETRY_AFTER};
+
+    #[test]
+    fn reads_retry_after_seconds() {
+        let mut headers = HeaderMap::new();
+        assert_eq!(retry_after_secs(&headers), None);
+        headers.insert(RETRY_AFTER, HeaderValue::from_static("120"));
+        assert_eq!(retry_after_secs(&headers), Some(120));
+        headers.insert(RETRY_AFTER, HeaderValue::from_static("Wed, 21 Oct 2026 07:28:00 GMT"));
+        assert_eq!(retry_after_secs(&headers), None);
     }
 }

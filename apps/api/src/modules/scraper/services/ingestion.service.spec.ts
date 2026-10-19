@@ -305,6 +305,18 @@ describe('IngestionService', () => {
   });
 
   describe('handleRunEvent', () => {
+    it('після запуску зі сторінками оновлює дату перевірки robots.txt', async () => {
+      prisma.scrapeRun.update.mockResolvedValueOnce({ chainId: 'chain-atb' });
+      Object.assign(prisma.storeChain, { update: jest.fn() });
+      await service.handleRunEvent(
+        event({ kind: 'run_finished', pages_fetched: 5, items_seen: 10 }),
+      );
+      expect((prisma.storeChain as any).update).toHaveBeenCalledWith({
+        where: { id: 'chain-atb' },
+        data: { robotsCheckedAt: new Date('2026-10-11T10:00:00Z') },
+      });
+    });
+
     it('позначає запуск як RUNNING на старті', async () => {
       await service.handleRunEvent(event());
       expect(prisma.scrapeRun.update).toHaveBeenCalledWith({
