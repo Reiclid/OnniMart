@@ -19,6 +19,8 @@ export const SCRAPER_RESULTS_PROCESSING = 'scraper:results:processing';
  * Повернути в чергу: redis-cli LMOVE scraper:results:dead scraper:results RIGHT LEFT
  */
 export const SCRAPER_RESULTS_DEAD = 'scraper:results:dead';
+/** Замок єдиного воркера (id процесу, TTL 60 с): другий екземпляр не стартує */
+export const WORKER_LOCK_KEY = 'worker:lock';
 /** Ознака життя воркера (ISO-час, TTL 60 с) — для GET /api/v1/health */
 export const WORKER_HEARTBEAT_KEY = 'worker:heartbeat';
 /** Запити на пакетне зіставлення (API → воркер) */
