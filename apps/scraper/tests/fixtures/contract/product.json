@@ -1,0 +1,20 @@
+{
+  "kind": "product",
+  "run_id": "run-1",
+  "store": "novus",
+  "external": "440398",
+  "name": "Вода мінеральна Borjomi 0,75л",
+  "price": 92.99,
+  "old_price": 109.0,
+  "image_url": "https://img.zakaz.ua/borjomi.jpg",
+  "scraper_at": "2026-10-11T10:00:00Z",
+  "url": "https://novus.zakaz.ua/uk/products/borjomi/",
+  "brand": "Borjomi",
+  "category": "Напої",
+  "barcodes": ["04860019003166"],
+  "in_stock": true,
+  "price_unit": "шт",
+  "size": "750 мл",
+  "promo_label": "-15%",
+  "promo_ends_at": "2026-10-14"
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "run_failed",
+  "run_id": "run-1",
+  "store": "novus",
+  "pages_fetched": 12,
+  "items_seen": 340,
+  "error": "сайт заблокував запит (403): https://novus.zakaz.ua/uk/",
+  "at": "2026-10-11T12:30:00Z"
+}

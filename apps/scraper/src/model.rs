@@ -111,6 +111,50 @@ mod tests {
         assert!(json.get("barcodes").is_none());
     }
 
+    /// Контракт з packages/contracts: повідомлення парсера мають збігатися із зразками,
+    /// які TS-сторона перевіряє своїм parseScraperMessage (packages/contracts/src/index.spec.ts)
+    #[test]
+    fn product_message_matches_contract_fixture() {
+        let product = ScrapedProduct {
+            store: "novus".into(),
+            external: "440398".into(),
+            name: "Вода мінеральна Borjomi 0,75л".into(),
+            price: 92.99,
+            old_price: Some(109.0),
+            image_url: Some("https://img.zakaz.ua/borjomi.jpg".into()),
+            scraper_at: "2026-10-11T10:00:00Z".into(),
+            url: Some("https://novus.zakaz.ua/uk/products/borjomi/".into()),
+            brand: Some("Borjomi".into()),
+            category: Some("Напої".into()),
+            barcodes: vec!["04860019003166".into()],
+            in_stock: true,
+            price_unit: Some("шт".into()),
+            size: Some("750 мл".into()),
+            promo_label: Some("-15%".into()),
+            promo_ends_at: Some("2026-10-14".into()),
+        };
+        let actual = serde_json::to_value(ProductMessage::new(&product, Some("run-1"))).unwrap();
+        let expected: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/contract/product.json")).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn run_event_matches_contract_fixture() {
+        let event = RunEvent {
+            kind: "run_failed",
+            run_id: Some("run-1".into()),
+            store: "novus".into(),
+            pages_fetched: 12,
+            items_seen: 340,
+            error: Some("сайт заблокував запит (403): https://novus.zakaz.ua/uk/".into()),
+            at: "2026-10-11T12:30:00Z".into(),
+        };
+        let expected: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/contract/run-failed.json")).unwrap();
+        assert_eq!(serde_json::to_value(&event).unwrap(), expected);
+    }
+
     #[test]
     fn task_accepts_minimal_json() {
         let task: ScraperTask = serde_json::from_str(r#"{"store":"novus"}"#).unwrap();
