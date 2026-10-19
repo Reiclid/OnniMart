@@ -1,28 +1,47 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { HeaderSearch, NavLinks, TabBar } from '@/components/Nav';
+import { BellIcon } from '@/components/ui';
 import { currentUser } from '@/lib/session';
 
-const nav = 'text-body-sm font-semibold text-fg-muted hover:text-fg';
-
-/** Вітрина для покупців (Figma: Screens). Службова частина — /admin */
+/** Вітрина для покупців (Figma: Screens): шапка на десктопі, таб-бар на телефоні. Службова частина — /admin */
 export default async function ShopLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
   return (
     <>
-      <header className="border-b border-line bg-surface">
+      <header className="hidden border-b border-line bg-surface md:block">
         <nav className="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
           <Link href="/" className="flex items-center gap-2 text-title-sm font-bold">
             <span className="grid size-8 place-items-center rounded-sm bg-brand text-white">O</span>
             OnniMart
           </Link>
-          <Link href="/products" className={nav}>Catalog</Link>
-          <Link href="/scan" className={nav}>Scan</Link>
-          <Link href="/alerts" className={nav}>Alerts</Link>
-          <Link href={user ? '/profile' : '/login'} className={`${nav} ml-auto`}>
-            {user ? (user.name ?? 'Profile') : 'Sign in'}
+          <NavLinks />
+          <div className="flex-1">
+            <Suspense>
+              <HeaderSearch />
+            </Suspense>
+          </div>
+          <Link href="/alerts" aria-label="Alerts" className="text-icon hover:text-brand">
+            <BellIcon width={22} height={22} />
           </Link>
+          {user ? (
+            <Link
+              href="/profile"
+              aria-label="Profile"
+              className="grid size-10 place-items-center rounded-full bg-brand text-body font-bold text-white"
+            >
+              {(user.name ?? user.email).charAt(0).toUpperCase()}
+            </Link>
+          ) : (
+            <Link href="/login" className="rounded-md bg-brand px-4 py-2.5 text-body-sm font-semibold text-white hover:opacity-90">
+              Sign in
+            </Link>
+          )}
         </nav>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
+      {/* Знизу місце під таб-бар на телефоні */}
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-28 md:pb-6">{children}</main>
+      <TabBar />
     </>
   );
 }

@@ -3,11 +3,10 @@ import { notFound } from 'next/navigation';
 import { ApiError } from '@/api/custom-fetch';
 import { getProduct } from '@/api/generated/catalog/catalog';
 import { ChainPriceRow } from '@/components/ChainPriceRow';
-import { Chip, ProductImage } from '@/components/ui';
+import { buttonStyles, Chip, ProductImage } from '@/components/ui';
 import { formatMoney, formatUnitPrice, lineChipLabel } from '@/lib/format';
 import { productView } from '@/lib/offers';
 import { currentUser } from '@/lib/session';
-import { buttonStyles } from '@/components/ui';
 import { trackPrice } from '../../actions';
 
 export const dynamic = 'force-dynamic';

@@ -6,6 +6,8 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { ApiError, SESSION_COOKIE } from '@/api/custom-fetch';
 import { login, logout, register } from '@/api/generated/auth/auth';
+import { getProducts } from '@/api/generated/catalog/catalog';
+import { PRODUCTS_PAGE_SIZE } from '@/lib/offers';
 import {
   createSubscription,
   deleteMe,
@@ -100,4 +102,9 @@ export async function removeSubscription(form: FormData) {
 export async function readAllNotifications() {
   await markNotificationsRead();
   revalidatePath('/alerts');
+}
+
+/** Наступна сторінка каталогу для нескінченної прокрутки */
+export async function moreProducts({ q, chain, page }: { q?: string; chain?: string; page: number }) {
+  return (await getProducts({ q, chain, page, pageSize: PRODUCTS_PAGE_SIZE })).data.items;
 }
