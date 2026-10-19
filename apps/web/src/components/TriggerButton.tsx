@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { triggerScrape } from '@/api/generated/scraper/scraper';
+import { triggerScrapeAction } from '@/app/actions';
 
 /** Запуск парсингу мережі: тестовий (N сторінок на категорію) або повний */
 export function TriggerButton({ store }: { store: string }) {
@@ -16,10 +16,11 @@ export function TriggerButton({ store }: { store: string }) {
     setBusy(true);
     setError(null);
     try {
-      await triggerScrape({
+      const { error } = await triggerScrapeAction(
         store,
-        maxPages: maxPages === 'all' ? undefined : Number(maxPages),
-      });
+        maxPages === 'all' ? undefined : Number(maxPages),
+      );
+      if (error) throw new Error(error);
       startTransition(() => router.refresh());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не вдалося запустити');

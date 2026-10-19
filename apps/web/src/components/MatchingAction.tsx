@@ -3,11 +3,11 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import {
-  acceptCandidate,
-  rejectCandidates,
-  runMatching,
-  unlinkListing,
-} from '@/api/generated/matching/matching';
+  acceptCandidateAction,
+  rejectCandidatesAction,
+  runMatchingAction,
+  unlinkListingAction,
+} from '@/app/actions';
 
 type Action =
   | { kind: 'run' }
@@ -25,13 +25,13 @@ const STYLES = {
 function perform(action: Action) {
   switch (action.kind) {
     case 'run':
-      return runMatching();
+      return runMatchingAction();
     case 'accept':
-      return acceptCandidate(action.candidateId);
+      return acceptCandidateAction(action.candidateId);
     case 'reject':
-      return rejectCandidates(action.listingId);
+      return rejectCandidatesAction(action.listingId);
     case 'unlink':
-      return unlinkListing(action.listingId);
+      return unlinkListingAction(action.listingId);
   }
 }
 
@@ -58,7 +58,8 @@ export function MatchingAction({
     setBusy(true);
     setError(null);
     try {
-      await perform(action);
+      const { error } = await perform(action);
+      if (error) throw new Error(error);
       startTransition(() => router.refresh());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не вдалося виконати дію');

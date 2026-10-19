@@ -3,6 +3,10 @@ export const customFetch = async <T>(url: string, options: RequestInit): Promise
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      // Лише на сервері Next.js (серверні дії): у браузері змінної немає
+      ...(process.env.ADMIN_TOKEN && {
+        Authorization: `Bearer ${process.env.ADMIN_TOKEN}`,
+      }),
       ...options.headers,
     },
   });

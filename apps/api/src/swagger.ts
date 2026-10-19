@@ -6,6 +6,8 @@ export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
     .setTitle('OnniMart API')
     .setDescription('API для моніторингу цін та скрейпінгу')
     .setVersion('1.0')
+    // Зміни (POST) — з токеном адміністратора: кнопка Authorize у Swagger UI
+    .addBearerAuth()
     .build();
   return SwaggerModule.createDocument(app, config);
 }

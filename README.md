@@ -73,7 +73,8 @@ Bun 1.3 (workspaces) · Turborepo 2 · TypeScript · NestJS 11 · Prisma 7 · Po
 ```bash
 bun install
 cp .env.example .env                    # задайте REDIS_PASSWORD (і паролі БД)
-cp apps/api/.env.example apps/api/.env  # той самий пароль у REDIS_URL
+cp apps/api/.env.example apps/api/.env  # той самий пароль у REDIS_URL, задайте ADMIN_TOKEN
+cp apps/web/.env.example apps/web/.env.local  # той самий ADMIN_TOKEN
 bun run infra:up        # PostgreSQL, Redis, Meilisearch і Rust-скрапер (воркер)
 bun run dev:generate    # Prisma Client
 bun run dev:migrate     # міграції
@@ -93,6 +94,8 @@ docker exec onnimart-redis redis-cli -a "$REDIS_PASSWORD" LMOVE scraper:results:
 ```
 
 Після успішного **повного** обходу мережі картки, яких у ньому не було (тижнева акція закінчилась, товар зняли), позначаються `delistedAt` і зникають з каталогу.
+
+Читати дані API може будь-хто, а змінювати (запуск парсингу, модерація) — лише з токеном адміністратора `ADMIN_TOKEN` (`Authorization: Bearer …`; у Swagger — кнопка Authorize). Веб-адмінка додає токен на своєму сервері, у браузер він не потрапляє. API слухає лише `localhost` і приймає запити з браузера лише з адреси вебу (`WEB_ORIGINS`).
 
 У UI на сторінці «Огляд» біля кожної мережі є кнопка «Запустити». Режим «1 стор./категорію» — швидка перевірка за кілька хвилин. Режим «Усе» — повний обхід із паузою 3 с між запитами.
 

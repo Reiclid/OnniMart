@@ -1,5 +1,11 @@
 import { Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CatalogService } from './catalog.service';
 import {
   BarcodeLookupDto,
@@ -69,6 +75,8 @@ export class MatchingController {
     return this.catalog.getMatchingStatus();
   }
 
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
   @Post('run')
   @HttpCode(202)
   @ApiOperation({
@@ -97,6 +105,8 @@ export class MatchingController {
     return this.catalog.getReviewQueue(page, pageSize);
   }
 
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
   @Post('candidates/:id/accept')
   @HttpCode(204)
   @ApiOperation({
@@ -108,6 +118,8 @@ export class MatchingController {
     await this.moderation.acceptCandidate(id);
   }
 
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
   @Post('listings/:id/reject')
   @HttpCode(204)
   @ApiOperation({
@@ -119,6 +131,8 @@ export class MatchingController {
     await this.moderation.rejectCandidates(id);
   }
 
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
   @Post('listings/:id/unlink')
   @HttpCode(204)
   @ApiOperation({

@@ -1,5 +1,10 @@
 import { Controller, Post, Body } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ScraperService } from './services/scraper.service';
 import {
   TriggerScraperDto,
@@ -11,6 +16,8 @@ import {
 export class ScraperController {
   constructor(private readonly scraperService: ScraperService) {}
 
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
   @Post('trigger')
   @ApiOperation({
     summary: 'Запустити скрейпінг магазину',

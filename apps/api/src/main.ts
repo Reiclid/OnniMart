@@ -7,11 +7,16 @@ import { createOpenApiDocument } from './swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.enableCors();
+  // Лише веб-адмінка; інші сайти не можуть слати запити з браузера адміністратора
+  app.enableCors({
+    origin: (process.env.WEB_ORIGINS ?? 'http://localhost:3000').split(','),
+    methods: ['GET', 'POST'],
+  });
   app.enableShutdownHooks();
 
   SwaggerModule.setup('api/docs', app, createOpenApiDocument(app));
 
-  await app.listen(process.env.PORT ?? 3001);
+  // За замовчуванням лише з цього компʼютера; HOST=0.0.0.0 — щоб відкрити в мережу
+  await app.listen(process.env.PORT ?? 3001, process.env.HOST ?? 'localhost');
 }
 void bootstrap();
