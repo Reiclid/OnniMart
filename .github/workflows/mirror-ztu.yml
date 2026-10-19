@@ -24,8 +24,11 @@ jobs:
       - name: Клонувати всі гілки й теги з GitHub
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Токени — у заголовку, а не в URL: не потрапляють в аргументи процесів і config клону
         run: |
-          git clone --mirror "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" repo.git
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$AUTH"
+          git -c http.extraHeader="Authorization: Basic $AUTH" clone --mirror "https://github.com/${{ github.repository }}.git" repo.git
           cd repo.git
           # Службові refs GitHub (pull requests) на GitLab не переносимо
           git for-each-ref --format='delete %(refname)' refs/pull | git update-ref --stdin
@@ -36,4 +39,8 @@ jobs:
           ZTU_TOKEN: ${{ secrets.ZTU_TOKEN }}
         run: |
           cd repo.git
-          git push --mirror "https://${ZTU_USERNAME}:${ZTU_TOKEN}@git.ztu.edu.ua/ipz/2023-2027/ipz-23-4/hrushevytskyy-denys/onnimart.git"
+          AUTH=$(printf '%s:%s' "$ZTU_USERNAME" "$ZTU_TOKEN" | base64 -w0)
+          echo "::add-mask::$AUTH"
+          # --mirror: дзеркало повторює GitHub повністю, включно з видаленими гілками —
+          # напряму на git.ztu.edu.ua не комітимо
+          git -c http.extraHeader="Authorization: Basic $AUTH" push --mirror "https://git.ztu.edu.ua/ipz/2023-2027/ipz-23-4/hrushevytskyy-denys/onnimart.git"
