@@ -1,5 +1,13 @@
 import { MutationLimit } from '../../common/throttle';
-import { Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -17,6 +25,7 @@ import {
   ReviewPageDto,
   RunMatchingResponseDto,
   CategoryDto,
+  ProductSummaryDto,
 } from './dto/catalog.dto';
 import { MatchingClient } from './matching/matching.client';
 import { ModerationService } from './matching/moderation.service';
@@ -51,6 +60,18 @@ export class CatalogController {
   @ApiResponse({ status: 200, type: ProductDetailsDto })
   getProduct(@Param('id') id: string): Promise<ProductDetailsDto> {
     return this.catalog.getProduct(id);
+  }
+
+  @Get('products/:id/similar')
+  @ApiOperation({
+    summary: 'Схожі товари (аналоги) з тієї самої категорії',
+    operationId: 'getSimilarProducts',
+  })
+  @ApiResponse({ status: 200, type: [ProductSummaryDto] })
+  getSimilar(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ProductSummaryDto[]> {
+    return this.catalog.getSimilar(id);
   }
 
   @Get('barcodes/:gtin')

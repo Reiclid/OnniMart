@@ -10,7 +10,8 @@ import type {
   CategoryDto,
   GetProductsParams,
   ProductDetailsDto,
-  ProductPageDto
+  ProductPageDto,
+  ProductSummaryDto
 } from '../model';
 
 import { customFetch } from '../../custom-fetch';
@@ -118,6 +119,41 @@ export const getGetProductUrl = (id: string,) => {
 export const getProduct = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<getProductResponse> => {
 
   return customFetch<getProductResponse>(getGetProductUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type getSimilarProductsResponse200 = {
+  data: ProductSummaryDto[]
+  status: 200
+}
+
+export type getSimilarProductsResponseSuccess = (getSimilarProductsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getSimilarProductsResponse = (getSimilarProductsResponseSuccess)
+
+export const getGetSimilarProductsUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/products/${id}/similar`
+}
+
+/**
+ * @summary Схожі товари (аналоги) з тієї самої категорії
+ */
+export const getSimilarProducts = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<getSimilarProductsResponse> => {
+
+  return customFetch<getSimilarProductsResponse>(getGetSimilarProductsUrl(id),
   {
     ...options,
     method: 'GET'

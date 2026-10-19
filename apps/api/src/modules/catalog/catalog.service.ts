@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { errorText } from '../../common/errors';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { listingInclude, toListingDto } from '../../common/listing.mapper';
@@ -10,15 +11,26 @@ import {
   PriceRangeDto,
   ProductDetailsDto,
   ProductPageDto,
+  ProductSummaryDto,
   ProductsQueryDto,
   ReviewPageDto,
 } from './dto/catalog.dto';
 import { MatchingClient } from './matching/matching.client';
+import {
+  searchEnabled,
+  searchFilter,
+  searchProductIds,
+  withoutBrand,
+} from './search/search';
+
+const SIMILAR_LIMIT = 8;
 import { normalizeGtin } from '@repo/matching';
 
 /** Каталог для клієнтів і адмінки: товари, фасування, пропозиції мереж, черга модерації */
 @Injectable()
 export class CatalogService {
+  private readonly logger = new Logger(CatalogService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly matching: MatchingClient,
@@ -30,6 +42,32 @@ export class CatalogService {
     const minChains = isTrue(query.multiChain) ? 2 : 1;
     const q = query.q?.trim();
     const gtin = q && /^\d{8,14}$/.test(q) ? normalizeGtin(q) : null;
+
+    // Текстовий запит — у Meilisearch (помилки в словах, синоніми, латиниця); при збої — SQL
+    if (q && !gtin && searchEnabled()) {
+      const found = await searchProductIds(
+        q,
+        searchFilter({
+          category: query.category,
+          chain: query.chain,
+          minChains,
+        }),
+        (page - 1) * pageSize,
+        pageSize,
+      ).catch((error: unknown) => {
+        this.logger.warn(
+          `Meilisearch недоступний, пошук через SQL: ${errorText(error)}`,
+        );
+        return null;
+      });
+      if (found)
+        return {
+          items: await this.summaries(found.ids),
+          total: found.total,
+          page,
+          pageSize,
+        };
+    }
 
     const filters: Prisma.Sql[] = [];
     if (gtin) {
@@ -69,8 +107,18 @@ export class CatalogService {
         SELECT count(*)::int AS total ${from}`,
     ]);
 
+    return {
+      items: await this.summaries(rows.map((r) => r.id)),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  /** Картки товарів у заданому порядку (релевантність пошуку або сортування SQL) */
+  private async summaries(ids: string[]): Promise<ProductSummaryDto[]> {
     const products = await this.prisma.product.findMany({
-      where: { id: { in: rows.map((r) => r.id) } },
+      where: { id: { in: ids } },
       include: {
         brand: { select: { name: true } },
         variants: {
@@ -90,37 +138,76 @@ export class CatalogService {
     });
     const byId = new Map(products.map((p) => [p.id, p]));
 
-    return {
-      items: rows
-        .map((row) => byId.get(row.id))
-        .filter((p) => p !== undefined)
-        .map((product) => {
-          const listings = product.variants.flatMap((v) => v.listings);
-          const chains = [...new Set(listings.map((l) => l.chain.name))].sort();
-          return {
-            id: product.id,
-            name: product.name,
-            brand: product.brand?.name ?? null,
-            variantLabel: product.variantLabel,
-            imageUrl: product.imageUrl,
-            variantsCount: product.variants.length,
-            chainsCount: chains.length,
-            listingsCount: listings.length,
-            chains,
-            prices: priceRanges(
-              listings.map((l) => ({
-                currency: l.chain.currency,
-                price: toNumber(l.currentPrice),
-                chain: l.chain.name,
-              })),
-            ),
-            onPromo: listings.some((l) => l.isOnPromo),
-          };
+    return ids
+      .map((id) => byId.get(id))
+      .filter((p) => p !== undefined)
+      .map((product) => {
+        const listings = product.variants.flatMap((v) => v.listings);
+        const chains = [...new Set(listings.map((l) => l.chain.name))].sort();
+        return {
+          id: product.id,
+          name: product.name,
+          brand: product.brand?.name ?? null,
+          variantLabel: product.variantLabel,
+          imageUrl: product.imageUrl,
+          variantsCount: product.variants.length,
+          chainsCount: chains.length,
+          listingsCount: listings.length,
+          chains,
+          prices: priceRanges(
+            listings.map((l) => ({
+              currency: l.chain.currency,
+              price: toNumber(l.currentPrice),
+              chain: l.chain.name,
+            })),
+          ),
+          onPromo: listings.some((l) => l.isOnPromo),
+        };
+      });
+  }
+
+  /**
+   * Схожі товари (аналоги): та сама категорія, схожа назва без бренду — "Напій газований"
+   * для Coca-Cola знаходить інші газовані напої. Без Meilisearch — популярні в категорії.
+   */
+  async getSimilar(id: string): Promise<ProductSummaryDto[]> {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      select: {
+        name: true,
+        lineId: true,
+        categoryId: true,
+        brand: { select: { name: true } },
+        category: { select: { slug: true } },
+      },
+    });
+    if (!product) throw new NotFoundException(`Товар ${id} не знайдено`);
+    if (searchEnabled()) {
+      const found = await searchProductIds(
+        withoutBrand(product.name, product.brand?.name),
+        searchFilter({
+          category: product.category?.slug,
+          excludeId: id,
+          excludeLineId: product.lineId,
         }),
-      total,
-      page,
-      pageSize,
-    };
+        0,
+        SIMILAR_LIMIT,
+        ['last'],
+      ).catch((error: unknown) => {
+        this.logger.warn(
+          `Meilisearch недоступний, схожі товари з SQL: ${errorText(error)}`,
+        );
+        return null;
+      });
+      if (found?.ids.length) return this.summaries(found.ids);
+    }
+    if (!product.categoryId) return [];
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT p.id FROM product_stats s JOIN products p ON p.id = s."productId"
+      WHERE p."categoryId" = ${product.categoryId} AND p.id <> ${id}
+        AND p."lineId" IS DISTINCT FROM ${product.lineId}
+      ORDER BY s.chains DESC, s.listings DESC LIMIT ${SIMILAR_LIMIT}`;
+    return this.summaries(rows.map((r) => r.id));
   }
 
   /** Категорії з кількістю товарів (порожні — теж, щоб меню було стабільним) */

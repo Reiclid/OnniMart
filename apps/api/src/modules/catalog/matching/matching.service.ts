@@ -1,6 +1,7 @@
 import { errorText } from '../../../common/errors';
 import { createHash, randomUUID } from 'node:crypto';
 import {
+  Optional,
   Injectable,
   Logger,
   OnModuleDestroy,
@@ -13,6 +14,7 @@ import {
 } from '@repo/contracts';
 import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { SearchIndexer } from '../search/search.indexer';
 import { withFields } from '../../../logger';
 import { createRedis } from '../../../redis';
 import {
@@ -108,7 +110,11 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
   private last: MatchReport | null = null;
   private vocabulary: Vocabulary | null = null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // У воркері — індекс пошуку; в інтеграційних тестах його немає
+    @Optional() private readonly search?: SearchIndexer,
+  ) {}
 
   /** Останній звіт — з журналу match_runs, щоб статус переживав перезапуск воркера */
   async onModuleInit() {
@@ -247,6 +253,12 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     await this.assignCategories().catch((error: unknown) =>
       this.logger.error(`Категорії: ${errorText(error)}`),
     );
+    // Пошук без Meilisearch працює через SQL, тож збій індексу — лише попередження
+    await this.search
+      ?.reindex()
+      .catch((error: unknown) =>
+        this.logger.warn(`Пошуковий індекс: ${errorText(error)}`),
+      );
     report.finishedAt = new Date().toISOString();
     this.last = report;
     await this.prisma.matchRun

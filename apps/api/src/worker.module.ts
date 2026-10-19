@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AlertsChecker } from './modules/accounts/alerts.checker';
 import { MatchingRequestsWorker } from './modules/catalog/matching/matching-requests.worker';
 import { MatchingService } from './modules/catalog/matching/matching.service';
+import { SearchIndexer } from './modules/catalog/search/search.indexer';
 import { ScraperModule } from './modules/scraper/scraper.module';
 import { IngestionService } from './modules/scraper/services/ingestion.service';
 import { IngestionWorker } from './modules/scraper/services/ingestion.worker';
@@ -23,6 +24,7 @@ import { WorkerLock } from './worker-lock';
     MatchingService,
     MatchingRequestsWorker,
     AlertsChecker,
+    SearchIndexer,
   ],
 })
 export class WorkerModule {}

@@ -43,6 +43,8 @@ const ORIGIN = 'http://localhost:3000';
         'TEST_DATABASE_URL має вказувати на тестову базу (_it / test)',
       );
     }
+    // Пошук через SQL: індекс Meilisearch наповнений робочими, а не тестовими даними
+    delete process.env.MEILI_URL;
     Logger.overrideLogger(false);
     Object.assign(process.env, {
       DATABASE_URL: dbUrl,

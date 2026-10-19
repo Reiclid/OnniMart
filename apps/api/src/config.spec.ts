@@ -18,6 +18,7 @@ describe('checkEnv', () => {
     ['SCRAPE_SCHEDULE з помилкою', { SCRAPE_SCHEDULE: 'True' }],
     ['SCRAPE_INTERVAL_HOURS ≤ 0', { SCRAPE_INTERVAL_HOURS: '0' }],
     ['LOG_FORMAT невідомий', { LOG_FORMAT: 'xml' }],
+    ['MEILI_URL не URL', { MEILI_URL: 'localhost:7700' }],
   ])('%s → помилка', (_case, override) => {
     expect(checkEnv({ ...VALID, ...override }, 'worker').errors).toHaveLength(
       1,

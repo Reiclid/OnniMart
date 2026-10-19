@@ -27,6 +27,14 @@ export function checkEnv(
       errors.push(`${flag}: true або false, а не "${env[flag]}"`);
     }
   }
+  // Порожній MEILI_URL — пошук вимкнено (SQL ILIKE)
+  if (env.MEILI_URL && !/^https?:\/\//.test(env.MEILI_URL)) {
+    errors.push(`MEILI_URL: потрібен http://… (див. apps/api/.env.example)`);
+  } else if (env.MEILI_URL && !env.MEILI_MASTER_KEY) {
+    warnings.push(
+      'MEILI_URL без MEILI_MASTER_KEY — Meilisearch у docker-compose вимагає ключ',
+    );
+  }
   const format = env.LOG_FORMAT;
   if (format !== undefined && !['text', 'json'].includes(format)) {
     errors.push(`LOG_FORMAT: text або json, а не "${format}"`);

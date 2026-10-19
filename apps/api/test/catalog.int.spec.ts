@@ -40,6 +40,8 @@ const COLA_EAN = '5449000000996';
         'TEST_DATABASE_URL має вказувати на тестову базу (_it / test)',
       );
     }
+    // Пошук через SQL: індекс Meilisearch наповнений робочими, а не тестовими даними
+    delete process.env.MEILI_URL;
     Logger.overrideLogger(false);
     process.env.DATABASE_URL = url;
     prisma = new PrismaService();
