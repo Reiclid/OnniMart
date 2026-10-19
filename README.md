@@ -124,6 +124,7 @@ bun run scraper:cli silpo --max-pages 1 --category napoi
 
 ```bash
 bun run test            # пакети (matching, contracts) і API (bun test)
+TEST_DATABASE_URL=postgresql://…/onnimart_it bun run test:int  # інтеграційні: справжня PostgreSQL (окрема база, тест її очищає)
 bun run test:matching   # лише двигун зіставлення
 bun run typecheck       # збирає пакети й перевіряє типи
 bun run scraper:test    # Rust-скрапер (cargo test у Docker)

@@ -214,6 +214,7 @@ export class MatchingService implements OnModuleDestroy {
       else report.newProducts++;
     }
 
+    await this.refreshProductStats();
     report.finishedAt = new Date().toISOString();
     this.last = report;
     this.logger.log(
@@ -394,6 +395,20 @@ export class MatchingService implements OnModuleDestroy {
       added += data.length;
     }
     if (added > 0) this.logger.log(`Ключі пошуку дописано: ${added}`);
+  }
+
+  /**
+   * Лічильники сторінки каталогу (product_stats). Пакет запускається після кожної зміни
+   * каталогу — зіставлення, рішення модератора, зняття зниклих карток, — тож тут вони
+   * й оновлюються; CONCURRENTLY не блокує читання каталогу під час перерахунку.
+   */
+  private async refreshProductStats(): Promise<void> {
+    try {
+      await this.prisma
+        .$executeRaw`REFRESH MATERIALIZED VIEW CONCURRENTLY product_stats`;
+    } catch (error) {
+      this.logger.error(`product_stats: ${String(error)}`);
+    }
   }
 
   /** Лише ті фасування, що можуть збігтися з новими картками → індекс у памʼяті */

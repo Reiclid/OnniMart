@@ -25,6 +25,7 @@
     "dev:openapi": "bun run build:packages && bun --filter api openapi",
     "test": "bun --filter '@repo/*' test && bun --filter api test",
     "test:api": "bun --filter api test",
+    "test:int": "bun --filter api test:int",
     "test:matching": "bun --filter @repo/matching test",
     "typecheck": "bun run build:packages && bun --filter '@repo/*' typecheck && cd apps/api && bun x tsc --noEmit -p tsconfig.json",
     "match:evaluate": "bun --filter api match:evaluate",

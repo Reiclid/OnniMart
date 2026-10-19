@@ -46,28 +46,23 @@ export class CatalogService {
         Prisma.sql`EXISTS (SELECT 1 FROM listings cl JOIN product_variants cv ON cv.id = cl."variantId" JOIN store_chains cc ON cc.id = cl."chainId" WHERE cv."productId" = p.id AND cl."delistedAt" IS NULL AND cc.slug = ${query.chain})`,
       );
     }
-    const where = filters.length
-      ? Prisma.sql`WHERE ${Prisma.join(filters, ' AND ')}`
-      : Prisma.empty;
+    filters.push(Prisma.sql`s.chains >= ${minChains}`);
 
-    // Агрегація в SQL: Prisma не вміє count(DISTINCT …) у HAVING
-    const grouped = Prisma.sql`
-      SELECT p.id, p.name, count(DISTINCT l."chainId")::int AS chains, count(l.id)::int AS listings
-      FROM products p
-      JOIN product_variants v ON v."productId" = p.id
-      JOIN listings l ON l."variantId" = v.id AND l."delistedAt" IS NULL
+    // Лічильники мереж і карток — готові (матеріалізоване подання product_stats,
+    // оновлюється після кожного пакета зіставлення), а не GROUP BY на кожен запит
+    const from = Prisma.sql`
+      FROM product_stats s
+      JOIN products p ON p.id = s."productId"
       LEFT JOIN brands b ON b.id = p."brandId"
-      ${where}
-      GROUP BY p.id
-      HAVING count(DISTINCT l."chainId") >= ${minChains}`;
+      WHERE ${Prisma.join(filters, ' AND ')}`;
 
     const [rows, [{ total }]] = await Promise.all([
       this.prisma.$queryRaw<{ id: string }[]>`
-        ${grouped}
-        ORDER BY chains DESC, listings DESC, p.name
+        SELECT p.id ${from}
+        ORDER BY s.chains DESC, s.listings DESC, p.name
         LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
       this.prisma.$queryRaw<{ total: number }[]>`
-        SELECT count(*)::int AS total FROM (${grouped}) AS t`,
+        SELECT count(*)::int AS total ${from}`,
     ]);
 
     const products = await this.prisma.product.findMany({

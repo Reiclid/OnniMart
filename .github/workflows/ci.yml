@@ -49,3 +49,31 @@ jobs:
         with:
           workspaces: apps/scraper
       - run: cargo test --locked
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: onnimart_it
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/onnimart_it
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/onnimart_it
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Prisma Client і міграції
+        working-directory: apps/api
+        run: bun x prisma generate && bun x prisma migrate deploy
+      - name: Інтеграційні тести (PostgreSQL)
+        working-directory: apps/api
+        run: bun run test:int
