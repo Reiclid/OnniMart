@@ -13,6 +13,7 @@ import {
 } from '@repo/contracts';
 import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { withFields } from '../../../logger';
 import { createRedis } from '../../../redis';
 import {
   BrandDictionaries,
@@ -254,12 +255,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       .catch((error: unknown) =>
         this.logger.warn(`Звіт не записано в журнал: ${errorText(error)}`),
       );
-    this.logger.log(
-      `Зіставлення: ${report.processed} карток — штрихкод ${report.byBarcode}, ` +
-        `схожість ${report.fuzzy}, модерація ${report.review}, ` +
-        `нових фасувань ${report.newVariants}, нових товарів ${report.newProducts}, ` +
-        `пропущено ${report.skipped}, помилок ${report.failed}`,
-    );
+    this.logger.log(withFields('Пакет зіставлення', { ...report }));
     return report;
   }
 

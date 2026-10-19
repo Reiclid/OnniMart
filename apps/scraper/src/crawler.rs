@@ -6,6 +6,7 @@ use crate::http::{FetchError, Fetcher};
 use crate::model::ScrapedProduct;
 use crate::sources::Source;
 use crate::text::now_iso;
+use tracing::info;
 
 /// Куди віддавати знайдені товари: Redis (воркер) або консоль (CLI)
 #[allow(async_fn_in_trait)]
@@ -65,7 +66,7 @@ async fn crawl_into<S: Sink>(
     if categories.is_empty() {
         bail!("{}: не знайдено жодної категорії", source.store);
     }
-    eprintln!("[scraper] {}: категорій — {}", source.store, categories.len());
+    info!(store = source.store, categories = categories.len(), "категорії");
 
     let mut seen = HashSet::new();
     'categories: for category in &categories {
@@ -124,10 +125,7 @@ async fn crawl_into<S: Sink>(
 
             let last = listing.total_pages.unwrap_or(page);
             last_page = Some(last);
-            eprintln!(
-                "[scraper] {} / {}: сторінка {page}/{last}, товарів усього {}",
-                source.store, category.slug, stats.items
-            );
+            info!(category = %category.slug, page, last, items = stats.items, "сторінка");
             if page >= last || options.max_pages.is_some_and(|max| page >= max) {
                 break;
             }

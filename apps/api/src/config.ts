@@ -27,6 +27,10 @@ export function checkEnv(
       errors.push(`${flag}: true або false, а не "${env[flag]}"`);
     }
   }
+  const format = env.LOG_FORMAT;
+  if (format !== undefined && !['text', 'json'].includes(format)) {
+    errors.push(`LOG_FORMAT: text або json, а не "${format}"`);
+  }
   const hours = env.SCRAPE_INTERVAL_HOURS;
   if (hours !== undefined && !(Number(hours) > 0)) {
     errors.push(`SCRAPE_INTERVAL_HOURS: додатне число, а не "${hours}"`);

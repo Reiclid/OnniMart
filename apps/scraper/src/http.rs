@@ -6,6 +6,7 @@ use anyhow::{Result, bail};
 use reqwest::{StatusCode, Url};
 
 use crate::robots::RobotsTxt;
+use tracing::warn;
 
 /// Чесно представляємось ботом (див. docs/01-data-sources.md)
 pub const USER_AGENT: &str =
@@ -131,14 +132,11 @@ impl Fetcher {
                     if retry_after > MAX_RETRY_AFTER_SECS {
                         return Err(FetchError::RateLimited(url.into(), retry_after).into());
                     }
-                    eprintln!(
-                        "[scraper] {url} → {}, спроба {attempt}/{MAX_ATTEMPTS}",
-                        resp.status()
-                    );
+                    warn!(url, status = %resp.status(), attempt, "повтор запиту");
                 }
                 Ok(resp) => bail!("{url} → HTTP {}", resp.status()),
                 Err(error) => {
-                    eprintln!("[scraper] {url}: {error}, спроба {attempt}/{MAX_ATTEMPTS}");
+                    warn!(url, %error, attempt, "повтор запиту");
                 }
             }
             if attempt < MAX_ATTEMPTS {

@@ -17,6 +17,7 @@ describe('checkEnv', () => {
     ['PORT не число', { PORT: '30o1' }],
     ['SCRAPE_SCHEDULE з помилкою', { SCRAPE_SCHEDULE: 'True' }],
     ['SCRAPE_INTERVAL_HOURS ≤ 0', { SCRAPE_INTERVAL_HOURS: '0' }],
+    ['LOG_FORMAT невідомий', { LOG_FORMAT: 'xml' }],
   ])('%s → помилка', (_case, override) => {
     expect(checkEnv({ ...VALID, ...override }, 'worker').errors).toHaveLength(
       1,

@@ -46,6 +46,8 @@ services:
     restart: unless-stopped
     environment:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      # text — для людини, json — для збору логів (поля run_id, store)
+      LOG_FORMAT: ${LOG_FORMAT:-text}
     depends_on:
       redis:
         condition: service_healthy

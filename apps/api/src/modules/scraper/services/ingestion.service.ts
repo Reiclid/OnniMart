@@ -9,6 +9,7 @@ import {
   parseQuantity,
 } from '@repo/matching';
 import { RunEventMessage, ScrapedProductMessage } from '@repo/contracts';
+import { withFields } from '../../../logger';
 
 export type IngestResult = 'skipped' | 'unchanged' | 'changed';
 
@@ -217,7 +218,14 @@ export class IngestionService {
         data: { robotsCheckedAt: at },
       });
     }
-    this.logger.log(`Запуск ${event.store}: ${event.kind}`);
+    this.logger.log(
+      withFields(`Подія обходу: ${event.kind}`, {
+        run_id: runId,
+        store: event.store,
+        pages: event.pages_fetched,
+        items: event.items_seen,
+      }),
+    );
     if (event.kind === 'run_finished' && !event.error) {
       await this.delistMissing(runId, event.items_seen, at);
     }
@@ -240,7 +248,11 @@ export class IngestionService {
     });
     if (itemsSeen < active * MIN_SEEN_SHARE_TO_DELIST) {
       this.logger.warn(
-        `Обхід ${runId} побачив ${itemsSeen} з ${active} активних карток — зниклі не знімаємо`,
+        withFields('Обхід побачив замало карток — зниклі не знімаємо', {
+          run_id: runId,
+          seen: itemsSeen,
+          active,
+        }),
       );
       return 0;
     }
@@ -253,7 +265,9 @@ export class IngestionService {
       data: { delistedAt: at, isOnPromo: false },
     });
     if (count > 0)
-      this.logger.log(`Зникли з сайту: ${count} карток (${runId})`);
+      this.logger.log(
+        withFields('Зникли з сайту', { run_id: runId, listings: count }),
+      );
     return count;
   }
 

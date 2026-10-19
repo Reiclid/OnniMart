@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { TriggerScraperResponseDto } from '../dto/trigger-scraper.dto';
 import { SCRAPER_TASKS_QUEUE, ScraperTask } from '@repo/contracts';
+import { withFields } from '../../../logger';
 import { createRedis } from '../../../redis';
 
 @Injectable()
@@ -86,7 +87,13 @@ export class ScraperService implements OnModuleDestroy {
       throw new ServiceUnavailableException('Redis недоступний');
     }
 
-    this.logger.log(`Задача на скрейпінг мережі [${store}] додана в чергу.`);
+    this.logger.log(
+      withFields('Обхід поставлено в чергу', {
+        run_id: run.id,
+        store: chain.slug,
+        max_pages: maxPages,
+      }),
+    );
 
     return {
       status: 'queued',

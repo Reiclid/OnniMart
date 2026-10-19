@@ -3,12 +3,15 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { assertEnv } from './config';
+import { createLogger } from './logger';
 import { createOpenApiDocument } from './swagger';
 import { setupApp } from './setup';
 
 async function bootstrap() {
   assertEnv('api');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: createLogger(),
+  });
   setupApp(app);
 
   // У продакшні документацію API не віддаємо (SWAGGER=true — увімкнути)

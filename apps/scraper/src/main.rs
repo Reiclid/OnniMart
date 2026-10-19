@@ -5,6 +5,7 @@ mod robots;
 mod sources;
 mod text;
 
+use std::io::IsTerminal;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
@@ -20,6 +21,7 @@ use crate::model::{
 };
 use crate::sources::{SUPPORTED, Source};
 use crate::text::now_iso;
+use tracing::{Instrument, error, info, info_span};
 
 /// Мінімальна пауза між запитами до одного сайту (docs/01-data-sources.md, правило 3)
 const MIN_DELAY_MS: u64 = 3000;
@@ -39,6 +41,7 @@ OnniMart scraper
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
+    init_logging();
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         None | Some("worker") => run_worker().await,
@@ -48,6 +51,22 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Some(other) => bail!("невідома команда {other}\n\n{HELP}"),
+    }
+}
+
+/// Логи в stderr: текст для людини або JSON (LOG_FORMAT=json) з полями run_id / store;
+/// рівень — RUST_LOG (за замовчуванням info)
+fn init_logging() {
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    let builder =
+        tracing_subscriber::fmt().with_env_filter(filter).with_writer(std::io::stderr);
+    // Кольори лише в терміналі, не в docker compose logs
+    let builder = builder.with_ansi(std::io::stderr().is_terminal());
+    if std::env::var("LOG_FORMAT").as_deref() == Ok("json") {
+        builder.json().flatten_event(true).with_span_list(false).init();
+    } else {
+        builder.compact().init();
     }
 }
 
@@ -107,7 +126,7 @@ impl Sink for PrintSink {
 
 async fn run_worker() -> Result<()> {
     let url = redis_url();
-    eprintln!("[scraper] воркер запущено, Redis: {}", redact(&url));
+    info!(redis = %redact(&url), "воркер запущено");
     let client = redis::Client::open(url)?;
     let mut con = client.get_multiplexed_async_connection().await?;
 
@@ -138,18 +157,21 @@ async fn run_worker() -> Result<()> {
         let Some(raw) = raw else { continue };
         match serde_json::from_str::<ScraperTask>(&raw) {
             Ok(task) => {
-                if let Err(error) = handle_task(&mut con, task).await {
-                    eprintln!("[scraper] помилка Redis: {error}");
+                // Усі логи обходу несуть run_id і store — їх видно в кожному рядку
+                let run_id = task.run_id.clone().unwrap_or_default();
+                let span = info_span!("run", run_id, store = %task.store);
+                if let Err(error) = handle_task(&mut con, task).instrument(span).await {
+                    error!(%error, "помилка Redis");
                 }
             }
-            Err(error) => eprintln!("[scraper] некоректне завдання {raw}: {error}"),
+            Err(error) => error!(%error, raw, "некоректне завдання"),
         }
         let _: () = con.lrem(TASKS_PROCESSING, -1, &raw).await?;
     }
 }
 
 async fn handle_task(con: &mut MultiplexedConnection, task: ScraperTask) -> Result<()> {
-    eprintln!("[scraper] завдання: {} (run {:?})", task.store, task.run_id);
+    info!(max_pages = ?task.max_pages, "завдання");
     let event = |kind: &'static str, stats: &CrawlStats, error: Option<String>| RunEvent {
         kind,
         run_id: task.run_id.clone(),
@@ -188,9 +210,11 @@ async fn handle_task(con: &mut MultiplexedConnection, task: ScraperTask) -> Resu
             event("run_failed", &stats, Some(text))
         }
     };
-    eprintln!(
-        "[scraper] {}: {} — сторінок {}, товарів {}",
-        task.store, finished.kind, finished.pages_fetched, finished.items_seen
+    info!(
+        kind = finished.kind,
+        pages = finished.pages_fetched,
+        items = finished.items_seen,
+        "обхід завершено"
     );
     send_event(con, &finished).await
 }
@@ -241,12 +265,13 @@ async fn run_cli(args: &[String]) -> Result<()> {
         crawl(&source, &mut fetcher, &options, &mut PrintSink { json, shown: 0 }).await
     };
 
-    eprintln!(
-        "[scraper] {store}: сторінок {}, товарів {}, HTTP-запитів {}, помилок {}",
-        stats.pages,
-        stats.items,
-        fetcher.requests,
-        stats.errors.len()
+    info!(
+        store = %store,
+        pages = stats.pages,
+        items = stats.items,
+        requests = fetcher.requests,
+        errors = stats.errors.len(),
+        "обхід завершено"
     );
     for error in &stats.errors {
         eprintln!("  - {error}");

@@ -101,6 +101,8 @@ docker exec onnimart-redis redis-cli -a "$REDIS_PASSWORD" LMOVE scraper:results:
 
 Щоб мережі обходилися автоматично, додайте в `apps/api/.env` рядок `SCRAPE_SCHEDULE=true`. Тоді планувальник у воркері ставитиме повний обхід кожної мережі раз на `SCRAPE_INTERVAL_HOURS` (за замовчуванням 24 год).
 
+**Логи.** За замовчуванням — звичайний текст. `LOG_FORMAT=json` (в `apps/api/.env` і в кореневому `.env` для скрапера) перемикає API, воркер і скрапер на JSON — один обʼєкт на рядок з полями `run_id`, `store`, `requestId`. Усі логи одного обходу: `docker compose logs scraper | jq 'select(.span.run_id == "<id>")'`; рівень логів скрапера — `RUST_LOG` (за замовчуванням `info`).
+
 Стан системи (БД, Redis, воркер, парсер, черги): `GET http://localhost:3001/api/v1/health` — `ok`, `degraded` (воркер не працює) або `down` (HTTP 503).
 
 ## Зіставлення

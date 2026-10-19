@@ -155,6 +155,13 @@ const ORIGIN = 'http://localhost:3000';
     expect(await redis.llen(MATCHING_REQUESTS_QUEUE)).toBe(1);
   });
 
+  it('x-request-id: свій або згенерований — для звʼязування з логом', async () => {
+    const own = await get('/api/v1/stats', { 'x-request-id': 'req-42' });
+    expect(own.headers.get('x-request-id')).toBe('req-42');
+    const generated = await get('/api/v1/stats', { 'x-request-id': 'a b' });
+    expect(generated.headers.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
   it('CORS — лише для веб-адмінки', async () => {
     const allowed = await get('/api/v1/stats', { origin: ORIGIN });
     expect(allowed.headers.get('access-control-allow-origin')).toBe(ORIGIN);
