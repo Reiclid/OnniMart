@@ -3,12 +3,12 @@ name: onnimart
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine
     container_name: onnimart-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD у .env (див. .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-onnimart}
     # Лише з цього компʼютера: бази й черги не повинні бути видні в локальній мережі
     ports:
@@ -31,7 +31,7 @@ services:
   #     - api_data:/api_data
 
   redis:
-    image: redis:alpine
+    image: redis:8.10.2-alpine
     container_name: onnimart-redis
     restart: unless-stopped
     # Пароль обовʼязковий: без нього черги можна було б читати й підробляти

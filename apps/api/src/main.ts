@@ -16,7 +16,10 @@ async function bootstrap() {
   app.enableShutdownHooks();
   app.useGlobalPipes(createValidationPipe());
 
-  SwaggerModule.setup('api/docs', app, createOpenApiDocument(app));
+  // У продакшні документацію API не віддаємо (SWAGGER=true — увімкнути)
+  if (process.env.NODE_ENV !== 'production' || process.env.SWAGGER === 'true') {
+    SwaggerModule.setup('api/docs', app, createOpenApiDocument(app));
+  }
 
   // За замовчуванням лише з цього компʼютера; HOST=0.0.0.0 — щоб відкрити в мережу
   await app.listen(process.env.PORT ?? 3001, process.env.HOST ?? 'localhost');
