@@ -17,12 +17,19 @@ export type triggerScrapeResponse201 = {
   status: 201
 }
 
+export type triggerScrapeResponse401 = {
+  data: void
+  status: 401
+}
+
 export type triggerScrapeResponseSuccess = (triggerScrapeResponse201) & {
   headers: Headers;
 };
-;
+export type triggerScrapeResponseError = (triggerScrapeResponse401) & {
+  headers: Headers;
+};
 
-export type triggerScrapeResponse = (triggerScrapeResponseSuccess)
+export type triggerScrapeResponse = (triggerScrapeResponseSuccess | triggerScrapeResponseError)
 
 export const getTriggerScrapeUrl = () => {
 

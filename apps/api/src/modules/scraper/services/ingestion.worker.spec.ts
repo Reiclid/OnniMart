@@ -30,6 +30,7 @@ function fakeRedis() {
       return Promise.resolve(i >= 0 ? 1 : 0);
     },
     lpush: (key: string, value: string) => list(key).unshift(value),
+    set: () => Promise.resolve('OK'),
     multi() {
       const ops: (() => unknown)[] = [];
       const tx = {

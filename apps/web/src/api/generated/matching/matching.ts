@@ -54,12 +54,19 @@ export type runMatchingResponse202 = {
   status: 202
 }
 
+export type runMatchingResponse401 = {
+  data: void
+  status: 401
+}
+
 export type runMatchingResponseSuccess = (runMatchingResponse202) & {
   headers: Headers;
 };
-;
+export type runMatchingResponseError = (runMatchingResponse401) & {
+  headers: Headers;
+};
 
-export type runMatchingResponse = (runMatchingResponseSuccess)
+export type runMatchingResponse = (runMatchingResponseSuccess | runMatchingResponseError)
 
 export const getRunMatchingUrl = () => {
 
@@ -131,12 +138,19 @@ export type acceptCandidateResponse204 = {
   status: 204
 }
 
+export type acceptCandidateResponse401 = {
+  data: void
+  status: 401
+}
+
 export type acceptCandidateResponseSuccess = (acceptCandidateResponse204) & {
   headers: Headers;
 };
-;
+export type acceptCandidateResponseError = (acceptCandidateResponse401) & {
+  headers: Headers;
+};
 
-export type acceptCandidateResponse = (acceptCandidateResponseSuccess)
+export type acceptCandidateResponse = (acceptCandidateResponseSuccess | acceptCandidateResponseError)
 
 export const getAcceptCandidateUrl = (id: string,) => {
 
@@ -166,12 +180,19 @@ export type rejectCandidatesResponse204 = {
   status: 204
 }
 
+export type rejectCandidatesResponse401 = {
+  data: void
+  status: 401
+}
+
 export type rejectCandidatesResponseSuccess = (rejectCandidatesResponse204) & {
   headers: Headers;
 };
-;
+export type rejectCandidatesResponseError = (rejectCandidatesResponse401) & {
+  headers: Headers;
+};
 
-export type rejectCandidatesResponse = (rejectCandidatesResponseSuccess)
+export type rejectCandidatesResponse = (rejectCandidatesResponseSuccess | rejectCandidatesResponseError)
 
 export const getRejectCandidatesUrl = (id: string,) => {
 
@@ -201,12 +222,19 @@ export type unlinkListingResponse204 = {
   status: 204
 }
 
+export type unlinkListingResponse401 = {
+  data: void
+  status: 401
+}
+
 export type unlinkListingResponseSuccess = (unlinkListingResponse204) & {
   headers: Headers;
 };
-;
+export type unlinkListingResponseError = (unlinkListingResponse401) & {
+  headers: Headers;
+};
 
-export type unlinkListingResponse = (unlinkListingResponseSuccess)
+export type unlinkListingResponse = (unlinkListingResponseSuccess | unlinkListingResponseError)
 
 export const getUnlinkListingUrl = (id: string,) => {
 

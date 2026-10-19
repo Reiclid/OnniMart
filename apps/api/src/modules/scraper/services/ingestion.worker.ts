@@ -10,6 +10,7 @@ import {
   SCRAPER_RESULTS_DEAD,
   SCRAPER_RESULTS_PROCESSING,
   SCRAPER_RESULTS_QUEUE,
+  WORKER_HEARTBEAT_KEY,
 } from '@repo/contracts';
 import Redis from 'ioredis';
 import { createRedis } from '../../../redis';
@@ -37,6 +38,7 @@ export class IngestionWorker
   private processed = 0;
   /** Невдалі спроби поточного повідомлення */
   private attempts = 0;
+  private lastHeartbeat = 0;
 
   constructor(private readonly ingestion: IngestionService) {}
 
@@ -66,6 +68,16 @@ export class IngestionWorker
   async step(): Promise<number> {
     let raw: string | null = null;
     try {
+      // Ознака життя воркера для health-check: не частіше ніж раз на 20 с
+      if (Date.now() - this.lastHeartbeat > 20_000) {
+        await this.redis.set(
+          WORKER_HEARTBEAT_KEY,
+          new Date().toISOString(),
+          'EX',
+          60,
+        );
+        this.lastHeartbeat = Date.now();
+      }
       // Спершу — незавершене повідомлення (воркер чи БД падали посеред обробки)
       raw =
         (await this.redis.lindex(SCRAPER_RESULTS_PROCESSING, -1)) ??

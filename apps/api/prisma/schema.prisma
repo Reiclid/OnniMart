@@ -131,6 +131,7 @@ model Brand {
   lines    ProductLine[]
   products Product[]
 
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "brands_name_trgm_idx")
   @@map("brands")
 }
 
@@ -195,6 +196,8 @@ model Product {
   @@index([lineId])
   @@index([brandId])
   @@index([categoryId])
+  // Пошук у каталозі: name ILIKE '%q%' (CatalogService.getProducts)
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_name_trgm_idx")
   @@map("products")
 }
 
@@ -333,6 +336,11 @@ model Listing {
   @@index([chainId, lastRunId])
   @@index([promoEndsAt])
   @@index([tokenizedAt])
+  // Пошук і фільтри списку карток (monitoring: buildWhere, getListing, getListings)
+  @@index([barcodes], type: Gin)
+  @@index([rawName(ops: raw("gin_trgm_ops"))], type: Gin, map: "listings_rawName_trgm_idx")
+  @@index([rawBrand(ops: raw("gin_trgm_ops"))], type: Gin, map: "listings_rawBrand_trgm_idx")
+  @@index([lastSeenAt(sort: Desc)])
   @@map("listings")
 }
 
@@ -422,6 +430,7 @@ model PriceSnapshot {
   scrapeRun ScrapeRun? @relation(fields: [scrapeRunId], references: [id], onDelete: SetNull)
 
   @@index([listingId, capturedAt(sort: Desc)])
+  @@index([scrapeRunId])
   @@map("price_snapshots")
 }
 
@@ -453,6 +462,7 @@ model ScrapeRun {
   priceSnapshots PriceSnapshot[]
 
   @@index([chainId, startedAt(sort: Desc)])
+  @@index([startedAt(sort: Desc)])
   @@map("scrape_runs")
 }
 

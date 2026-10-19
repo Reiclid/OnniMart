@@ -19,6 +19,8 @@ export const SCRAPER_RESULTS_PROCESSING = 'scraper:results:processing';
  * Повернути в чергу: redis-cli LMOVE scraper:results:dead scraper:results RIGHT LEFT
  */
 export const SCRAPER_RESULTS_DEAD = 'scraper:results:dead';
+/** Ознака життя воркера (ISO-час, TTL 60 с) — для GET /api/v1/health */
+export const WORKER_HEARTBEAT_KEY = 'worker:heartbeat';
 /** Запити на пакетне зіставлення (API → воркер) */
 export const MATCHING_REQUESTS_QUEUE = 'matching:requests';
 /** Стан зіставлення, який воркер публікує для API (JSON MatchingState) */
