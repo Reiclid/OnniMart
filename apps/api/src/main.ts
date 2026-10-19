@@ -4,19 +4,12 @@ import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { assertEnv } from './config';
 import { createOpenApiDocument } from './swagger';
-import { createValidationPipe } from './validation';
+import { setupApp } from './setup';
 
 async function bootstrap() {
   assertEnv('api');
   const app = await NestFactory.create(AppModule);
-
-  // Лише веб-адмінка; інші сайти не можуть слати запити з браузера адміністратора
-  app.enableCors({
-    origin: (process.env.WEB_ORIGINS ?? 'http://localhost:3000').split(','),
-    methods: ['GET', 'POST'],
-  });
-  app.enableShutdownHooks();
-  app.useGlobalPipes(createValidationPipe());
+  setupApp(app);
 
   // У продакшні документацію API не віддаємо (SWAGGER=true — увімкнути)
   if (process.env.NODE_ENV !== 'production' || process.env.SWAGGER === 'true') {
