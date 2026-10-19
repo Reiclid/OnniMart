@@ -58,7 +58,7 @@ const COLA_EAN = '5449000000996';
     catalog = new CatalogService(prisma, {} as MatchingClient);
 
     await prisma.$executeRawUnsafe(`
-      TRUNCATE match_keys, match_candidates, price_snapshots, scrape_runs, barcodes,
+      TRUNCATE match_runs, match_keys, match_candidates, price_snapshots, scrape_runs, barcodes,
         listings, product_variants, products, product_lines, brands, stores,
         store_chains, countries, subscriptions, users RESTART IDENTITY CASCADE`);
     await prisma.country.create({
@@ -133,6 +133,12 @@ const COLA_EAN = '5449000000996';
     const report = await matching.run();
     expect(report.processed).toBe(0);
     expect(await prisma.product.count()).toBe(2);
+    // Кожен пакет — у журналі; після перезапуску воркера статус відновлюється з нього
+    expect(await prisma.matchRun.count()).toBe(2);
+    const restarted = new MatchingService(prisma);
+    Object.assign(restarted, { redis: (matching as any).redis });
+    await restarted.onModuleInit();
+    expect((restarted as any).last).toMatchObject({ processed: 0 });
   });
 
   it('після повного обходу зникла картка пропадає з каталогу', async () => {

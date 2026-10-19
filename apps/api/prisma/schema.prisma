@@ -469,6 +469,28 @@ model ScrapeRun {
   @@map("scrape_runs")
 }
 
+/// Журнал пакетів зіставлення: звіт кожного запуску (для статусу й аналізу роботи системи)
+model MatchRun {
+  id          String   @id @default(uuid())
+  startedAt   DateTime
+  finishedAt  DateTime
+  /// Скільки незіставлених карток розглянуто
+  processed   Int
+  byBarcode   Int
+  fuzzy       Int
+  /// Відправлено на модерацію
+  review      Int
+  newVariants Int
+  newProducts Int
+  /// Картку тим часом зіставив хтось інший
+  skipped     Int
+  /// Помилки окремих карток
+  failed      Int
+
+  @@index([startedAt(sort: Desc)])
+  @@map("match_runs")
+}
+
 // ============================================================
 // Користувачі, підписки, сповіщення
 // ============================================================

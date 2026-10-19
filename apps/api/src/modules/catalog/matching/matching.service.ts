@@ -1,6 +1,11 @@
 import { errorText } from '../../../common/errors';
 import { createHash, randomUUID } from 'node:crypto';
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import {
   MATCHING_STATE_KEY,
   MatchingState,
@@ -92,7 +97,7 @@ const IN_CHUNK = 5000;
  * (черга matching:requests). Стан публікує в Redis (matching:state) для API.
  */
 @Injectable()
-export class MatchingService implements OnModuleDestroy {
+export class MatchingService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MatchingService.name);
   private readonly redis = createRedis();
   private current: Promise<MatchReport> | null = null;
@@ -101,6 +106,28 @@ export class MatchingService implements OnModuleDestroy {
   private vocabulary: Vocabulary | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Останній звіт — з журналу match_runs, щоб статус переживав перезапуск воркера */
+  async onModuleInit() {
+    try {
+      const run = await this.prisma.matchRun.findFirst({
+        orderBy: { startedAt: 'desc' },
+      });
+      if (run && !this.last) {
+        const { id: _id, ...counts } = run;
+        this.last = {
+          ...counts,
+          startedAt: run.startedAt.toISOString(),
+          finishedAt: run.finishedAt.toISOString(),
+        };
+      }
+      await this.publish();
+    } catch (error) {
+      this.logger.warn(
+        `Не вдалося прочитати журнал зіставлення: ${errorText(error)}`,
+      );
+    }
+  }
 
   onModuleDestroy() {
     this.redis.disconnect();
@@ -216,6 +243,17 @@ export class MatchingService implements OnModuleDestroy {
     await this.refreshProductStats();
     report.finishedAt = new Date().toISOString();
     this.last = report;
+    await this.prisma.matchRun
+      .create({
+        data: {
+          ...report,
+          startedAt: new Date(report.startedAt),
+          finishedAt: new Date(report.finishedAt),
+        },
+      })
+      .catch((error: unknown) =>
+        this.logger.warn(`Звіт не записано в журнал: ${errorText(error)}`),
+      );
     this.logger.log(
       `Зіставлення: ${report.processed} карток — штрихкод ${report.byBarcode}, ` +
         `схожість ${report.fuzzy}, модерація ${report.review}, ` +
