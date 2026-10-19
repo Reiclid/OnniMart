@@ -1,0 +1,51 @@
+# Перевірки на кожен push і pull request: типи, лінтери й тести TypeScript і Rust.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript:
+    runs-on: ubuntu-latest
+    env:
+      # prisma generate не підключається до БД, але конфіг читає змінну
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/onnimart
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Prisma Client
+        working-directory: apps/api
+        run: bun x prisma generate
+      - name: Типи (пакети + API)
+        run: bun run typecheck
+      - name: Лінтер API
+        working-directory: apps/api
+        run: bun x eslint "src/**/*.ts"
+      - name: Типи й лінтер web
+        working-directory: apps/web
+        # PageProps / LayoutProps генерує Next.js у .next/types
+        run: bun x next typegen && bun x tsc --noEmit -p tsconfig.json && bun x eslint
+      - name: Тести (matching, contracts, API)
+        run: bun run test
+
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/scraper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/scraper
+      - run: cargo test --locked

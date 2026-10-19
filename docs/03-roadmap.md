@@ -104,7 +104,7 @@ Rust-парсер (`apps/scraper`, збирається й тестується 
 
 ## Етап 7. Якість і розгортання (травень)
 
-- [ ] CI (GitHub Actions): lint, typecheck, `bun test`, `cargo test`.
+- [x] CI (GitHub Actions, `.github/workflows/ci.yml`): lint, typecheck, `bun test`, `cargo test`.
 - [ ] E2E-тести API на тестовій БД.
 - [ ] Docker-образи `api` і `scraper`, розгортання на VPS.
 - [ ] Закріпити версію `meilisearch` у docker-compose (зараз `latest`).
