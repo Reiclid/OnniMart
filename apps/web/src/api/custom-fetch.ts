@@ -1,8 +1,21 @@
-export const customFetch = async <T>(url: string, options: RequestInit): Promise<T> => {
+/** Помилка API зі статусом — щоб сторінки відрізняли 404 від інших збоїв */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export const customFetch = async <T>(
+  url: string,
+  options: RequestInit,
+): Promise<T> => {
   const response = await fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       // Лише на сервері Next.js (серверні дії): у браузері змінної немає
       ...(process.env.ADMIN_TOKEN && {
         Authorization: `Bearer ${process.env.ADMIN_TOKEN}`,
@@ -13,11 +26,16 @@ export const customFetch = async <T>(url: string, options: RequestInit): Promise
 
   const data = await response.json().catch(() => ({}));
 
-
   if (!response.ok) {
-    throw new Error(data.message || `Помилка сервера: ${response.status}`);
+    const message = Array.isArray(data.message)
+      ? data.message.join("; ")
+      : data.message;
+    throw new ApiError(
+      response.status,
+      message || `Помилка сервера: ${response.status}`,
+    );
   }
-  
+
   return {
     data,
     status: response.status,

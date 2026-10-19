@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { listingInclude, toListingDto } from '../monitoring/monitoring.service';
+import { listingInclude, toListingDto } from '../../common/listing.mapper';
+import { clampPageSize, isTrue, pageOf, toNumber } from '../../common/query';
 import {
   BarcodeLookupDto,
   MatchingStatusDto,
@@ -14,9 +15,6 @@ import {
 import { MatchingClient } from './matching/matching.client';
 import { normalizeGtin } from '@repo/matching';
 
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 200;
-
 /** Каталог для клієнтів і адмінки: товари, фасування, пропозиції мереж, черга модерації */
 @Injectable()
 export class CatalogService {
@@ -26,7 +24,7 @@ export class CatalogService {
   ) {}
 
   async getProducts(query: ProductsQueryDto): Promise<ProductPageDto> {
-    const page = Math.max(toInt(query.page) ?? 1, 1);
+    const page = pageOf(query.page);
     const pageSize = clampPageSize(query.pageSize);
     const minChains = isTrue(query.multiChain) ? 2 : 1;
     const q = query.q?.trim();
@@ -253,8 +251,8 @@ export class CatalogService {
     pageParam?: number,
     sizeParam?: number,
   ): Promise<ReviewPageDto> {
-    const page = Math.max(toInt(pageParam) ?? 1, 1);
-    const pageSize = clampPageSize(sizeParam ?? 20);
+    const page = pageOf(pageParam);
+    const pageSize = clampPageSize(sizeParam, 20);
     const where: Prisma.ListingWhereInput = {
       variantId: null,
       matchCandidates: { some: { status: 'SUGGESTED' } },
@@ -348,24 +346,4 @@ const CURRENCY_ORDER = ['UAH', 'EUR', 'PLN', 'USD'];
 function currencyRank(currency: string): number {
   const rank = CURRENCY_ORDER.indexOf(currency);
   return rank === -1 ? CURRENCY_ORDER.length : rank;
-}
-
-function clampPageSize(value?: number | string): number {
-  return Math.min(
-    Math.max(toInt(value) ?? DEFAULT_PAGE_SIZE, 1),
-    MAX_PAGE_SIZE,
-  );
-}
-
-function toInt(value: unknown): number | undefined {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : undefined;
-}
-
-function isTrue(value: unknown): boolean {
-  return value === true || value === 'true';
-}
-
-function toNumber(value: unknown): number | null {
-  return value === null || value === undefined ? null : Number(value);
 }

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ApiError } from '@/api/custom-fetch';
 import { notFound } from 'next/navigation';
 import { getProduct } from '@/api/generated/catalog/catalog';
 import type { ListingSummaryDto } from '@/api/generated/model';
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export default async function ProductPage(props: PageProps<'/products/[id]'>) {
   const { id } = await props.params;
   const response = await getProduct(id).catch((error: Error) => {
-    if (/не знайдено|404/i.test(error.message)) notFound();
+    if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
   });
   const product = response.data;

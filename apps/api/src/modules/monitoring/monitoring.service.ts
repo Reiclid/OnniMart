@@ -1,34 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { formatQuantity, Measure, normalizeGtin } from '@repo/matching';
+import { normalizeGtin } from '@repo/matching';
+import { listingInclude, toListingDto } from '../../common/listing.mapper';
+import { clampPageSize, isTrue, pageOf, toNumber } from '../../common/query';
 import {
   ChainStatus,
   ChainSummaryDto,
   ListingDetailsDto,
   ListingPageDto,
   ListingsQueryDto,
-  ListingSummaryDto,
   ScrapeRunDto,
   StatsDto,
 } from './dto/monitoring.dto';
-
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 200;
-const UNIT_LABELS: Record<Measure, string> = {
-  MASS: 'кг',
-  VOLUME: 'л',
-  COUNT: 'шт',
-};
-
-export const listingInclude = {
-  chain: { select: { slug: true, name: true, currency: true } },
-  variant: { select: { productId: true } },
-} satisfies Prisma.ListingInclude;
-
-export type ListingWithChain = Prisma.ListingGetPayload<{
-  include: typeof listingInclude;
-}>;
 
 type RunWithChain = Prisma.ScrapeRunGetPayload<{
   include: { chain: { select: { slug: true; name: true } } };
@@ -135,11 +119,8 @@ export class MonitoringService {
   }
 
   async getListings(query: ListingsQueryDto): Promise<ListingPageDto> {
-    const page = Math.max(toInt(query.page) ?? 1, 1);
-    const pageSize = Math.min(
-      Math.max(toInt(query.pageSize) ?? DEFAULT_PAGE_SIZE, 1),
-      MAX_PAGE_SIZE,
-    );
+    const page = pageOf(query.page);
+    const pageSize = clampPageSize(query.pageSize);
     const where = buildWhere(query);
 
     const [items, total] = await Promise.all([
@@ -235,49 +216,6 @@ export function buildWhere(query: ListingsQueryDto): Prisma.ListingWhereInput {
   return where;
 }
 
-export function toListingDto(listing: ListingWithChain): ListingSummaryDto {
-  const measure = listing.measure;
-  const netQuantity = toNumber(listing.netQuantity);
-  return {
-    id: listing.id,
-    chainSlug: listing.chain.slug,
-    chainName: listing.chain.name,
-    currency: listing.chain.currency,
-    externalId: listing.externalId,
-    name: listing.rawName,
-    brand: listing.rawBrand,
-    category: listing.rawCategory,
-    url: listing.url,
-    imageUrl: listing.imageUrl,
-    quantityLabel:
-      measure && netQuantity
-        ? formatQuantity({
-            measure,
-            netQuantity,
-            packCount: listing.packCount ?? 1,
-            isWeighted: listing.isWeighted,
-          })
-        : null,
-    currentPrice: toNumber(listing.currentPrice),
-    regularPrice: toNumber(listing.regularPrice),
-    unitPrice: toNumber(listing.unitPrice),
-    unitLabel: measure
-      ? listing.isWeighted
-        ? 'кг'
-        : UNIT_LABELS[measure]
-      : null,
-    isOnPromo: listing.isOnPromo,
-    inStock: listing.inStock,
-    delistedAt: listing.delistedAt?.toISOString() ?? null,
-    matchStatus: listing.matchStatus,
-    matchMethod: listing.matchMethod,
-    matchScore: listing.matchScore,
-    productId: listing.variant?.productId ?? null,
-    barcodes: listing.barcodes,
-    lastSeenAt: listing.lastSeenAt.toISOString(),
-  };
-}
-
 function toRunDto(run: RunWithChain): ScrapeRunDto {
   return {
     id: run.id,
@@ -292,18 +230,4 @@ function toRunDto(run: RunWithChain): ScrapeRunDto {
     itemsChanged: run.itemsChanged,
     error: run.error,
   };
-}
-
-function toNumber(value: Prisma.Decimal | null): number | null {
-  return value === null ? null : Number(value);
-}
-
-function toInt(value: unknown): number | undefined {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : undefined;
-}
-
-/** Query-параметри приходять рядками: "true" / "1" */
-function isTrue(value: unknown): boolean {
-  return value === true || value === 'true' || value === '1';
 }

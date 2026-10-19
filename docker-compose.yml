@@ -21,14 +21,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # api:
-  #   build: api:alpine
-  #   container_name: onnimart-api
-  #   restart: unless-stopped
-  #   ports:
-  #     - "3001:3001"
-  #   volumes:
-  #     - api_data:/api_data
 
   redis:
     image: redis:8.10.2-alpine

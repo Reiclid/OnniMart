@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { ApiError } from '@/api/custom-fetch';
 import { notFound } from 'next/navigation';
 import { getListing } from '@/api/generated/monitoring/monitoring';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export default async function ListingPage(props: PageProps<'/listings/[id]'>) {
   const { id } = await props.params;
   const response = await getListing(id).catch((error: Error) => {
-    if (error.message.includes('не знайдено')) notFound();
+    if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
   });
   const item = response.data;
