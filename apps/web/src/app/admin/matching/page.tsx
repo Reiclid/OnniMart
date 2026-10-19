@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 20;
 
-export default async function MatchingPage(props: PageProps<'/matching'>) {
+export default async function MatchingPage(props: PageProps<'/admin/matching'>) {
   const searchParams = await props.searchParams;
   const page = Number(searchParams.page ?? 1) || 1;
   const [{ data: status }, { data: queue }] = await Promise.all([
@@ -88,7 +88,7 @@ export default async function MatchingPage(props: PageProps<'/matching'>) {
         {lastPage > 1 && (
           <nav className="flex items-center justify-between text-sm">
             {page > 1 ? (
-              <Link href={`/matching?page=${page - 1}`} className="text-blue-700 hover:underline">
+              <Link href={`/admin/matching?page=${page - 1}`} className="text-blue-700 hover:underline">
                 ← Попередня
               </Link>
             ) : (
@@ -98,7 +98,7 @@ export default async function MatchingPage(props: PageProps<'/matching'>) {
               Сторінка {page} з {lastPage}
             </span>
             {page < lastPage ? (
-              <Link href={`/matching?page=${page + 1}`} className="text-blue-700 hover:underline">
+              <Link href={`/admin/matching?page=${page + 1}`} className="text-blue-700 hover:underline">
                 Наступна →
               </Link>
             ) : (
@@ -128,7 +128,7 @@ function ReviewCard({ item }: { item: ReviewItemDto }) {
             {listing.brand && ` · ${listing.brand}`}
             {listing.quantityLabel && ` · ${listing.quantityLabel}`}
           </div>
-          <Link href={`/listings/${listing.id}`} className="font-medium text-blue-700 hover:underline">
+          <Link href={`/admin/listings/${listing.id}`} className="font-medium text-blue-700 hover:underline">
             {listing.name}
           </Link>
           <div className="text-sm font-semibold">{formatPrice(listing.currentPrice, listing.currency)}</div>
@@ -150,7 +150,7 @@ function ReviewCard({ item }: { item: ReviewItemDto }) {
               <div className="text-xs text-slate-500">
                 {[candidate.brand, candidate.variantLabel].filter(Boolean).join(' · ')}
               </div>
-              <Link href={`/products/${candidate.productId}`} className="font-medium text-blue-700 hover:underline">
+              <Link href={`/admin/products/${candidate.productId}`} className="font-medium text-blue-700 hover:underline">
                 {candidate.productName}
               </Link>
               {candidate.barcodeMismatch && (

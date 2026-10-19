@@ -93,7 +93,7 @@ const ORIGIN = 'http://localhost:3000';
     setupApp(app);
     await app.listen(0, '127.0.0.1');
     base = await app.getUrl();
-  });
+  }, 30_000); // холодний старт Prisma + Nest довший за 5 с за замовчуванням
 
   afterAll(async () => {
     await redis?.del(MATCHING_REQUESTS_QUEUE);

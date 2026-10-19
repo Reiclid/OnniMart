@@ -53,3 +53,35 @@ export function formatScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return '—';
   return `${Math.round(score * 100)} %`;
 }
+
+/** Вітрина (англійською): "61.90 ₴", "1.59 €" */
+export function formatMoney(value: number, currency: string): string {
+  const symbol =
+    new Intl.NumberFormat('en', { style: 'currency', currency, currencyDisplay: 'narrowSymbol' })
+      .formatToParts(0)
+      .find((part) => part.type === 'currency')?.value ?? currency;
+  return `${value.toFixed(2)} ${symbol}`;
+}
+
+const UNITS: Record<string, string> = { л: 'L', кг: 'kg', шт: 'pc' };
+
+/** "49.52 ₴/L" або null, якщо ціну за одиницю не пораховано */
+export function formatUnitPrice(offer: {
+  unitPrice: number | null;
+  unitLabel: string | null;
+  currency: string;
+}): string | null {
+  if (offer.unitPrice === null || !offer.unitLabel) return null;
+  return `${formatMoney(offer.unitPrice, offer.currency)}/${UNITS[offer.unitLabel] ?? offer.unitLabel}`;
+}
+
+/** Підпис різновиду в лінійці ("Zero", "банан"); якщо він не унікальний — повна назва */
+export function lineChipLabel(
+  product: { name: string; variantLabel: string | null },
+  lineProducts: { variantLabel: string | null }[],
+): string {
+  return product.variantLabel &&
+    lineProducts.filter((other) => other.variantLabel === product.variantLabel).length === 1
+    ? product.variantLabel
+    : product.name;
+}

@@ -23,7 +23,7 @@
     "dev:seed": "cd apps/api && bun x prisma db seed",
     "dev:studio": "cd apps/api && bun x prisma studio",
     "dev:openapi": "bun run build:packages && bun --filter api openapi",
-    "test": "bun --filter '@repo/*' test && bun --filter api test",
+    "test": "bun --filter '@repo/*' test && bun --filter api test && bun --filter web test",
     "test:api": "bun --filter api test",
     "test:int": "bun --filter api test:int",
     "test:matching": "bun --filter @repo/matching test",

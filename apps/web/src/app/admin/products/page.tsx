@@ -21,10 +21,10 @@ function pageHref(params: SearchParams, page: number): string {
     if (v && key !== 'page') query.set(key, v);
   }
   query.set('page', String(page));
-  return `/products?${query.toString()}`;
+  return `/admin/products?${query.toString()}`;
 }
 
-export default async function ProductsPage(props: PageProps<'/products'>) {
+export default async function ProductsPage(props: PageProps<'/admin/products'>) {
   const searchParams: SearchParams = await props.searchParams;
   // За замовчуванням — товари, що є в кількох мережах: саме їх і порівнюємо
   const multiChain = first(searchParams.all) !== 'true';
@@ -118,7 +118,7 @@ export default async function ProductsPage(props: PageProps<'/products'>) {
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  <Link href={`/products/${product.id}`} className="font-medium text-blue-700 hover:underline">
+                  <Link href={`/admin/products/${product.id}`} className="font-medium text-blue-700 hover:underline">
                     {product.name}
                   </Link>
                   <div className="text-xs text-slate-500">

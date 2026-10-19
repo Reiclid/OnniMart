@@ -33,14 +33,14 @@ export default async function DashboardPage() {
     { label: 'Мережі', value: `${stats.enabledChains} / ${stats.chains}`, hint: 'увімкнено / усього' },
     { label: 'Картки товарів', value: formatNumber(stats.listings) },
     { label: 'Зі штрихкодом', value: formatNumber(stats.listingsWithBarcode) },
-    { label: 'Товарів у каталозі', value: formatNumber(matching.products), href: '/products?all=true' },
+    { label: 'Товарів у каталозі', value: formatNumber(matching.products), href: '/admin/products?all=true' },
     {
       label: 'Порівнюються у 2+ мережах',
       value: formatNumber(matching.multiChainVariants),
       hint: 'фасувань',
-      href: '/products',
+      href: '/admin/products',
     },
-    { label: 'На модерації', value: formatNumber(matching.inReview), href: '/matching' },
+    { label: 'На модерації', value: formatNumber(matching.inReview), href: '/admin/matching' },
     { label: 'З акцією', value: formatNumber(stats.promoListings) },
     { label: 'Записи історії цін', value: formatNumber(stats.priceSnapshots) },
   ];
@@ -102,12 +102,12 @@ export default async function DashboardPage() {
                     </a>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/listings?chain=${chain.slug}`} className="text-blue-700 hover:underline">
+                    <Link href={`/admin/listings?chain=${chain.slug}`} className="text-blue-700 hover:underline">
                       {formatNumber(chain.listingsCount)}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/listings?chain=${chain.slug}&promo=true`} className="text-blue-700 hover:underline">
+                    <Link href={`/admin/listings?chain=${chain.slug}&promo=true`} className="text-blue-700 hover:underline">
                       {formatNumber(chain.promoCount)}
                     </Link>
                   </td>

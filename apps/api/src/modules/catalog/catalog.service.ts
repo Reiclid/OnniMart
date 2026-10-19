@@ -105,6 +105,7 @@ export class CatalogService {
               listings.map((l) => ({
                 currency: l.chain.currency,
                 price: toNumber(l.currentPrice),
+                chain: l.chain.name,
               })),
             ),
             onPromo: listings.some((l) => l.isOnPromo),
@@ -330,15 +331,22 @@ export class CatalogService {
 }
 
 function priceRanges(
-  prices: { currency: string; price: number | null }[],
+  prices: { currency: string; price: number | null; chain: string }[],
 ): PriceRangeDto[] {
   const ranges = new Map<string, PriceRangeDto>();
-  for (const { currency, price } of prices) {
+  for (const { currency, price, chain } of prices) {
     if (price === null) continue;
     const range = ranges.get(currency);
-    if (!range) ranges.set(currency, { currency, min: price, max: price });
+    if (!range)
+      ranges.set(currency, {
+        currency,
+        min: price,
+        max: price,
+        minChain: chain,
+      });
     else {
-      range.min = Math.min(range.min, price);
+      if (price < range.min)
+        Object.assign(range, { min: price, minChain: chain });
       range.max = Math.max(range.max, price);
     }
   }

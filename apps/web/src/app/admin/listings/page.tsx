@@ -21,10 +21,10 @@ function pageHref(params: SearchParams, page: number): string {
     if (v && key !== 'page') query.set(key, v);
   }
   query.set('page', String(page));
-  return `/listings?${query.toString()}`;
+  return `/admin/listings?${query.toString()}`;
 }
 
-export default async function ListingsPage(props: PageProps<'/listings'>) {
+export default async function ListingsPage(props: PageProps<'/admin/listings'>) {
   const searchParams: SearchParams = await props.searchParams;
   const filters: GetListingsParams = {
     chain: first(searchParams.chain) || undefined,
@@ -118,7 +118,7 @@ export default async function ListingsPage(props: PageProps<'/listings'>) {
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  <Link href={`/listings/${item.id}`} className="font-medium text-blue-700 hover:underline">
+                  <Link href={`/admin/listings/${item.id}`} className="font-medium text-blue-700 hover:underline">
                     {item.name}
                   </Link>
                   <div className="text-xs text-slate-500">

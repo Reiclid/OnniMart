@@ -8,7 +8,7 @@ import { formatDate, formatDateTime, formatPrice } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ListingPage(props: PageProps<'/listings/[id]'>) {
+export default async function ListingPage(props: PageProps<'/admin/listings/[id]'>) {
   const { id } = await props.params;
   const response = await getListing(id).catch((error: Error) => {
     if (error instanceof ApiError && error.status === 404) notFound();
@@ -38,7 +38,7 @@ export default async function ListingPage(props: PageProps<'/listings/[id]'>) {
 
   return (
     <div className="space-y-6">
-      <Link href="/listings" className="text-sm text-blue-700 hover:underline">
+      <Link href="/admin/listings" className="text-sm text-blue-700 hover:underline">
         ← До списку
       </Link>
 
@@ -75,7 +75,7 @@ export default async function ListingPage(props: PageProps<'/listings/[id]'>) {
           {item.variant && (
             <p className="flex flex-wrap items-center gap-2 text-sm">
               Зіставлено з каталогом:
-              <Link href={`/products/${item.variant.productId}`} className="font-semibold text-blue-700 hover:underline">
+              <Link href={`/admin/products/${item.variant.productId}`} className="font-semibold text-blue-700 hover:underline">
                 {item.variant.productName}, {item.variant.label}
               </Link>
               {item.matchMethod && <StatusBadge status={item.matchMethod} />}
@@ -108,7 +108,7 @@ export default async function ListingPage(props: PageProps<'/listings/[id]'>) {
                   <tr key={other.id} className={other.id === item.id ? 'bg-blue-50' : ''}>
                     <td className="px-4 py-2 font-medium">{other.chainName}</td>
                     <td className="px-4 py-2">
-                      <Link href={`/listings/${other.id}`} className="text-blue-700 hover:underline">
+                      <Link href={`/admin/listings/${other.id}`} className="text-blue-700 hover:underline">
                         {other.name}
                       </Link>
                     </td>

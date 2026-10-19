@@ -102,7 +102,7 @@ const COLA_EAN = '5449000000996';
       }),
     );
     await matching.run();
-  });
+  }, 30_000); // холодний старт Prisma + Nest довший за 5 с за замовчуванням
 
   afterAll(async () => {
     await prisma?.$disconnect();
@@ -114,7 +114,7 @@ const COLA_EAN = '5449000000996';
     expect(page.items[0]).toMatchObject({
       chainsCount: 2,
       listingsCount: 2,
-      prices: [{ currency: 'UAH', min: 29.9, max: 31.5 }],
+      prices: [{ currency: 'UAH', min: 29.9, max: 31.5, minChain: 'NOVUS' }],
     });
   });
 

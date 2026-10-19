@@ -5,11 +5,11 @@ import { getProduct } from '@/api/generated/catalog/catalog';
 import type { ListingSummaryDto } from '@/api/generated/model';
 import { MatchingAction } from '@/components/MatchingAction';
 import { StatusBadge } from '@/components/StatusBadge';
-import { formatDateTime, formatPrice, formatScore } from '@/lib/format';
+import { formatDateTime, formatPrice, formatScore, lineChipLabel } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProductPage(props: PageProps<'/products/[id]'>) {
+export default async function ProductPage(props: PageProps<'/admin/products/[id]'>) {
   const { id } = await props.params;
   const response = await getProduct(id).catch((error: Error) => {
     if (error instanceof ApiError && error.status === 404) notFound();
@@ -18,16 +18,11 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
   const product = response.data;
   const lineProducts = product.line?.products ?? [];
   const siblings = lineProducts.filter((p) => p.id !== product.id);
-  // Підпис різновиду ("Zero", "банан"); якщо він не унікальний у лінійці — повна назва
-  const chipLabel = (p: { name: string; variantLabel: string | null }) =>
-    p.variantLabel &&
-    lineProducts.filter((other) => other.variantLabel === p.variantLabel).length === 1
-      ? p.variantLabel
-      : p.name;
+  const chipLabel = (p: { name: string; variantLabel: string | null }) => lineChipLabel(p, lineProducts);
 
   return (
     <div className="space-y-6">
-      <Link href="/products" className="text-sm text-blue-700 hover:underline">
+      <Link href="/admin/products" className="text-sm text-blue-700 hover:underline">
         ← Каталог
       </Link>
 
@@ -56,7 +51,7 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
                 {siblings.map((sibling) => (
                   <Link
                     key={sibling.id}
-                    href={`/products/${sibling.id}`}
+                    href={`/admin/products/${sibling.id}`}
                     className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
                   >
                     {chipLabel(sibling)}
@@ -122,7 +117,7 @@ function OffersTable({ offers }: { offers: ListingSummaryDto[] }) {
                 )}
               </td>
               <td className="min-w-48 px-3 py-2">
-                <Link href={`/listings/${offer.id}`} className="text-blue-700 hover:underline">
+                <Link href={`/admin/listings/${offer.id}`} className="text-blue-700 hover:underline">
                   {offer.name}
                 </Link>
                 {offer.url && (

@@ -10,4 +10,6 @@ export interface PriceRangeDto {
   currency: string;
   min: number;
   max: number;
+  /** Мережа з найнижчою ціною */
+  minChain: string;
 }
