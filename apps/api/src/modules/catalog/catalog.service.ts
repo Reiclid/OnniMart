@@ -292,12 +292,14 @@ export class CatalogService {
     return {
       items: listings.map((listing) => ({
         listing: toListingDto(listing),
-        candidates: listing.matchCandidates.map((candidate) => {
+        candidates: listing.matchCandidates.flatMap((candidate) => {
           const details = (candidate.details ?? {}) as {
             name?: number;
             barcodeMismatch?: boolean;
           };
           const { variant } = candidate;
+          // Фасування видалили (відвʼязування) — пропонувати нічого
+          if (!variant) return [];
           return {
             id: candidate.id,
             score: candidate.score,

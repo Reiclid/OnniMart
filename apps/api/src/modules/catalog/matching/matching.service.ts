@@ -442,13 +442,17 @@ export class MatchingService implements OnModuleDestroy {
         inputs.map((l) => l.id),
         (part) =>
           this.prisma.matchCandidate.findMany({
-            where: { listingId: { in: part }, status: 'REJECTED' },
+            where: {
+              listingId: { in: part },
+              status: 'REJECTED',
+              variantId: { not: null },
+            },
             select: { listingId: true, variantId: true },
           }),
       ),
     ]);
     for (const { listingId, variantId } of rejected)
-      index.reject(listingId, variantId);
+      if (variantId) index.reject(listingId, variantId);
 
     // Цілі товари: щоб знати всі їхні фасування ("такого розміру ще немає")
     const productIds = [

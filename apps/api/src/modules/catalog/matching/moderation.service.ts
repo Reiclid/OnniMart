@@ -22,7 +22,12 @@ export class ModerationService {
     });
     if (!candidate) throw new NotFoundException('Кандидата не знайдено');
     // Застаріла вкладка модератора: рішення вже ухвалено або картку вже зіставлено
-    if (candidate.status !== 'SUGGESTED' || candidate.listing.variantId) {
+    const variantId = candidate.variantId;
+    if (
+      candidate.status !== 'SUGGESTED' ||
+      !variantId ||
+      candidate.listing.variantId
+    ) {
       throw new ConflictException(
         'Кандидат уже неактуальний — оновіть сторінку',
       );
@@ -31,7 +36,7 @@ export class ModerationService {
     const foreign = await this.prisma.barcode.findMany({
       where: {
         gtin: { in: candidate.listing.barcodes },
-        variantId: { not: candidate.variantId },
+        variantId: { not: variantId },
       },
       select: {
         gtin: true,
@@ -60,7 +65,7 @@ export class ModerationService {
       this.prisma.listing.update({
         where: { id: candidate.listingId },
         data: {
-          variantId: candidate.variantId,
+          variantId,
           matchStatus: 'CONFIRMED',
           matchMethod: 'MANUAL',
           matchScore: candidate.score,
@@ -70,7 +75,7 @@ export class ModerationService {
       this.prisma.barcode.createMany({
         data: candidate.listing.barcodes.map((gtin) => ({
           gtin,
-          variantId: candidate.variantId,
+          variantId,
           source: candidate.listing.chain.slug,
         })),
         skipDuplicates: true,
@@ -129,14 +134,22 @@ export class ModerationService {
         },
       });
       const left = await tx.listing.count({ where: { variantId } });
-      if (left === 0) {
+      // Порожнє фасування видаляємо, лише якщо на нього ніхто не підписаний
+      const subscribed = await tx.subscription.count({ where: { variantId } });
+      if (left === 0 && subscribed === 0) {
+        // Пропозиції цього фасування ще не рішення — картки зіставляться заново;
+        // ACCEPTED / REJECTED лишаються (variantId → null) як розмічені дані
+        await tx.matchCandidate.deleteMany({
+          where: { variantId, status: 'SUGGESTED' },
+        });
         const variant = await tx.productVariant.delete({
           where: { id: variantId },
         });
-        const variants = await tx.productVariant.count({
-          where: { productId: variant.productId },
-        });
-        if (variants === 0) {
+        const [variants, productSubscriptions] = await Promise.all([
+          tx.productVariant.count({ where: { productId: variant.productId } }),
+          tx.subscription.count({ where: { productId: variant.productId } }),
+        ]);
+        if (variants === 0 && productSubscriptions === 0) {
           await tx.product.delete({ where: { id: variant.productId } });
         }
       }

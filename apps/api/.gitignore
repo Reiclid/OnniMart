@@ -6,3 +6,6 @@ node_modules
 
 # Генерується скриптом scripts/generate-openapi.ts
 /openapi.json
+
+# Рішення модератора, збережені scripts/reset-catalog.ts
+catalog-decisions-*.json

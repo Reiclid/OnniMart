@@ -1,10 +1,12 @@
 // Перебудова каталогу з нуля: видаляє товари, фасування, штрихкоди, лінійки
 // й кандидатів зіставлення і скидає зіставлення всіх карток. Картки мереж та
-// історія цін не змінюються. Підтверджені модератором пари (ACCEPTED / REJECTED)
-// теж зникають — тож використовуйте лише для експериментів з алгоритмом.
+// історія цін не змінюються. Рішення модератора (ACCEPTED / REJECTED) перед видаленням
+// зберігаються в catalog-decisions-<дата>.json. Товари з підписками користувачів
+// не видаляються (FK Restrict) — тоді скрипт зупиниться без змін.
 //
 // Запуск: bun scripts/reset-catalog.ts --yes, далі POST /api/v1/matching/run
 import 'dotenv/config';
+import { writeFileSync } from 'node:fs';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 
@@ -19,6 +21,25 @@ async function main() {
     );
     return;
   }
+  const decisions = await prisma.matchCandidate.findMany({
+    where: { status: { in: ['ACCEPTED', 'REJECTED'] } },
+    include: {
+      listing: {
+        select: {
+          rawName: true,
+          barcodes: true,
+          chain: { select: { slug: true } },
+        },
+      },
+      variant: {
+        select: { label: true, product: { select: { name: true } } },
+      },
+    },
+  });
+  const file = `catalog-decisions-${new Date().toISOString().slice(0, 10)}.json`;
+  writeFileSync(file, JSON.stringify(decisions, null, 2));
+  console.log(`Рішення модератора збережено: ${file} (${decisions.length})`);
+
   const [candidates, listings, products, lines] = await prisma.$transaction([
     prisma.matchCandidate.deleteMany(),
     prisma.listing.updateMany({
@@ -40,8 +61,13 @@ async function main() {
 }
 
 main()
-  .catch((error) => {
-    console.error(error);
+  .catch((error: { code?: string }) => {
+    // FK Restrict: на товари підписані користувачі — транзакцію відкочено
+    console.error(
+      error.code === 'P2003'
+        ? 'Є підписки користувачів на товари каталогу — скидання скасовано, нічого не змінено'
+        : error,
+    );
     process.exitCode = 1;
   })
   .finally(() => prisma.$disconnect());

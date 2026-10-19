@@ -6,6 +6,7 @@ import type { ScrapedProductMessage } from '@repo/contracts';
 import { CatalogService } from '../src/modules/catalog/catalog.service';
 import { MatchingClient } from '../src/modules/catalog/matching/matching.client';
 import { MatchingService } from '../src/modules/catalog/matching/matching.service';
+import { ModerationService } from '../src/modules/catalog/matching/moderation.service';
 import { IngestionService } from '../src/modules/scraper/services/ingestion.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -59,7 +60,7 @@ const COLA_EAN = '5449000000996';
     await prisma.$executeRawUnsafe(`
       TRUNCATE match_keys, match_candidates, price_snapshots, scrape_runs, barcodes,
         listings, product_variants, products, product_lines, brands, stores,
-        store_chains, countries RESTART IDENTITY CASCADE`);
+        store_chains, countries, subscriptions, users RESTART IDENTITY CASCADE`);
     await prisma.country.create({
       data: { code: 'UA', name: 'Україна', currency: 'UAH' },
     });
@@ -163,5 +164,44 @@ const COLA_EAN = '5449000000996';
 
     expect((await catalog.getProducts({ q: 'моршин' })).total).toBe(0);
     expect((await catalog.getProducts({ multiChain: true })).total).toBe(1);
+  });
+
+  it('відвʼязування не стирає рішення модератора й підписки', async () => {
+    const moderation = new ModerationService(prisma, {
+      request: () => Promise.resolve(),
+    } as unknown as MatchingClient);
+    const listing = (name: string) =>
+      prisma.listing.findFirstOrThrow({ where: { rawName: name } });
+
+    // Остання картка товару → товар зникає, а пара "відхилено" лишається
+    const water = await listing('Вода мінеральна Моршинська негазована 1,5л');
+    await moderation.unlink(water.id);
+    const decision = await prisma.matchCandidate.findFirstOrThrow({
+      where: { listingId: water.id },
+    });
+    expect(decision).toMatchObject({ status: 'REJECTED', variantId: null });
+    expect(
+      await prisma.product.count({
+        where: { name: { contains: 'Моршинська' } },
+      }),
+    ).toBe(0);
+
+    // На Coca-Cola підписались — товар лишається навіть без карток
+    const cola = await listing('Напій Coca-Cola 0,5л');
+    const variant = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: cola.variantId! },
+    });
+    const user = await prisma.user.create({ data: { email: 'a@example.com' } });
+    await prisma.subscription.create({
+      data: { userId: user.id, productId: variant.productId },
+    });
+    await moderation.unlink(cola.id);
+    await moderation.unlink(
+      (await listing('Напій газований Coca-Cola 0,5 л')).id,
+    );
+    expect(
+      await prisma.product.count({ where: { id: variant.productId } }),
+    ).toBe(1);
+    expect(await prisma.subscription.count()).toBe(1);
   });
 });
