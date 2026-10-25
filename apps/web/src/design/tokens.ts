@@ -1,7 +1,11 @@
+import { oklchCss } from './color';
+
 /**
  * Токени дизайн-системи — одне джерело значень для коду й Figma.
  * Структура та сама, що в змінних Figma (OnniMart — UI): Primitives → Color → Dimension,
  * текстові стилі й Elevation. Правила використання — docs/06-design-system.md.
+ *
+ * Кольори зберігаються в hex (як у Figma), у CSS виходять в oklch() — color.ts.
  *
  * Змінили значення → `bun run tokens` (переписує блок @theme у globals.css) → те саме
  * значення у Figma. tokens.spec.ts падає, якщо globals.css розійшовся з цим файлом.
@@ -75,7 +79,8 @@ export const elevation: Record<string, { figma: string; css: string }> = {
 export function themeCss(): string {
   const lines = ['  --font-sans: var(--font-inter), Arial, Helvetica, sans-serif;', ''];
   for (const [name, c] of Object.entries(colors)) {
-    lines.push(`  --color-${name}: ${primitives[c.value]}; /* ${c.figma.join(', ')} */`);
+    const hex = primitives[c.value];
+    lines.push(`  --color-${name}: ${oklchCss(hex)}; /* ${hex} · ${c.figma.join(', ')} */`);
   }
   lines.push('');
   for (const [name, px] of Object.entries(radius)) if (name !== 'full') lines.push(`  --radius-${name}: ${px}px;`);

@@ -7,19 +7,19 @@
 @theme {
   --font-sans: var(--font-inter), Arial, Helvetica, sans-serif;
 
-  --color-page: #f4f8fc; /* color/bg/page, color/bg/subtle */
-  --color-surface: #ffffff; /* color/bg/surface, color/text/on-brand */
-  --color-selected: #eaf5ff; /* color/bg/selected */
-  --color-brand: #0c71c6; /* color/bg/brand, color/text/brand */
-  --color-accent: #1a9fff; /* color/bg/accent, color/icon/brand, color/border/brand */
-  --color-danger: #e0262b; /* color/bg/danger, color/text/danger */
-  --color-danger-subtle: #ffeceb; /* color/bg/danger-subtle */
-  --color-fg: #121212; /* color/text/primary, color/bg/inverse */
-  --color-fg-muted: #4a6f91; /* color/text/secondary */
-  --color-icon: #313131; /* color/icon/default */
-  --color-icon-muted: #5b82a6; /* color/icon/muted */
-  --color-line: #e3edf7; /* color/border/default */
-  --color-line-strong: #c9d6e2; /* color/border/strong */
+  --color-page: oklch(97.72% 0.0068 247.89); /* #f4f8fc · color/bg/page, color/bg/subtle */
+  --color-surface: oklch(100% 0 0); /* #ffffff · color/bg/surface, color/text/on-brand */
+  --color-selected: oklch(96.48% 0.0178 245.38); /* #eaf5ff · color/bg/selected */
+  --color-brand: oklch(54.35% 0.1556 251.49); /* #0c71c6 · color/bg/brand, color/text/brand */
+  --color-accent: oklch(68.43% 0.1754 247.62); /* #1a9fff · color/bg/accent, color/icon/brand, color/border/brand */
+  --color-danger: oklch(58.48% 0.2182 26.35); /* #e0262b · color/bg/danger, color/text/danger */
+  --color-danger-subtle: oklch(95.79% 0.0208 21.17); /* #ffeceb · color/bg/danger-subtle */
+  --color-fg: oklch(18.22% 0 0); /* #121212 · color/text/primary, color/bg/inverse */
+  --color-fg-muted: oklch(52.82% 0.0684 247.18); /* #4a6f91 · color/text/secondary */
+  --color-icon: oklch(31.32% 0 0); /* #313131 · color/icon/default */
+  --color-icon-muted: oklch(59.21% 0.0706 247.11); /* #5b82a6 · color/icon/muted */
+  --color-line: oklch(94.15% 0.0173 248.01); /* #e3edf7 · color/border/default */
+  --color-line-strong: oklch(86.98% 0.0218 245.88); /* #c9d6e2 · color/border/strong */
 
   --radius-sm: 8px;
   --radius-md: 12px;
