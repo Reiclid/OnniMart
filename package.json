@@ -33,6 +33,7 @@
     "stores:download": "bun --filter api stores:download",
     "stores:import": "bun --filter api stores:import",
     "food:import": "bun --filter api food:import",
+    "off:match": "bun --filter api off:match",
     "scraper:cli": "docker compose run --rm scraper scrape",
     "scraper:test": "docker build --target test -t onnimart-scraper:test apps/scraper"
   },

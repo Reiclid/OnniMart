@@ -6,7 +6,8 @@
  *   similarity       оцінка схожості пари назв;
  *   catalog-index    каталог у пам'яті, блокування кандидатів і рішення (THRESHOLDS);
  *   prepare          ознаки та IDF-словник для набору карток;
- *   naming           назви лінійок і підписи різновидів / фасувань.
+ *   naming           назви лінійок і підписи різновидів / фасувань;
+ *   off-match        картки без штрихкоду → товари Open Food Facts (PRD-27).
  */
 export * from './normalization/gtin';
 export * from './normalization/quantity';
@@ -17,3 +18,4 @@ export * from './catalog-index';
 export * from './prepare';
 export * from './naming';
 export * from './categories';
+export * from './off-match';

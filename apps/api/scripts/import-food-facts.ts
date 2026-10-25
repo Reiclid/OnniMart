@@ -21,12 +21,15 @@ const URL =
   'https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz';
 const USER_AGENT = 'OnniMartBot/0.1 (diploma project; reiclid@gmail.com)';
 
-async function source(file: string | undefined): Promise<Readable> {
-  if (file) return createReadStream(file);
+/** Розпакований потік рядків CSV OFF: з файлу або з static.openfoodfacts.org */
+export async function source(file: string | undefined): Promise<Readable> {
+  if (file) return createReadStream(file).pipe(createGunzip());
   const response = await fetch(URL, { headers: { 'user-agent': USER_AGENT } });
   if (!response.ok || !response.body)
     throw new Error(`OFF: HTTP ${response.status}`);
-  return Readable.fromWeb(response.body as WebReadableStream);
+  return Readable.fromWeb(response.body as WebReadableStream).pipe(
+    createGunzip(),
+  );
 }
 
 async function main() {
@@ -40,7 +43,7 @@ async function main() {
 
   const started = Date.now();
   const lines = createInterface({
-    input: (await source(process.argv[2])).pipe(createGunzip()),
+    input: await source(process.argv[2]),
     crlfDelay: Infinity,
   });
   let columns: Map<string, number> | null = null;
@@ -76,4 +79,4 @@ async function main() {
   await prisma.$disconnect();
 }
 
-void main();
+if (require.main === module) void main();

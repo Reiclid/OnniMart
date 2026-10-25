@@ -9,6 +9,7 @@
     "stores:download": "bun scripts/osm-download.ts",
     "stores:import": "bun scripts/import-stores.ts",
     "food:import": "bun scripts/import-food-facts.ts",
+    "off:match": "bun scripts/match-off.ts",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
