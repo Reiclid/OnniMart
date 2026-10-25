@@ -20,6 +20,7 @@ import {
   BarcodeLookupDto,
   MatchingStatusDto,
   ProductDetailsDto,
+  ProductIdsQueryDto,
   ProductPageDto,
   ProductsQueryDto,
   ReviewPageDto,
@@ -43,6 +44,16 @@ export class CatalogController {
   @ApiResponse({ status: 200, type: ProductPageDto })
   getProducts(@Query() query: ProductsQueryDto): Promise<ProductPageDto> {
     return this.catalog.getProducts(query);
+  }
+
+  @Get('products/by-ids')
+  @ApiOperation({
+    summary: 'Картки товарів у заданому порядку (нещодавно переглянуті гостя)',
+    operationId: 'getProductsByIds',
+  })
+  @ApiResponse({ status: 200, type: [ProductSummaryDto] })
+  getByIds(@Query() query: ProductIdsQueryDto): Promise<ProductSummaryDto[]> {
+    return this.catalog.summaries(query.ids);
   }
 
   @Get('categories')

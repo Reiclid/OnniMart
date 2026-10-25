@@ -31,6 +31,7 @@ export function toUserDto(user: User): UserDto {
     notifyEmail: user.notifyEmail,
     minDiscount: user.minDiscount,
     chainIds: user.chainIds,
+    telemetryConsent: user.telemetryConsentAt !== null,
     createdAt: user.createdAt.toISOString(),
   };
 }
@@ -92,17 +93,34 @@ export class AccountsService {
   }
 
   async update(userId: string, dto: UpdateMeDto): Promise<UserDto> {
-    const user = await this.prisma.user.update({
+    const { telemetryConsent, ...fields } = dto;
+    const current = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      data: {
-        ...dto,
-        ...(dto.name !== undefined && { name: dto.name.trim() || null }),
-      },
+      select: { telemetryConsentAt: true },
     });
+    const [user] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...fields,
+          ...(dto.name !== undefined && { name: dto.name.trim() || null }),
+          // Повторне "так" не зсуває дату першої згоди
+          ...(telemetryConsent !== undefined && {
+            telemetryConsentAt: telemetryConsent
+              ? (current.telemetryConsentAt ?? new Date())
+              : null,
+          }),
+        },
+      }),
+      // Відкликана згода — зібрані події видаляються
+      ...(telemetryConsent === false
+        ? [this.prisma.event.deleteMany({ where: { userId } })]
+        : []),
+    ]);
     return toUserDto(user);
   }
 
-  /** Сесії, підписки й сповіщення видаляються каскадом */
+  /** Сесії, підписки, сповіщення, перегляди й події видаляються каскадом */
   async remove(userId: string): Promise<void> {
     await this.prisma.user.delete({ where: { id: userId } });
   }

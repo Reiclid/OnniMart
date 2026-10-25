@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { SCRAPER_HEARTBEAT_KEY } from '@repo/contracts';
 import { AlertsChecker } from '../../accounts/alerts.checker';
+import { retentionCutoff } from '../../activity/activity';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { createRedis } from '../../../redis';
 import { IngestionService } from './ingestion.service';
@@ -108,7 +109,7 @@ export class ScrapeScheduler
     this.redis.disconnect();
   }
 
-  /** Кожні 10 хв: зняти втрачені запуски й акції, що закінчились, сповіщення за підписками, далі — заплановані обходи */
+  /** Кожні 10 хв: зняти втрачені запуски й акції, що закінчились, сповіщення за підписками, події старші за 180 днів, далі — заплановані обходи */
   async maintain(now = new Date()): Promise<void> {
     await this.reapLostRuns(now);
     await this.ingestion
@@ -120,6 +121,11 @@ export class ScrapeScheduler
       .check()
       .catch((error) =>
         this.logger.error(`Сповіщення за підписками: ${errorText(error)}`),
+      );
+    await this.prisma.event
+      .deleteMany({ where: { createdAt: { lt: retentionCutoff(now) } } })
+      .catch((error) =>
+        this.logger.error(`Видалення старих подій: ${errorText(error)}`),
       );
     if (this.enabled) await this.tick(now);
   }

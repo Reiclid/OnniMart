@@ -19,5 +19,7 @@ export interface UserDto {
   minDiscount: number;
   /** Улюблені мережі (StoreChain.id) */
   chainIds: string[];
+  /** Згода на збір подій для рекомендацій */
+  telemetryConsent: boolean;
   createdAt: string;
 }

@@ -17,4 +17,6 @@ export interface UpdateMeDto {
      */
   minDiscount?: number;
   chainIds?: string[];
+  /** Згода на збір подій; false — відкликати й видалити зібрані */
+  telemetryConsent?: boolean;
 }

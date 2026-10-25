@@ -207,6 +207,13 @@ Rust-парсер ──JSON──▶ Redis "scraper:results" ──▶ ворк
 - `subscriptions` — «стежити за ціною»: конкретне фасування (`variantId`) або будь-яке фасування товару (`productId`), умова — ціна ≤ `targetPrice` та/або будь-яка акція, опційно лише у вибраних мережах.
 - `notifications` — що спрацювало. Воркер раз на 10 хв порівнює поточні ціни з активними підписками (`AlertsChecker`, правила — `src/modules/accounts/alerts.ts`) і записує сповіщення з `dedupeKey = підписка:картка:ціна`, тож та сама ціна не повідомляється двічі. Канал зараз `IN_APP` (сторінка Alerts); push і email — коли підключимо провайдерів.
 
+## Історія переглядів і події (PRD-04, AUDIT §9.3)
+
+- `product_views` — «Нещодавно переглянуті»: один рядок на (користувач, товар), повторний перегляд лише оновлює `viewedAt`, зберігаються останні 50 (зайві видаляються тим самим запитом). Історія гостя живе у `localStorage` вебу; після входу веб пересилає її одним `POST /api/v1/me/views`. Це функція для користувача, а не телеметрія, тому згода не потрібна; очистити — `DELETE /api/v1/me/views`.
+- `events` — журнал для рекомендацій (`impression`, `click`, `view`, `chain_click`, `favourite`, `track`, `search`, `filter`) з позицією в списку та назвою списку. Подія належить рівно одному власнику (CHECK `num_nonnulls("userId", "anonId") = 1`): акаунту або анонімному id гостя. `productId`/`chainId` без зовнішніх ключів — журнал не блокує перебудову каталогу.
+- **Згода.** Акаунт: `users.telemetryConsentAt` (`PATCH /api/v1/me { telemetryConsent }`); без неї `POST /api/v1/me/events` нічого не пише (`recorded: 0`). Відкликання видаляє зібрані події. Гість: веб шле `POST /api/v1/events` серверною дією лише з `consent: true` (згода в cookie); відкликання — `DELETE /api/v1/events/guests/:anonId`.
+- **Термін.** Воркер раз на 10 хв видаляє події старші за 180 днів (`ScrapeScheduler.maintain`); видалення акаунта забирає перегляди й події каскадом.
+
 API: `POST /api/v1/auth/register|login|logout`, `GET|PATCH|DELETE /api/v1/me`, `/api/v1/me/subscriptions`, `/api/v1/me/notifications` — з `Authorization: Bearer <токен сесії>` (токен адміністратора для цих маршрутів не потрібен).
 
 ## Склад товарів і магазини

@@ -7,8 +7,11 @@
  */
 import type {
   CreateSubscriptionDto,
+  EventBatchDto,
   NotificationDto,
   ProductSummaryDto,
+  RecordViewsDto,
+  RecordedDto,
   SubscriptionDto,
   UpdateMeDto,
   UpdateSubscriptionDto,
@@ -364,6 +367,146 @@ export const markNotificationsRead = async ( options?: Parameters<typeof customF
     method: 'POST'
 
 
+  }
+);}
+
+
+export type getViewsResponse200 = {
+  data: ProductSummaryDto[]
+  status: 200
+}
+
+export type getViewsResponseSuccess = (getViewsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getViewsResponse = (getViewsResponseSuccess)
+
+export const getGetViewsUrl = () => {
+
+
+
+
+  return `/api/v1/me/views`
+}
+
+/**
+ * @summary Нещодавно переглянуті (найновіші першими, до 50)
+ */
+export const getViews = async ( options?: Parameters<typeof customFetch>[1]): Promise<getViewsResponse> => {
+
+  return customFetch<getViewsResponse>(getGetViewsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type recordViewsResponse204 = {
+  data: void
+  status: 204
+}
+
+export type recordViewsResponseSuccess = (recordViewsResponse204) & {
+  headers: Headers;
+};
+;
+
+export type recordViewsResponse = (recordViewsResponseSuccess)
+
+export const getRecordViewsUrl = () => {
+
+
+
+
+  return `/api/v1/me/views`
+}
+
+/**
+ * @summary Записати перегляди (відкритий товар або історію гостя після входу)
+ */
+export const recordViews = async (recordViewsDto: RecordViewsDto, options?: Parameters<typeof customFetch>[1]): Promise<recordViewsResponse> => {
+
+  return customFetch<recordViewsResponse>(getRecordViewsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordViewsDto)
+  }
+);}
+
+
+export type clearViewsResponse204 = {
+  data: void
+  status: 204
+}
+
+export type clearViewsResponseSuccess = (clearViewsResponse204) & {
+  headers: Headers;
+};
+;
+
+export type clearViewsResponse = (clearViewsResponseSuccess)
+
+export const getClearViewsUrl = () => {
+
+
+
+
+  return `/api/v1/me/views`
+}
+
+/**
+ * @summary Очистити історію переглядів
+ */
+export const clearViews = async ( options?: Parameters<typeof customFetch>[1]): Promise<clearViewsResponse> => {
+
+  return customFetch<clearViewsResponse>(getClearViewsUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export type trackMyEventsResponse202 = {
+  data: RecordedDto
+  status: 202
+}
+
+export type trackMyEventsResponseSuccess = (trackMyEventsResponse202) & {
+  headers: Headers;
+};
+;
+
+export type trackMyEventsResponse = (trackMyEventsResponseSuccess)
+
+export const getTrackMyEventsUrl = () => {
+
+
+
+
+  return `/api/v1/me/events`
+}
+
+/**
+ * @summary Події для рекомендацій (пишуться лише за згодою в профілі)
+ */
+export const trackMyEvents = async (eventBatchDto: EventBatchDto, options?: Parameters<typeof customFetch>[1]): Promise<trackMyEventsResponse> => {
+
+  return customFetch<trackMyEventsResponse>(getTrackMyEventsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(eventBatchDto)
   }
 );}
 

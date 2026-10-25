@@ -56,7 +56,7 @@ const ORIGIN = 'http://localhost:3000';
     // Дані: одна картка, зіставлена в каталог
     const prisma = new PrismaService();
     await prisma.$executeRawUnsafe(`
-      TRUNCATE sessions, notifications, match_runs, match_keys, match_candidates, price_snapshots, scrape_runs,
+      TRUNCATE events, product_views, sessions, notifications, match_runs, match_keys, match_candidates, price_snapshots, scrape_runs,
         barcodes, listings, product_variants, products, product_lines, brands, stores,
         store_chains, countries, subscriptions, users RESTART IDENTITY CASCADE`);
     await prisma.country.create({
@@ -265,6 +265,76 @@ const ORIGIN = 'http://localhost:3000';
       (await send('DELETE', `/api/v1/me/subscriptions/${subscription.id}`))
         .status,
     ).toBe(404);
+    // PRD-04: перегляди — повтор піднімає товар нагору, невідомий id пропускається
+    const ghost = '00000000-0000-4000-8000-000000000000';
+    expect(
+      (
+        await send('POST', '/api/v1/me/views', {
+          productIds: [product.id, ghost, product.id],
+        })
+      ).status,
+    ).toBe(204);
+    const views = (await (await get('/api/v1/me/views', auth)).json()) as {
+      id: string;
+    }[];
+    expect(views.map((p) => p.id)).toEqual([product.id]);
+    const guestViews = (await (
+      await get(`/api/v1/products/by-ids?ids=${ghost},${product.id}`)
+    ).json()) as { id: string }[];
+    expect(guestViews.map((p) => p.id)).toEqual([product.id]);
+    expect((await send('DELETE', '/api/v1/me/views')).status).toBe(204);
+    expect(await (await get('/api/v1/me/views', auth)).json()).toEqual([]);
+
+    // Події: без згоди не пишуться, після згоди — так, відкликання стирає
+    const batch = {
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      events: [{ type: 'view', productId: product.id, listId: 'search' }],
+    };
+    const track = async () =>
+      (
+        (await (await send('POST', '/api/v1/me/events', batch)).json()) as {
+          recorded: number;
+        }
+      ).recorded;
+    expect(await track()).toBe(0);
+    expect(
+      await (
+        await send('PATCH', '/api/v1/me', { telemetryConsent: true })
+      ).json(),
+    ).toMatchObject({ telemetryConsent: true });
+    expect(await track()).toBe(1);
+    expect(
+      (
+        await send('POST', '/api/v1/me/events', {
+          ...batch,
+          events: [{ type: 'teleport' }],
+        })
+      ).status,
+    ).toBe(400);
+    const counter = new PrismaService();
+    expect(await counter.event.count()).toBe(1);
+    await send('PATCH', '/api/v1/me', { telemetryConsent: false });
+    expect(await counter.event.count()).toBe(0);
+
+    // Гість: лише з токеном адміністратора (серверна дія вебу) і явною згодою
+    const anonId = '22222222-2222-4222-8222-222222222222';
+    const guest = { ...batch, anonId, consent: true };
+    expect((await post('/api/v1/events', guest)).status).toBe(401);
+    expect(
+      (await post('/api/v1/events', { ...guest, consent: false }, TOKEN))
+        .status,
+    ).toBe(400);
+    expect(await (await post('/api/v1/events', guest, TOKEN)).json()).toEqual({
+      recorded: 1,
+    });
+    const forget = await fetch(`${base}/api/v1/events/guests/${anonId}`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+    expect(forget.status).toBe(204);
+    expect(await counter.event.count()).toBe(0);
+    await counter.$disconnect();
+
     expect((await post('/api/v1/auth/logout', undefined, token)).status).toBe(
       204,
     );

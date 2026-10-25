@@ -52,6 +52,8 @@ export class UserDto {
     description: 'Улюблені мережі (StoreChain.id)',
   })
   chainIds!: string[];
+  @ApiProperty({ description: 'Згода на збір подій для рекомендацій' })
+  telemetryConsent!: boolean;
   @ApiProperty() createdAt!: string;
 }
 
@@ -90,6 +92,13 @@ export class UpdateMeDto {
   @ArrayMaxSize(50)
   @IsUUID('all', { each: true })
   chainIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Згода на збір подій; false — відкликати й видалити зібрані',
+  })
+  @IsOptional()
+  @IsBoolean()
+  telemetryConsent?: boolean;
 }
 
 export class LowestPriceDto {

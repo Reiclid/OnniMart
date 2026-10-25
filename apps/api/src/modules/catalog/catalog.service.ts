@@ -134,7 +134,7 @@ export class CatalogService {
   }
 
   /** Картки товарів у заданому порядку (релевантність пошуку або сортування SQL) */
-  private async summaries(ids: string[]): Promise<ProductSummaryDto[]> {
+  async summaries(ids: string[]): Promise<ProductSummaryDto[]> {
     const products = await this.prisma.product.findMany({
       where: { id: { in: ids } },
       include: {

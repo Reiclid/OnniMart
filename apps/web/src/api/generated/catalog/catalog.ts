@@ -8,6 +8,7 @@
 import type {
   BarcodeLookupDto,
   CategoryDto,
+  GetProductsByIdsParams,
   GetProductsParams,
   ProductDetailsDto,
   ProductPageDto,
@@ -49,6 +50,54 @@ export const getGetProductsUrl = (params?: GetProductsParams,) => {
 export const getProducts = async (params?: GetProductsParams, options?: Parameters<typeof customFetch>[1]): Promise<getProductsResponse> => {
 
   return customFetch<getProductsResponse>(getGetProductsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type getProductsByIdsResponse200 = {
+  data: ProductSummaryDto[]
+  status: 200
+}
+
+export type getProductsByIdsResponseSuccess = (getProductsByIdsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getProductsByIdsResponse = (getProductsByIdsResponseSuccess)
+
+export const getGetProductsByIdsUrl = (params: GetProductsByIdsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["ids"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
+
+
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/products/by-ids?${stringifiedParams}` : `/api/v1/products/by-ids`
+}
+
+/**
+ * @summary Картки товарів у заданому порядку (нещодавно переглянуті гостя)
+ */
+export const getProductsByIds = async (params: GetProductsByIdsParams, options?: Parameters<typeof customFetch>[1]): Promise<getProductsByIdsResponse> => {
+
+  return customFetch<getProductsByIdsResponse>(getGetProductsByIdsUrl(params),
   {
     ...options,
     method: 'GET'

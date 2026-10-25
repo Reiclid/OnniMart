@@ -195,6 +195,7 @@ model Product {
   category      Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   variants      ProductVariant[]
   subscriptions Subscription[]
+  views         ProductView[]
 
   @@index([lineId])
   @@index([brandId])
@@ -533,26 +534,30 @@ model MatchRun {
 // ============================================================
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String?
-  name         String?
-  locale       String   @default("uk")
-  countryCode  String?  @db.Char(2)
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  passwordHash       String?
+  name               String?
+  locale             String    @default("uk")
+  countryCode        String?   @db.Char(2)
   /// Канали сповіщень
-  notifyPush   Boolean  @default(true)
-  notifyEmail  Boolean  @default(false)
+  notifyPush         Boolean   @default(true)
+  notifyEmail        Boolean   @default(false)
   /// Повідомляти лише про знижки від N % (0 — будь-яка акція)
-  minDiscount  Int      @default(0)
+  minDiscount        Int       @default(0)
   /// Улюблені мережі (StoreChain.id) — фільтр за замовчуванням для нових підписок
-  chainIds     String[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  chainIds           String[]
+  /// Згода на збір подій для рекомендацій (PRD-06); null — не погоджувався або відкликав
+  telemetryConsentAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   subscriptions Subscription[]
   notifications Notification[]
   devices       PushDevice[]
   sessions      Session[]
+  views         ProductView[]
+  events        Event[]
 
   @@map("users")
 }
@@ -647,4 +652,58 @@ model PushDevice {
 
   @@index([userId])
   @@map("push_devices")
+}
+
+/// PRD-04: нещодавно переглянуті — один рядок на товар (повторний перегляд оновлює viewedAt), останні 50
+model ProductView {
+  userId    String
+  productId String
+  viewedAt  DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
+  @@index([userId, viewedAt])
+  @@index([productId])
+  @@map("product_views")
+}
+
+enum EventType {
+  IMPRESSION
+  CLICK
+  VIEW
+  CHAIN_CLICK
+  FAVOURITE
+  TRACK
+  SEARCH
+  FILTER
+}
+
+/// Події для рекомендацій (AUDIT §9.3) — лише за згодою; зберігаються 180 днів, видаляються з акаунтом.
+/// productId / chainId без зовнішніх ключів: журнал не має зникати чи блокувати перебудову каталогу.
+model Event {
+  id        BigInt    @id @default(autoincrement())
+  /// Рівно одне з двох: акаунт або анонімний id гостя (cookie вебу)
+  userId    String?
+  anonId    String?   @db.Uuid
+  sessionId String    @db.Uuid
+  type      EventType
+  productId String?
+  chainId   String?
+  query     String?
+  /// Позиція в показаному списку (з 0) — для поправки на позицію
+  position  Int?
+  /// Який список: search, for-you, similar, home-deals…
+  listId    String?
+  country   String?   @db.Char(2)
+  city      String?
+  createdAt DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([anonId, createdAt])
+  @@map("events")
 }

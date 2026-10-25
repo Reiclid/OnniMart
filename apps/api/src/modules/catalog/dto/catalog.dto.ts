@@ -1,10 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBooleanString,
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
@@ -17,6 +20,21 @@ export class PriceRangeDto {
   @ApiProperty() min!: number;
   @ApiProperty() max!: number;
   @ApiProperty({ description: 'Мережа з найнижчою ціною' }) minChain!: string;
+}
+
+export class ProductIdsQueryDto {
+  @ApiProperty({
+    description:
+      'Id товарів через кому, до 50 (історія переглядів гостя з localStorage)',
+    example: 'b9a0…,c1d2…',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.split(',').filter(Boolean) : value,
+  )
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID('all', { each: true })
+  ids!: string[];
 }
 
 export class ProductsQueryDto {
