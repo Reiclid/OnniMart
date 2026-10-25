@@ -23,7 +23,7 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
     getSimilarProducts(id).catch(() => ({ data: [] })),
   ]);
   const v = typeof params.v === 'string' ? params.v : undefined;
-  const { local, abroad, cheapest, sizes, updatedAt, variant } = productView(product, v);
+  const { offers, cheapest, sizes, updatedAt, variant } = productView(product, v);
   const flavours = product.line?.products ?? [];
   const user = await currentUser();
 
@@ -128,8 +128,8 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
 
           <section className="space-y-2">
             <h2 className="text-title-sm font-semibold">Prices in chains</h2>
-            {local.map((offer) => (
-              <ChainPriceRow key={offer.id} offer={offer} cheapest={local.length > 1 && offer.id === cheapest?.id} />
+            {offers.map((offer) => (
+              <ChainPriceRow key={offer.id} offer={offer} cheapest={offers.length > 1 && offer.id === cheapest?.id} />
             ))}
             {updatedAt && (
               <p className="text-caption text-fg-muted">
@@ -138,14 +138,6 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
             )}
           </section>
 
-          {abroad.length > 0 && (
-            <details className="space-y-2">
-              <summary className="cursor-pointer text-body-sm font-semibold text-brand">Other countries ({abroad.length})</summary>
-              {abroad.map((offer) => (
-                <ChainPriceRow key={offer.id} offer={offer} />
-              ))}
-            </details>
-          )}
         </div>
       </div>
 

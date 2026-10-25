@@ -10,8 +10,8 @@ export const PRODUCTS_PAGE_SIZE = 20;
 export function productView(product: ProductDetailsDto, variantId?: string) {
   const variant = product.variants.find((v) => v.id === variantId) ?? product.variants[0];
   const home = product.variants[0]?.offers[0]?.currency;
+  // Усі мережі одним списком, без поділу на країни (порядок — від API)
   const offers = variant?.offers ?? [];
-  const local = offers.filter((o) => o.currency === home);
 
   const sizes = product.variants.map((v) => ({
     id: v.id,
@@ -23,10 +23,9 @@ export function productView(product: ProductDetailsDto, variantId?: string) {
 
   return {
     variant,
-    local,
-    abroad: offers.filter((o) => o.currency !== home),
-    cheapest: local[0] as ListingSummaryDto | undefined,
+    offers,
+    cheapest: offers[0] as ListingSummaryDto | undefined,
     sizes: sizes.map((s) => ({ ...s, best: bestUnit !== null && s.unit?.unitPrice === bestUnit })),
-    updatedAt: local.reduce<string | null>((max, o) => (!max || o.lastSeenAt > max ? o.lastSeenAt : max), null),
+    updatedAt: offers.reduce<string | null>((max, o) => (!max || o.lastSeenAt > max ? o.lastSeenAt : max), null),
   };
 }

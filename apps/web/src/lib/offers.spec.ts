@@ -14,12 +14,11 @@ const product = {
 } as unknown as ProductDetailsDto;
 
 describe('productView', () => {
-  it('за замовчуванням — перше фасування, найдешевша мережа вдома, решта валют окремо', () => {
+  it('за замовчуванням — перше фасування, найдешевша мережа першою, усі мережі одним списком', () => {
     const view = productView(product);
     expect(view.variant?.id).toBe('v125');
     expect(view.cheapest?.chainName).toBe('EKO');
-    expect(view.local.map((o) => o.chainName)).toEqual(['EKO', 'Silpo']);
-    expect(view.abroad.map((o) => o.chainName)).toEqual(['ALDI']);
+    expect(view.offers.map((o) => o.chainName)).toEqual(['EKO', 'Silpo', 'ALDI']);
     expect(view.updatedAt).toBe('2026-10-19T12:00:00Z');
   });
 

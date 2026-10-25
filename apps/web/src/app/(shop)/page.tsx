@@ -5,8 +5,6 @@ import { FilterChips } from '@/components/FilterChips';
 import { listingCard, ProductCard, productCard } from '@/components/ProductCard';
 import { currentUser } from '@/lib/session';
 import { SearchField } from '@/components/SearchField';
-import Link from 'next/link';
-import { BellIcon } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,14 +22,9 @@ export default async function HomePage() {
   return (
     <div className="space-y-8">
       <div className="space-y-4">
-        {/* На десктопі пошук — у шапці */}
-        <div className="flex items-center gap-2 md:hidden">
-          <div className="flex-1">
-            <SearchField />
-          </div>
-          <Link href="/alerts" aria-label="Alerts" className="grid size-13 place-items-center text-icon">
-            <BellIcon width={24} height={24} />
-          </Link>
+        {/* На десктопі пошук — у шапці; дзвіночок — у таб-барі */}
+        <div className="md:hidden">
+          <SearchField />
         </div>
         <FilterChips
           label="Categories"
