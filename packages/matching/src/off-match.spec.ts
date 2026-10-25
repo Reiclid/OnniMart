@@ -54,7 +54,7 @@ describe('OffIndex', () => {
         listing('Quellbrunn Mineralwasser Medium 1,5 l', 'Quellbrunn'),
         idf,
       ),
-    ).toEqual({ kind: 'match', gtin: '00000042141204', score: 1 });
+    ).toEqual({ kind: 'match', gtins: ['00000042141204'], score: 1 });
   });
 
   it('інше фасування, інша країна, невідоме фасування чи бренд — ні', () => {
@@ -76,7 +76,7 @@ describe('OffIndex', () => {
     );
   });
 
-  it('два однакові товари OFF (стара й нова упаковка) — лише на перевірку', () => {
+  it('дублікати OFF (стара й нова упаковка) — один товар, обидва GTIN', () => {
     const index = new OffIndex();
     index.add(
       off('00000042141204', 'Mineralwasser Medium', ['Quellbrunn'], '1,5 l'),
@@ -84,11 +84,25 @@ describe('OffIndex', () => {
     index.add(
       off('00000042299998', 'Mineralwasser Medium', ['Quellbrunn'], '1,5 l'),
     );
-    const decision = index.decide(
-      listing('Quellbrunn Mineralwasser Medium 1,5 l', 'Quellbrunn'),
-      idf,
-    );
-    expect(decision.kind).toBe('review');
+    expect(
+      index.decide(
+        listing('Quellbrunn Mineralwasser Medium 1,5 l', 'Quellbrunn'),
+        idf,
+      ),
+    ).toEqual({
+      kind: 'match',
+      gtins: ['00000042141204', '00000042299998'],
+      score: 1,
+    });
+  });
+
+  it('дублікатами вважаються лише однакові товари: «Cola» не отримує GTIN «Cola Zero»', () => {
+    const index = new OffIndex();
+    index.add(off('04000000000001', 'Cola', ['Jeden Tag'], '1,5 l'));
+    index.add(off('04000000000002', 'Cola Zero', ['Jeden Tag'], '1,5 l'));
+    expect(
+      index.decide(listing('Jeden Tag Cola 1,5 l', 'Jeden Tag'), idf),
+    ).toEqual({ kind: 'match', gtins: ['04000000000001'], score: 1 });
   });
 
   it('різні ознаки різновиду (Medium і Still) не зіставляються', () => {

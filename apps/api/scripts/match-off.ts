@@ -4,7 +4,8 @@
 // шукаємо товар OFF за назвою й фасуванням і порівнюємо:
 //   precision — частка правильних GTIN серед приписаних (хибний GTIN гірший за жоден: ціль ≥ 0,95);
 //   recall    — частка знайдених серед карток, чий GTIN є в OFF.
-// --write: GTIN однозначного збігу → barcodes фасувань без штрихкодів (source 'openfoodfacts-match').
+// --write: GTIN однозначного збігу (з дублікатами OFF — усі) → barcodes фасувань без штрихкодів
+// мереж (source 'openfoodfacts-match'). Фасування може мати кілька штрихкодів.
 // Склад і Nutri-Score для них підтягне наступний food:import.
 //   bun run off:match                       # CSV з static.openfoodfacts.org (≈ 1,5 ГБ потоком)
 //   bun run off:match -- off.csv.gz --write # з локального файлу, із записом
@@ -150,11 +151,16 @@ async function main() {
   }
 
   // Картки без штрихкоду: рішення за поточними порогами, групою по фасуванню
+  // Штрихкоди з мереж — уже відомий товар; власні попередні збіги не заважають дописати дублікати
   const variantBarcodes = new Set(
-    (await prisma.barcode.findMany({ select: { variantId: true } })).map(
-      (b) => b.variantId,
-    ),
+    (
+      await prisma.barcode.findMany({
+        where: { NOT: { source: SOURCE } },
+        select: { variantId: true },
+      })
+    ).map((b) => b.variantId),
   );
+  /** Фасування → набори GTIN, які дали його картки (рядок — відсортовані GTIN) */
   const byVariant = new Map<string, Set<string>>();
   const counts = { match: 0, review: 0, none: 0 };
   const examples: string[] = [];
@@ -165,11 +171,11 @@ async function main() {
     counts[decision.kind]++;
     if (decision.kind !== 'match') continue;
     const gtins = byVariant.get(row.variantId) ?? new Set();
-    gtins.add(decision.gtin);
+    gtins.add(decision.gtins.join(','));
     byVariant.set(row.variantId, gtins);
     if (examples.length < 15)
       examples.push(
-        `  ${row.rawName}  →  ${decision.gtin} (${decision.score})`,
+        `  ${row.rawName}  →  ${decision.gtins.join(', ')} (${decision.score})`,
       );
   }
   // Картки одного фасування вказали на різні товари OFF — не вгадуємо
@@ -187,7 +193,11 @@ async function main() {
       ),
     );
     const data = confident
-      .map(([variantId, g]) => ({ gtin: [...g][0], variantId, source: SOURCE }))
+      .flatMap(([variantId, g]) =>
+        [...g][0]
+          .split(',')
+          .map((gtin) => ({ gtin, variantId, source: SOURCE })),
+      )
       // GTIN уже має інше фасування — це питання до модератора, а не до цього скрипта
       .filter((b) => !taken.has(b.gtin));
     const { count } = await prisma.barcode.createMany({
@@ -223,9 +233,9 @@ function evaluate(
       if (d.kind === 'review') review++;
       if (d.kind !== 'match') continue;
       matched++;
-      if (l.barcodes.includes(d.gtin)) correct++;
+      if (d.gtins.some((g) => l.barcodes.includes(g))) correct++;
       else if (auto === THRESHOLDS.auto)
-        errors.push({ listing: l, gtin: d.gtin });
+        errors.push({ listing: l, gtin: d.gtins[0] });
     }
     const precision = matched ? correct / matched : 0;
     const recall = inOff.length ? correct / inOff.length : 0;

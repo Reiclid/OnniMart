@@ -29,17 +29,20 @@ export interface OffProduct {
 export interface OffCandidate {
   gtin: string;
   score: number;
+  /** Ті самі слова, ознаки й фасування — один товар під різними GTIN (дублікати OFF) */
+  key: string;
 }
 
 export type OffDecision =
-  /** Один кандидат з високою схожістю — GTIN можна приписати фасуванню */
-  | { kind: 'match'; gtin: string; score: number }
+  /** Один товар з високою схожістю — його GTIN (дублікати OFF — усі) можна приписати фасуванню */
+  | { kind: 'match'; gtins: string[]; score: number }
   /** Середня схожість або кілька рівних — лише людині */
   | { kind: 'review'; candidates: OffCandidate[] }
   | { kind: 'none' };
 
 interface Entry {
   gtin: string;
+  key: string;
   /** Як в OFF — для звіту про помилки */
   label: string;
   /** Назва з кожним брендом OFF окремо: кандидат оцінюється за найкращим */
@@ -78,8 +81,13 @@ export class OffIndex {
     const names = product.brands.map((brand) =>
       extractFeatures(product.name, brand),
     );
+    const { tokens, attributes } = names[0];
     this.entries.set(product.gtin, {
       gtin: product.gtin,
+      key: `${block}|${tokens
+        .map((t) => t.norm)
+        .sort()
+        .join(' ')}|${JSON.stringify(Object.entries(attributes).sort())}`,
       label: `${product.brands.join(', ')} · ${product.name}`,
       names,
     });
@@ -110,7 +118,7 @@ export class OffIndex {
       const score = Math.max(
         ...entry.names.map((n) => scorePair(listing.features, n, idf).score),
       );
-      if (score > 0) scored.push({ gtin: id, score });
+      if (score > 0) scored.push({ gtin: id, score, key: entry.key });
     }
     return scored.sort((a, b) => b.score - a.score);
   }
@@ -133,13 +141,17 @@ export function offDecision(
   scored: OffCandidate[],
   thresholds: Thresholds = THRESHOLDS,
 ): OffDecision {
-  const [best, second] = scored;
+  const [best] = scored;
   if (!best || best.score < thresholds.review) return { kind: 'none' };
+  const same = scored.filter(
+    (c) => c.key === best.key && c.score === best.score,
+  );
+  const next = scored.find((c) => !same.includes(c));
   if (
     best.score >= thresholds.auto &&
-    (!second || best.score - second.score >= thresholds.margin)
+    (!next || best.score - next.score >= thresholds.margin)
   ) {
-    return { kind: 'match', gtin: best.gtin, score: best.score };
+    return { kind: 'match', gtins: same.map((c) => c.gtin), score: best.score };
   }
   return {
     kind: 'review',
