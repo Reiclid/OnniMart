@@ -8,6 +8,9 @@ import { normalizeGtin } from '@repo/matching';
 export interface FoodFactsRow {
   gtin: string;
   productName: string | null;
+  brands: string[];
+  quantity: string | null;
+  imageUrl: string | null;
   ingredients: string | null;
   allergens: string[];
   labels: string[];
@@ -79,6 +82,9 @@ export function parseOffRow(
   return {
     gtin,
     productName: get('product_name') ?? null,
+    brands: tags(get('brands')),
+    quantity: get('quantity') ?? null,
+    imageUrl: get('image_small_url') ?? get('image_url') ?? null,
     ingredients: get('ingredients_text') ?? null,
     allergens: allergensOf(get('allergens_en') ?? get('allergens')),
     labels: tags(get('labels_tags')),
@@ -89,4 +95,93 @@ export function parseOffRow(
     nova: Number.isInteger(nova) && nova >= 1 && nova <= 4 ? nova : null,
     offModifiedAt: modified > 0 ? new Date(modified * 1000) : null,
   };
+}
+
+/** Відповідь API OFF v2 (/api/v2/product/<код>) → той самий запис, що й з CSV */
+export function fromOffProduct(
+  gtin: string,
+  product: Record<string, unknown>,
+): FoodFactsRow {
+  const str = (key: string) =>
+    typeof product[key] === 'string' && product[key]
+      ? product[key].trim() || null
+      : null;
+  const list = (key: string) =>
+    Array.isArray(product[key])
+      ? (product[key] as unknown[]).filter(
+          (t): t is string => typeof t === 'string',
+        )
+      : [];
+  const n = (product.nutriments ?? {}) as Record<string, unknown>;
+  const nutriments: Record<string, number> = {};
+  for (const [column, key] of Object.entries(NUTRIMENTS)) {
+    if (typeof n[column] === 'number') nutriments[key] = n[column];
+  }
+  const grade = str('nutriscore_grade')?.toLowerCase();
+  const nova = Number(product.nova_group);
+  const modified = Number(product.last_modified_t);
+  return {
+    gtin,
+    productName: str('product_name'),
+    brands: tags(str('brands') ?? undefined),
+    quantity: str('quantity'),
+    imageUrl: str('image_front_small_url') ?? str('image_small_url'),
+    ingredients: str('ingredients_text'),
+    allergens: allergensOf(list('allergens_tags').join(',')),
+    labels: list('labels_tags'),
+    categories: list('categories_tags'),
+    analysis: list('ingredients_analysis_tags'),
+    nutriments: Object.keys(nutriments).length ? nutriments : null,
+    nutriscore: grade && /^[a-e]$/.test(grade) ? grade : null,
+    nova: Number.isInteger(nova) && nova >= 1 && nova <= 4 ? nova : null,
+    offModifiedAt: modified > 0 ? new Date(modified * 1000) : null,
+  };
+}
+
+/** Код для OFF: як на етикетці (EAN-8 без шести нулів, EAN-13 без одного) */
+export const offCode = (gtin14: string) =>
+  gtin14.replace(/^0{6}(?=\d{8}$)/, '').replace(/^0(?=\d{13}$)/, '');
+
+/**
+ * Запити до каталогу, коли штрихкоду в нас немає: бренд + назва, кожен бренд окремо, назва.
+ * Порожні й повтори — геть.
+ */
+export function suggestionQueries(
+  facts: Pick<FoodFactsRow, 'productName' | 'brands'>,
+): string[] {
+  const name = facts.productName?.trim();
+  const queries = [
+    ...facts.brands.map((brand) => (name ? `${brand} ${name}` : brand)),
+    ...facts.brands,
+    ...(name ? [name] : []),
+  ];
+  return [
+    ...new Set(
+      queries.map((q) => q.replace(/\s*\([^)]*\)/g, '').trim()).filter(Boolean),
+    ),
+  ];
+}
+
+const words = (text: string) =>
+  text
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w.length >= 3);
+
+/**
+ * Чи схожий товар каталогу на товар OFF: є назва — потрібне спільне слово (бренди в OFF
+ * бувають помилкові: у води «Milbona»); назви немає — збіг бренду.
+ */
+export function isRelevantSuggestion(
+  facts: Pick<FoodFactsRow, 'productName' | 'brands'>,
+  item: { name: string; brand: string | null },
+): boolean {
+  if (facts.productName) {
+    const name = new Set(words(facts.productName));
+    return words(item.name).some((w) => name.has(w));
+  }
+  const brand = item.brand ? words(item.brand).join(' ') : null;
+  return !!brand && facts.brands.some((b) => words(b).join(' ') === brand);
 }

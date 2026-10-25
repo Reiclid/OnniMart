@@ -3,15 +3,16 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import type { ProductSummaryDto } from '@/api/generated/model';
-import { moreProducts } from '@/app/(shop)/actions';
+import type { BarcodeLookupDto, ProductSummaryDto } from '@/api/generated/model';
+import { findBarcode } from '@/app/(shop)/actions';
 import { useT } from '@/i18n/client';
 import { createDetector, isBarcode, type Detector } from '@/lib/barcode';
 import { formatMoney } from '@/lib/format';
 import { BellIcon, ProductImage, buttonStyles } from './ui';
 
 type Camera = 'starting' | 'on' | 'blocked';
-type Found = { code: string; product: ProductSummaryDto | null };
+/** result null — штрихкод некоректний або API недоступне */
+type Found = { code: string; result: BarcodeLookupDto | null };
 
 const SCAN_EVERY_MS = 250;
 
@@ -35,8 +36,7 @@ export function BarcodeScanner() {
 
   async function lookup(code: string) {
     navigator.vibrate?.(40);
-    const [product] = await moreProducts({ q: code, page: 1 });
-    setFound({ code, product: product ?? null });
+    setFound({ code, result: await findBarcode(code).catch(() => null) });
   }
 
   // Камера: задня, якщо є; зупиняємо при виході зі сторінки
@@ -155,7 +155,9 @@ export function BarcodeScanner() {
 
 function FoundSheet({ found, onAgain }: { found: Found; onAgain: () => void }) {
   const t = useT();
-  const { product } = found;
+  const product = found.result?.product;
+  const facts = found.result?.facts;
+  if (!product && facts) return <FactsSheet facts={facts} suggestions={found.result?.suggestions ?? []} onAgain={onAgain} />;
   if (!product) {
     return (
       <>
@@ -191,6 +193,55 @@ function FoundSheet({ found, onAgain }: { found: Found; onAgain: () => void }) {
           {t('product.trackPrice')}
         </Link>
       </div>
+    </>
+  );
+}
+
+/** Товару ще немає в цінах, але Open Food Facts його знає: що це за товар і схожі з цінами */
+function FactsSheet({
+  facts,
+  suggestions,
+  onAgain,
+}: {
+  facts: NonNullable<BarcodeLookupDto['facts']>;
+  suggestions: ProductSummaryDto[];
+  onAgain: () => void;
+}) {
+  const t = useT();
+  return (
+    <>
+      <div className="flex items-center gap-4">
+        <ProductImage src={facts.imageUrl} className="size-18 shrink-0 border border-line" />
+        <div className="min-w-0 space-y-0.5">
+          {facts.brands[0] && <div className="text-body-sm font-semibold text-brand">{facts.brands[0]}</div>}
+          <p className="line-clamp-2 text-body font-semibold">{[facts.name, facts.quantity].filter(Boolean).join(' · ')}</p>
+          <p className="text-body-sm text-fg-muted">{t('scanner.notInPrices')}</p>
+        </div>
+      </div>
+      {suggestions.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-body-sm font-semibold text-fg-muted">{t('scanner.similarWithPrices')}</h2>
+          <div className="max-h-56 divide-y divide-line overflow-y-auto rounded-lg border border-line">
+            {suggestions.map((s) => {
+              const best = s.prices[0];
+              return (
+                <Link key={s.id} href={`/products/${s.id}`} className="flex items-center gap-3 p-2.5 hover:bg-page">
+                  <ProductImage src={s.imageUrl} className="size-10 shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    <span className="line-clamp-1 text-body">{s.name}</span>
+                    {best && <span className="text-caption text-fg-muted">{t('card.cheapestAt', { chain: best.minChain })}</span>}
+                  </span>
+                  {best && <span className="text-body font-semibold">{formatMoney(best.min, best.currency)}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      <button type="button" onClick={onAgain} className={`${buttonStyles.primary} w-full`}>
+        {t('scanner.scanAgain')}
+      </button>
+      <p className="text-center text-caption text-fg-muted">{t('scanner.factsSource')}</p>
     </>
   );
 }

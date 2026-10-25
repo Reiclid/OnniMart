@@ -6,6 +6,7 @@
  * OpenAPI spec version: 1.0
  */
 
+export * from './barcodeFactsDto';
 export * from './barcodeLookupDto';
 export * from './candidateOfferDto';
 export * from './categoryDto';

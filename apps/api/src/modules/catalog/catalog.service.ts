@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { errorText } from '../../common/errors';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -17,6 +22,14 @@ import {
 } from './dto/catalog.dto';
 import { MatchingClient } from './matching/matching.client';
 import {
+  fromOffProduct,
+  isRelevantSuggestion,
+  offCode,
+  suggestionQueries,
+  type FoodFactsRow,
+} from './food-facts';
+import { saveFoodFacts } from './food-facts.store';
+import {
   searchEnabled,
   searchFilter,
   searchProductIds,
@@ -24,6 +37,10 @@ import {
 } from './search/search';
 
 const SIMILAR_LIMIT = 8;
+const SUGGESTIONS_LIMIT = 6;
+const OFF_PRODUCT_URL = 'https://world.openfoodfacts.org/api/v2/product/';
+const OFF_USER_AGENT = 'OnniMartBot/0.1 (diploma project; reiclid@gmail.com)';
+const OFF_TIMEOUT_MS = 4000;
 import { normalizeGtin } from '@repo/matching';
 
 /** Каталог для клієнтів і адмінки: товари, фасування, пропозиції мереж, черга модерації */
@@ -292,23 +309,72 @@ export class CatalogService {
     };
   }
 
-  /** Сканер штрихкодів: GTIN → фасування й товар */
+  /**
+   * Сканер: штрихкод → товар каталогу. Немає в каталозі (мережі без штрихкодів, як ALDI) —
+   * що знає Open Food Facts (food_facts або один запит до API, з кешем) і схожі товари з цінами.
+   */
   async lookupBarcode(code: string): Promise<BarcodeLookupDto> {
     const gtin = normalizeGtin(code);
-    const barcode = gtin
-      ? await this.prisma.barcode.findUnique({
-          where: { gtin },
-          include: { variant: { select: { productId: true } } },
-        })
+    if (!gtin) throw new BadRequestException(`Некоректний штрихкод: ${code}`);
+    const barcode = await this.prisma.barcode.findUnique({ where: { gtin } });
+    const facts =
+      (await this.prisma.foodFacts.findUnique({ where: { gtin } })) ??
+      (barcode ? null : await this.fetchOffFacts(gtin));
+    const product = barcode
+      ? ((await this.getProducts({ q: gtin, pageSize: 1 })).items[0] ?? null)
       : null;
-    if (!barcode) {
-      throw new NotFoundException(`Штрихкод ${code} не знайдено в каталозі`);
-    }
     return {
-      gtin: barcode.gtin,
-      variantId: barcode.variantId,
-      productId: barcode.variant.productId,
+      gtin,
+      product,
+      variantId: barcode?.variantId ?? null,
+      facts: facts && {
+        name: facts.productName,
+        brands: facts.brands,
+        quantity: facts.quantity,
+        imageUrl: facts.imageUrl,
+        nutriscore: facts.nutriscore,
+      },
+      suggestions: product || !facts ? [] : await this.suggestFor(facts),
     };
+  }
+
+  /** Товар з API Open Food Facts; знайдений — у food_facts, щоб не питати вдруге */
+  private async fetchOffFacts(gtin: string): Promise<FoodFactsRow | null> {
+    try {
+      const response = await fetch(`${OFF_PRODUCT_URL}${offCode(gtin)}`, {
+        headers: { 'user-agent': OFF_USER_AGENT },
+        signal: AbortSignal.timeout(OFF_TIMEOUT_MS),
+      });
+      if (!response.ok) return null;
+      const body = (await response.json()) as {
+        status?: number;
+        product?: Record<string, unknown>;
+      };
+      if (body.status !== 1 || !body.product) return null;
+      const row = fromOffProduct(gtin, body.product);
+      await saveFoodFacts(this.prisma, [row]);
+      return row;
+    } catch (error) {
+      this.logger.warn(`Open Food Facts ${gtin}: ${errorText(error)}`);
+      return null;
+    }
+  }
+
+  /** Схожі з цінами: бренд + назва, бренд, назва — поки не набереться SUGGESTIONS_LIMIT */
+  private async suggestFor(
+    facts: Pick<FoodFactsRow, 'productName' | 'brands'>,
+  ): Promise<ProductSummaryDto[]> {
+    const found = new Map<string, ProductSummaryDto>();
+    for (const q of suggestionQueries(facts)) {
+      if (found.size >= SUGGESTIONS_LIMIT) break;
+      for (const item of (
+        await this.getProducts({ q, pageSize: SUGGESTIONS_LIMIT })
+      ).items) {
+        if (found.size < SUGGESTIONS_LIMIT && isRelevantSuggestion(facts, item))
+          found.set(item.id, item);
+      }
+    }
+    return [...found.values()];
   }
 
   async getMatchingStatus(): Promise<MatchingStatusDto> {

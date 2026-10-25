@@ -5,9 +5,24 @@
  * API для моніторингу цін та скрейпінгу
  * OpenAPI spec version: 1.0
  */
+import type { BarcodeFactsDto } from './barcodeFactsDto';
+import type { ProductSummaryDto } from './productSummaryDto';
 
 export interface BarcodeLookupDto {
+  /** 14 цифр */
   gtin: string;
-  productId: string;
-  variantId: string;
+  /**
+     * Товар каталогу з цим штрихкодом
+     * @nullable
+     */
+  product: ProductSummaryDto | null;
+  /** @nullable */
+  variantId: string | null;
+  /**
+     * Open Food Facts, якщо товар відомий там
+     * @nullable
+     */
+  facts: BarcodeFactsDto | null;
+  /** Схожі товари з цінами, коли штрихкоду в каталозі немає */
+  suggestions: ProductSummaryDto[];
 }

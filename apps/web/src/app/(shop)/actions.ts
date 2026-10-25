@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { ApiError, SESSION_COOKIE } from '@/api/custom-fetch';
 import { login, logout, register } from '@/api/generated/auth/auth';
-import { getProducts } from '@/api/generated/catalog/catalog';
+import { getProducts, lookupBarcode } from '@/api/generated/catalog/catalog';
 import type { MessageKey } from '@/i18n';
 import { getT } from '@/i18n/server';
 import { PRODUCTS_PAGE_SIZE } from '@/lib/offers';
@@ -104,6 +104,11 @@ export async function removeSubscription(form: FormData) {
 export async function readAllNotifications() {
   await markNotificationsRead();
   revalidatePath('/alerts');
+}
+
+/** Сканер: товар за штрихкодом, а якщо його немає в цінах — дані Open Food Facts і схожі */
+export async function findBarcode(code: string) {
+  return (await lookupBarcode(code)).data;
 }
 
 /** Наступна сторінка каталогу для нескінченної прокрутки */

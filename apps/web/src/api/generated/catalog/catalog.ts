@@ -168,19 +168,12 @@ export type lookupBarcodeResponse200 = {
   status: 200
 }
 
-export type lookupBarcodeResponse404 = {
-  data: void
-  status: 404
-}
-
 export type lookupBarcodeResponseSuccess = (lookupBarcodeResponse200) & {
   headers: Headers;
 };
-export type lookupBarcodeResponseError = (lookupBarcodeResponse404) & {
-  headers: Headers;
-};
+;
 
-export type lookupBarcodeResponse = (lookupBarcodeResponseSuccess | lookupBarcodeResponseError)
+export type lookupBarcodeResponse = (lookupBarcodeResponseSuccess)
 
 export const getLookupBarcodeUrl = (gtin: string,) => {
 

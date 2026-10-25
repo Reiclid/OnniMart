@@ -79,8 +79,12 @@ export class CatalogController {
     summary: 'Пошук товару за штрихкодом (сканер)',
     operationId: 'lookupBarcode',
   })
-  @ApiResponse({ status: 200, type: BarcodeLookupDto })
-  @ApiResponse({ status: 404, description: 'Штрихкоду немає в каталозі' })
+  @ApiResponse({
+    status: 200,
+    type: BarcodeLookupDto,
+    description:
+      'Товар каталогу; якщо його немає — дані Open Food Facts і схожі товари з цінами. 400 — некоректний штрихкод',
+  })
   lookupBarcode(@Param('gtin') gtin: string): Promise<BarcodeLookupDto> {
     return this.catalog.lookupBarcode(gtin);
   }

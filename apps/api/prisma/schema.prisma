@@ -257,6 +257,12 @@ model FoodFacts {
   /// Як barcodes.gtin: 14 цифр з ведучими нулями
   gtin          String    @id @db.VarChar(14)
   productName   String?
+  /// brands OFF: "Quellbrunn, Altmühltaler Quelle" → масив; для пошуку схожих у каталозі
+  brands        String[]  @default([])
+  /// "1.5l", "500 g" — як на етикетці
+  quantity      String?
+  /// Мале фото з OFF (для сканера, коли товару ще немає в цінах)
+  imageUrl      String?
   /// Склад основною мовою товару
   ingredients   String?
   /// allergens_en: "Milk, Gluten" → ["milk", "gluten"]

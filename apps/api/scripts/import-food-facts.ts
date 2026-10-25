@@ -9,8 +9,8 @@ import { Readable } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { createGunzip } from 'node:zlib';
 import { normalizeGtin } from '@repo/matching';
-import { Prisma } from '../src/generated/prisma/client';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { saveFoodFacts } from '../src/modules/catalog/food-facts.store';
 import {
   columnIndex,
   parseOffRow,
@@ -20,7 +20,6 @@ import {
 const URL =
   'https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz';
 const USER_AGENT = 'OnniMartBot/0.1 (diploma project; reiclid@gmail.com)';
-const BATCH = 500;
 
 async function source(file: string | undefined): Promise<Readable> {
   if (file) return createReadStream(file);
@@ -28,27 +27,6 @@ async function source(file: string | undefined): Promise<Readable> {
   if (!response.ok || !response.body)
     throw new Error(`OFF: HTTP ${response.status}`);
   return Readable.fromWeb(response.body as WebReadableStream);
-}
-
-async function save(prisma: PrismaService, rows: FoodFactsRow[]) {
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const values = rows.slice(i, i + BATCH).map(
-      (
-        r,
-      ) => Prisma.sql`(${r.gtin}, ${r.productName}, ${r.ingredients}, ${r.allergens}::text[], ${r.labels}::text[],
-        ${r.categories}::text[], ${r.analysis}::text[], ${r.nutriments ? JSON.stringify(r.nutriments) : null}::jsonb,
-        ${r.nutriscore}, ${r.nova}, ${r.offModifiedAt}, now())`,
-    );
-    await prisma.$executeRaw`
-      INSERT INTO food_facts (gtin, "productName", ingredients, allergens, labels, categories, analysis,
-        nutriments, nutriscore, nova, "offModifiedAt", "importedAt")
-      VALUES ${Prisma.join(values)}
-      ON CONFLICT (gtin) DO UPDATE SET
-        "productName" = EXCLUDED."productName", ingredients = EXCLUDED.ingredients,
-        allergens = EXCLUDED.allergens, labels = EXCLUDED.labels, categories = EXCLUDED.categories,
-        analysis = EXCLUDED.analysis, nutriments = EXCLUDED.nutriments, nutriscore = EXCLUDED.nutriscore,
-        nova = EXCLUDED.nova, "offModifiedAt" = EXCLUDED."offModifiedAt", "importedAt" = now()`;
-  }
 }
 
 async function main() {
@@ -85,7 +63,7 @@ async function main() {
     if (row) found.set(row.gtin, row);
   }
 
-  await save(prisma, [...found.values()]);
+  await saveFoodFacts(prisma, [...found.values()]);
   const withNutri = [...found.values()].filter((r) => r.nutriscore).length;
   const withIngredients = [...found.values()].filter(
     (r) => r.ingredients,

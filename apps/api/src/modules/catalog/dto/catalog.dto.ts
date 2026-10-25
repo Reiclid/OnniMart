@@ -137,10 +137,37 @@ export class ProductDetailsDto {
   @ApiProperty({ type: [ProductVariantDto] }) variants!: ProductVariantDto[];
 }
 
+/** Що знає Open Food Facts про штрихкод (коли товару ще немає в цінах) */
+export class BarcodeFactsDto {
+  @ApiProperty({ type: String, nullable: true }) name!: string | null;
+  @ApiProperty({ type: [String] }) brands!: string[];
+  @ApiProperty({ type: String, nullable: true, description: '"1.5l"' })
+  quantity!: string | null;
+  @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+  @ApiProperty({ type: String, nullable: true, description: 'a…e' })
+  nutriscore!: string | null;
+}
+
 export class BarcodeLookupDto {
-  @ApiProperty() gtin!: string;
-  @ApiProperty() productId!: string;
-  @ApiProperty() variantId!: string;
+  @ApiProperty({ description: '14 цифр' }) gtin!: string;
+  @ApiProperty({
+    type: ProductSummaryDto,
+    nullable: true,
+    description: 'Товар каталогу з цим штрихкодом',
+  })
+  product!: ProductSummaryDto | null;
+  @ApiProperty({ type: String, nullable: true }) variantId!: string | null;
+  @ApiProperty({
+    type: BarcodeFactsDto,
+    nullable: true,
+    description: 'Open Food Facts, якщо товар відомий там',
+  })
+  facts!: BarcodeFactsDto | null;
+  @ApiProperty({
+    type: [ProductSummaryDto],
+    description: 'Схожі товари з цінами, коли штрихкоду в каталозі немає',
+  })
+  suggestions!: ProductSummaryDto[];
 }
 
 // ---------- Зіставлення та модерація ----------
