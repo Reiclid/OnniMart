@@ -80,6 +80,8 @@ pgdata/
 redisdata/
 meilidata/
 meili_data/
+# Вивантаження OpenStreetMap і вибірки магазинів (tools/osm)
+data/osm/
 
 # ==========================================
 # 5. Логи та тимчасові файли

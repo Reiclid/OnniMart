@@ -18,6 +18,8 @@ export interface ChainSeed {
   crawlDelayMs?: number;
   /** Обходити щодня після цієї години UTC (мережі лише з акціями — нові стартують зранку) */
   scrapeHourUtc?: number;
+  /** Інші написання бренду в OpenStreetMap (теги brand/name), якщо не збігаються з name */
+  osmBrands?: string[];
 }
 
 /** 04:00 UTC = 05:00–06:00 у Німеччині: акції дня вже опубліковані, магазини відкриваються */

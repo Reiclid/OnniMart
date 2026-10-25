@@ -251,6 +251,34 @@ model Barcode {
   @@map("barcodes")
 }
 
+/// Склад і харчова цінність з Open Food Facts за штрихкодом (ODbL; оновлює scripts/import-food-facts.ts)
+/// Без звʼязку з barcodes: окреме джерело, щотижня перезаписується; зʼєднання — за gtin
+model FoodFacts {
+  /// Як barcodes.gtin: 14 цифр з ведучими нулями
+  gtin          String    @id @db.VarChar(14)
+  productName   String?
+  /// Склад основною мовою товару
+  ingredients   String?
+  /// allergens_en: "Milk, Gluten" → ["milk", "gluten"]
+  allergens     String[]
+  /// labels_tags: en:organic, en:no-gluten…
+  labels        String[]
+  /// categories_tags: en:breads, en:croissants… — для мультимовних понять (PRD-19)
+  categories    String[]
+  /// ingredients_analysis_tags: en:vegan, en:palm-oil-free…
+  analysis      String[]
+  /// На 100 г: energyKcal, fat, saturatedFat, carbohydrates, sugars, fiber, proteins, salt
+  nutriments    Json?
+  /// a…e
+  nutriscore    String?   @db.Char(1)
+  /// 1…4
+  nova          Int?
+  offModifiedAt DateTime?
+  importedAt    DateTime  @default(now()) @updatedAt
+
+  @@map("food_facts")
+}
+
 // ============================================================
 // Дані мереж
 // ============================================================

@@ -64,6 +64,13 @@ services:
     volumes:
       - meili_data:/meili_data
 
+  # Разовий інструмент (не сервіс): магазини з OpenStreetMap, див. apps/api/scripts/osm-download.ts
+  osm:
+    build: ./tools/osm
+    profiles: ["tools"]
+    volumes:
+      - ./data/osm:/data
+
 volumes:
   postgres_data:
   redis_data:

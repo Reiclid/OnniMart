@@ -1,0 +1,2 @@
+# Скрипти для Linux-контейнерів: завжди LF, навіть у Windows-checkout
+*.sh text eol=lf
