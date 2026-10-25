@@ -1,4 +1,10 @@
-import { fold, transliterate } from '@repo/matching';
+import {
+  conceptOf,
+  conceptPath,
+  conceptTerms,
+  fold,
+  transliterate,
+} from '@repo/matching';
 
 /** Пошук каталогу в Meilisearch (REST, без SDK). Без MEILI_URL — пошук через SQL ILIKE */
 
@@ -14,6 +20,12 @@ export interface SearchDoc {
   sizes: string;
   categorySlug: string | null;
   categoryName: string | null;
+  /** Поняття і його предки: ["bread", "bakery"] (PRD-19) */
+  concepts: string[];
+  /** Назви поняття всіма мовами: "хліб" знаходить Brot */
+  conceptNames: string[];
+  /** Назви споріднених понять — знаходить їх із нижчою вагою: "хліб" → круасан */
+  relatedNames: string[];
   lineId: string | null;
   chains: string[];
   chainsCount: number;
@@ -35,11 +47,6 @@ const SYNONYMS: Record<string, string[]> = {
   fanta: ['фанта'],
   спрайт: ['sprite'],
   sprite: ['спрайт'],
-  молоко: ['milch', 'milk'],
-  пиво: ['bier', 'beer'],
-  вода: ['wasser', 'water'],
-  кава: ['kaffee', 'coffee'],
-  чай: ['tee', 'tea'],
   // Бренди кирилицею, коли на етикетці латиниця
   мілка: ['milka'],
   milka: ['мілка'],
@@ -58,13 +65,17 @@ export const INDEX_SETTINGS = {
     'name',
     'nameLatin',
     'brand',
+    'conceptNames',
     'sizes',
     'categoryName',
     'barcodes',
+    // Останнім: правило attribute ставить споріднені після точних збігів
+    'relatedNames',
   ],
   filterableAttributes: [
     'id',
     'categorySlug',
+    'concepts',
     'chains',
     'chainsCount',
     'lineId',
@@ -117,6 +128,8 @@ export function toSearchDoc(
     .filter((l) => l.chain.currency === currency)
     .map((l) => Number(l.currentPrice));
   const chains = [...new Set(listings.map((l) => l.chain.slug))];
+  const concept = conceptOf(product.name, product.category?.slug);
+  const terms = concept ? conceptTerms(concept) : { names: [], related: [] };
   return {
     id: product.id,
     name: product.name,
@@ -125,6 +138,9 @@ export function toSearchDoc(
     sizes: [...new Set(product.variants.map((v) => v.label))].join(' '),
     categorySlug: product.category?.slug ?? null,
     categoryName: product.category?.name ?? null,
+    concepts: concept ? conceptPath(concept) : [],
+    conceptNames: terms.names,
+    relatedNames: terms.related,
     lineId: product.lineId,
     chains,
     chainsCount: chains.length,

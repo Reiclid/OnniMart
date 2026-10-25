@@ -77,6 +77,38 @@ describe('toSearchDoc', () => {
       chainsCount: 0,
     });
   });
+
+  it('поняття: назви всіма мовами і споріднені (PRD-19)', () => {
+    const doc = toSearchDoc(
+      {
+        id: 'p',
+        name: 'Roggenbrot',
+        lineId: null,
+        brand: null,
+        category: { slug: 'bakery', name: 'Bakery' },
+        variants: [],
+      },
+      1,
+    );
+    expect(doc.concepts).toEqual(['bread', 'bakery']);
+    expect(doc.conceptNames).toEqual(
+      expect.arrayContaining(['хліб', 'Brot', 'bread', 'випічка']),
+    );
+    expect(doc.relatedNames).toEqual(expect.arrayContaining(['круасан']));
+    expect(
+      toSearchDoc(
+        {
+          id: 'p',
+          name: 'Тарілки',
+          lineId: null,
+          brand: null,
+          category: null,
+          variants: [],
+        },
+        1,
+      ),
+    ).toMatchObject({ concepts: [], conceptNames: [], relatedNames: [] });
+  });
 });
 
 describe('searchFilter', () => {
