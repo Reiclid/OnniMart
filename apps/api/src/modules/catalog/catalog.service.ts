@@ -25,6 +25,7 @@ import {
   fromOffProduct,
   isRelevantSuggestion,
   offCode,
+  rankBrands,
   suggestionQueries,
   type FoodFactsRow,
 } from './food-facts';
@@ -323,18 +324,19 @@ export class CatalogService {
     const product = barcode
       ? ((await this.getProducts({ q: gtin, pageSize: 1 })).items[0] ?? null)
       : null;
+    const suggestions = product || !facts ? [] : await this.suggestFor(facts);
     return {
       gtin,
       product,
       variantId: barcode?.variantId ?? null,
       facts: facts && {
         name: facts.productName,
-        brands: facts.brands,
+        brands: rankBrands(facts.brands, suggestions),
         quantity: facts.quantity,
         imageUrl: facts.imageUrl,
         nutriscore: facts.nutriscore,
       },
-      suggestions: product || !facts ? [] : await this.suggestFor(facts),
+      suggestions,
     };
   }
 

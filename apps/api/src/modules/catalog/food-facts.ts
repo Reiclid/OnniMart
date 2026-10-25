@@ -185,3 +185,18 @@ export function isRelevantSuggestion(
   const brand = item.brand ? words(item.brand).join(' ') : null;
   return !!brand && facts.brands.some((b) => words(b).join(' ') === brand);
 }
+
+/**
+ * Бренди OFF для підпису: спершу ті, що є серед брендів схожих товарів (у води ALDI бренди
+ * «Milbona, Quellbrunn, …», а схожі за назвою — Quellbrunn), далі решта в порядку OFF.
+ */
+export function rankBrands(
+  brands: string[],
+  suggestions: { brand: string | null }[],
+): string[] {
+  const seen = new Set(
+    suggestions.flatMap((s) => (s.brand ? [words(s.brand).join(' ')] : [])),
+  );
+  const known = brands.filter((b) => seen.has(words(b).join(' ')));
+  return [...known, ...brands.filter((b) => !known.includes(b))];
+}

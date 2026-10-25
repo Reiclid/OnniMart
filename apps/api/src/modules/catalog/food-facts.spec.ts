@@ -4,6 +4,7 @@ import {
   isRelevantSuggestion,
   offCode,
   parseOffRow,
+  rankBrands,
   suggestionQueries,
 } from './food-facts';
 
@@ -181,5 +182,17 @@ describe('isRelevantSuggestion', () => {
     expect(isRelevantSuggestion(facts, { name: 'Aqua', brand: null })).toBe(
       false,
     );
+  });
+});
+
+describe('rankBrands', () => {
+  const brands = ['Milbona', 'Quellbrunn', 'Altmühltaler Quelle'];
+  it('спершу бренд, що є серед схожих товарів', () => {
+    expect(
+      rankBrands(brands, [{ brand: 'QUELLBRUNN' }, { brand: null }]),
+    ).toEqual(['Quellbrunn', 'Milbona', 'Altmühltaler Quelle']);
+  });
+  it('без збігів — порядок OFF', () => {
+    expect(rankBrands(brands, [{ brand: 'Globus' }])).toEqual(brands);
   });
 });
