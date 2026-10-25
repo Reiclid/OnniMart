@@ -1,8 +1,10 @@
 import type { ListingSummaryDto } from '@/api/generated/model';
+import { getT } from '@/i18n/server';
 import { formatMoney, formatUnitPrice } from '@/lib/format';
 
 /** Ціна в одній мережі; найдешевша — bg/selected + border/brand (Figma: Chain price row) */
-export function ChainPriceRow({ offer, cheapest }: { offer: ListingSummaryDto; cheapest?: boolean }) {
+export async function ChainPriceRow({ offer, cheapest }: { offer: ListingSummaryDto; cheapest?: boolean }) {
+  const t = await getT();
   const unit = formatUnitPrice(offer);
   const body = (
     <>
@@ -13,10 +15,10 @@ export function ChainPriceRow({ offer, cheapest }: { offer: ListingSummaryDto; c
         <span className="flex items-center gap-2 text-body font-semibold">
           {offer.chainName}
           {cheapest && (
-            <span className="rounded-sm bg-brand px-1.5 py-0.5 text-caption font-semibold text-white">cheapest</span>
+            <span className="rounded-sm bg-brand px-1.5 py-0.5 text-caption font-semibold text-white">{t('chainRow.cheapest')}</span>
           )}
         </span>
-        {offer.isOnPromo && <span className="text-body-sm font-semibold text-danger">Promo</span>}
+        {offer.isOnPromo && <span className="text-body-sm font-semibold text-danger">{t('chainRow.promo')}</span>}
       </span>
       <span className="text-right">
         <span className="flex items-baseline justify-end gap-2">

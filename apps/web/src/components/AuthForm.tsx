@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { useActionState } from 'react';
 import { authenticate } from '@/app/(shop)/actions';
+import { useT } from '@/i18n/client';
 import { buttonStyles } from './ui';
 
 const input = 'w-full rounded-md border border-line bg-surface px-4 py-3 text-body outline-none focus:border-accent';
 
 /** Вхід або реєстрація (одна форма, режим з адреси) */
 export function AuthForm({ mode, next }: { mode: 'login' | 'register'; next: string }) {
+  const t = useT();
   const [state, action, pending] = useActionState(authenticate, { error: null });
   const register = mode === 'register';
   const other = `/login?${new URLSearchParams({ ...(register ? {} : { mode: 'register' }), next })}`;
@@ -19,16 +21,16 @@ export function AuthForm({ mode, next }: { mode: 'login' | 'register'; next: str
       <input type="hidden" name="next" value={next} />
       {register && (
         <label className="block space-y-1">
-          <span className="text-body-sm font-semibold">Name</span>
+          <span className="text-body-sm font-semibold">{t('auth.name')}</span>
           <input name="name" autoComplete="given-name" maxLength={100} className={input} />
         </label>
       )}
       <label className="block space-y-1">
-        <span className="text-body-sm font-semibold">Email</span>
+        <span className="text-body-sm font-semibold">{t('auth.email')}</span>
         <input name="email" type="email" required autoComplete="email" className={input} />
       </label>
       <label className="block space-y-1">
-        <span className="text-body-sm font-semibold">Password</span>
+        <span className="text-body-sm font-semibold">{t('auth.password')}</span>
         <input
           name="password"
           type="password"
@@ -40,12 +42,12 @@ export function AuthForm({ mode, next }: { mode: 'login' | 'register'; next: str
       </label>
       {state.error && <p role="alert" className="text-body-sm text-danger">{state.error}</p>}
       <button type="submit" disabled={pending} className={`${buttonStyles.primary} w-full disabled:opacity-60`}>
-        {register ? 'Create account' : 'Sign in'}
+        {t(register ? 'auth.createAccount' : 'auth.signIn')}
       </button>
       <p className="text-center text-body-sm text-fg-muted">
-        {register ? 'Already have an account? ' : 'New to OnniMart? '}
+        {t(register ? 'auth.haveAccount' : 'auth.newHere')}{' '}
         <Link href={other} className="font-semibold text-brand">
-          {register ? 'Sign in' : 'Create an account'}
+          {t(register ? 'auth.signIn' : 'auth.createAnAccount')}
         </Link>
       </p>
     </form>

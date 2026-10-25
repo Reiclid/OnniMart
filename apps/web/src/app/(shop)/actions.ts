@@ -7,6 +7,8 @@ import { revalidatePath } from 'next/cache';
 import { ApiError, SESSION_COOKIE } from '@/api/custom-fetch';
 import { login, logout, register } from '@/api/generated/auth/auth';
 import { getProducts } from '@/api/generated/catalog/catalog';
+import type { MessageKey } from '@/i18n';
+import { getT } from '@/i18n/server';
 import { PRODUCTS_PAGE_SIZE } from '@/lib/offers';
 import {
   createSubscription,
@@ -23,11 +25,11 @@ export type FormState = { error: string | null };
 const safeNext = (value: FormDataEntryValue | null) =>
   typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/profile';
 
-const AUTH_ERRORS: Record<number, string> = {
-  400: 'Check the email and use a password of at least 8 characters.',
-  401: 'Wrong email or password.',
-  409: 'This email is already registered. Sign in instead.',
-  429: 'Too many attempts. Try again in a minute.',
+const AUTH_ERRORS: Record<number, MessageKey> = {
+  400: 'auth.errors.badInput',
+  401: 'auth.errors.wrongCredentials',
+  409: 'auth.errors.emailTaken',
+  429: 'auth.errors.tooMany',
 };
 
 export async function authenticate(_prev: FormState, form: FormData): Promise<FormState> {
@@ -37,7 +39,7 @@ export async function authenticate(_prev: FormState, form: FormData): Promise<Fo
     const name = String(form.get('name') ?? '').trim();
     session = (form.get('mode') === 'register' ? await register({ ...credentials, ...(name && { name }) }) : await login(credentials)).data;
   } catch (error) {
-    if (error instanceof ApiError) return { error: AUTH_ERRORS[error.status] ?? 'Something went wrong. Try again.' };
+    if (error instanceof ApiError) return { error: (await getT())(AUTH_ERRORS[error.status] ?? 'auth.errors.generic') };
     throw error;
   }
   (await cookies()).set(SESSION_COOKIE, session.token, {

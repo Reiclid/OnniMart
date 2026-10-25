@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { useT } from '@/i18n/client';
+import type { MessageKey } from '@/i18n';
 import { SearchField } from './SearchField';
 import { BellIcon, GridIcon, HomeIcon, UserIcon } from './ui';
 
-const TABS = [
-  { href: '/', label: 'Home', Icon: HomeIcon },
-  { href: '/products', label: 'Catalog', Icon: GridIcon },
-  { href: '/alerts', label: 'Alerts', Icon: BellIcon },
-  { href: '/profile', label: 'Profile', Icon: UserIcon },
+const TABS: { href: string; label: MessageKey; Icon: typeof HomeIcon }[] = [
+  { href: '/', label: 'nav.home', Icon: HomeIcon },
+  { href: '/products', label: 'nav.catalog', Icon: GridIcon },
+  { href: '/alerts', label: 'nav.alerts', Icon: BellIcon },
+  { href: '/profile', label: 'nav.profile', Icon: UserIcon },
 ];
 
 /** Активна вкладка: Home — лише "/", решта — разом із вкладеними сторінками */
@@ -19,9 +21,10 @@ const isActive = (pathname: string, href: string) =>
 /** Нижня навігація на телефоні (Figma: Tab bar); сканер — у полі пошуку */
 export function TabBar() {
   const pathname = usePathname();
+  const t = useT();
   return (
     <nav
-      aria-label="Main"
+      aria-label={t('nav.main')}
       className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] shadow-floating md:hidden"
     >
       {TABS.map(({ href, label, Icon }) => {
@@ -34,7 +37,7 @@ export function TabBar() {
             className={`flex flex-col items-center gap-1 py-2.5 text-caption font-semibold ${active ? 'text-brand' : 'text-fg-muted'}`}
           >
             <Icon width={24} height={24} />
-            {label}
+            {t(label)}
           </Link>
         );
       })}
@@ -42,15 +45,16 @@ export function TabBar() {
   );
 }
 
-const LINKS = [
-  { href: '/products', label: 'Catalog' },
-  { href: '/alerts', label: 'Alerts' },
-  { href: '/scan', label: 'Scan' },
+const LINKS: { href: string; label: MessageKey }[] = [
+  { href: '/products', label: 'nav.catalog' },
+  { href: '/alerts', label: 'nav.alerts' },
+  { href: '/scan', label: 'nav.scan' },
 ];
 
 /** Посилання верхньої навігації на десктопі (Figma: Navigation) */
 export function NavLinks() {
   const pathname = usePathname();
+  const t = useT();
   return LINKS.map(({ href, label }) => (
     <Link
       key={href}
@@ -58,7 +62,7 @@ export function NavLinks() {
       aria-current={isActive(pathname, href) ? 'page' : undefined}
       className={`text-body-sm font-semibold ${isActive(pathname, href) ? 'text-brand' : 'text-fg-muted hover:text-fg'}`}
     >
-      {label}
+      {t(label)}
     </Link>
   ));
 }

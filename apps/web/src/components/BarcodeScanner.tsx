@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { ProductSummaryDto } from '@/api/generated/model';
 import { moreProducts } from '@/app/(shop)/actions';
+import { useT } from '@/i18n/client';
 import { createDetector, isBarcode, type Detector } from '@/lib/barcode';
 import { formatMoney } from '@/lib/format';
 import { BellIcon, ProductImage, buttonStyles } from './ui';
@@ -21,6 +22,7 @@ const SCAN_EVERY_MS = 250;
  */
 export function BarcodeScanner() {
   const router = useRouter();
+  const t = useT();
   const video = useRef<HTMLVideoElement>(null);
   const detector = useRef<Promise<Detector> | null>(null);
   const track = useRef<MediaStreamTrack | null>(null);
@@ -98,9 +100,9 @@ export function BarcodeScanner() {
     try {
       const [hit] = (await (await getDetector()).detect(await createImageBitmap(file))).filter((b) => isBarcode(b.rawValue));
       if (hit) await lookup(hit.rawValue);
-      else setError('No barcode found. Take the photo closer, or type the digits.');
+      else setError(t('scanner.noBarcode'));
     } catch {
-      setError('Could not read the photo. Type the digits instead.');
+      setError(t('scanner.photoFailed'));
     }
   }
 
@@ -109,14 +111,14 @@ export function BarcodeScanner() {
       <video ref={video} playsInline muted className="absolute inset-0 size-full object-cover" />
 
       <div className="relative flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <button type="button" onClick={() => router.back()} aria-label="Close" className="grid size-11 place-items-center rounded-full bg-white/15">
+        <button type="button" onClick={() => router.back()} aria-label={t('scanner.close')} className="grid size-11 place-items-center rounded-full bg-white/15">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
         </button>
-        <h1 className="text-title-sm font-semibold">Scan barcode</h1>
+        <h1 className="text-title-sm font-semibold">{t('scanner.title')}</h1>
         <button
           type="button"
           onClick={() => void toggleTorch()}
-          aria-label="Flashlight"
+          aria-label={t('scanner.flashlight')}
           aria-pressed={torch ?? undefined}
           disabled={torch === null}
           className={`grid size-11 place-items-center rounded-full ${torch ? 'bg-white text-black' : 'bg-white/15'} disabled:opacity-0`}
@@ -133,7 +135,7 @@ export function BarcodeScanner() {
             ))}
             {camera === 'on' && !found && <span className="absolute inset-x-4 top-1/2 h-0.5 rounded-full bg-brand shadow-[0_0_12px_var(--color-brand)]" />}
           </div>
-          <p className="text-body font-semibold">{camera === 'starting' ? 'Opening the camera…' : 'Point the camera at a barcode'}</p>
+          <p className="text-body font-semibold">{t(camera === 'starting' ? 'scanner.opening' : 'scanner.point')}</p>
         </div>
       )}
 
@@ -152,15 +154,14 @@ export function BarcodeScanner() {
 }
 
 function FoundSheet({ found, onAgain }: { found: Found; onAgain: () => void }) {
+  const t = useT();
   const { product } = found;
   if (!product) {
     return (
       <>
-        <p className="text-body">
-          No product with barcode <span className="font-semibold">{found.code}</span> yet.
-        </p>
+        <p className="text-body">{t.rich('scanner.notFound', { code: <span key="code" className="font-semibold">{found.code}</span> })}</p>
         <button type="button" onClick={onAgain} className={`${buttonStyles.primary} w-full`}>
-          Scan again
+          {t('scanner.scanAgain')}
         </button>
       </>
     );
@@ -174,20 +175,20 @@ function FoundSheet({ found, onAgain }: { found: Found; onAgain: () => void }) {
       </div>
       {best && (
         <div className="flex items-center justify-between rounded-lg bg-selected p-4">
-          <span className="text-body font-semibold text-brand">Cheapest at {best.minChain}</span>
+          <span className="text-body font-semibold text-brand">{t('card.cheapestAt', { chain: best.minChain })}</span>
           <span className="text-title font-bold">{formatMoney(best.min, best.currency)}</span>
         </div>
       )}
       <Link href={`/products/${product.id}`} className={`${buttonStyles.primary} w-full`}>
-        Open product
+        {t('scanner.openProduct')}
       </Link>
       <div className="grid grid-cols-2 gap-3">
         <button type="button" onClick={onAgain} className={buttonStyles.secondary}>
-          Scan again
+          {t('scanner.scanAgain')}
         </button>
         <Link href={`/products/${product.id}`} className={buttonStyles.secondary}>
           <BellIcon width={20} height={20} />
-          Track price
+          {t('product.trackPrice')}
         </Link>
       </div>
     </>
@@ -195,13 +196,12 @@ function FoundSheet({ found, onAgain }: { found: Found; onAgain: () => void }) {
 }
 
 function ManualInput({ onPhoto, onCode, error }: { onPhoto: (file: File | undefined) => void; onCode: (code: string) => void; error: string | null }) {
+  const t = useT();
   return (
     <>
-      <p className="text-body">
-        The camera is not available. Allow camera access in the browser settings, or take a photo of the barcode.
-      </p>
+      <p className="text-body">{t('scanner.cameraUnavailable')}</p>
       <label className={`${buttonStyles.primary} w-full cursor-pointer`}>
-        Take a photo of the barcode
+        {t('scanner.takePhoto')}
         <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => onPhoto(e.target.files?.[0])} />
       </label>
       <form
@@ -217,12 +217,12 @@ function ManualInput({ onPhoto, onCode, error }: { onPhoto: (file: File | undefi
           pattern="\d{8,14}"
           required
           placeholder="4820017000277"
-          aria-label="Barcode digits"
-          title="8–14 digits"
+          aria-label={t('scanner.digits')}
+          title={t('scanner.digitsHint')}
           className="min-w-0 flex-1 rounded-md border border-line bg-surface px-4 text-body outline-none focus:border-accent"
         />
         <button type="submit" className={buttonStyles.secondary}>
-          Find
+          {t('scanner.find')}
         </button>
       </form>
       {error && <p role="alert" className="text-body-sm text-danger">{error}</p>}

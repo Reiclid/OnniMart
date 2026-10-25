@@ -2,33 +2,40 @@ import Link from 'next/link';
 import { getNotifications, getSubscriptions } from '@/api/generated/me/me';
 import { ProductImage } from '@/components/ui';
 import { formatMoney } from '@/lib/format';
+import { INTL_LOCALE } from '@/i18n';
+import { getI18n } from '@/i18n/server';
 import { requireUser } from '@/lib/session';
 import { readAllNotifications, removeSubscription, setSubscriptionActive } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
-const when = (iso: string) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
 
 export default async function AlertsPage() {
   await requireUser('/alerts');
-  const [{ data: notifications }, { data: subscriptions }] = await Promise.all([getNotifications(), getSubscriptions()]);
+  const [{ data: notifications }, { data: subscriptions }, { t, rich, locale }] = await Promise.all([
+    getNotifications(),
+    getSubscriptions(),
+    getI18n(),
+  ]);
+  const when = (iso: string) =>
+    new Intl.DateTimeFormat(INTL_LOCALE[locale], { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
   const unread = notifications.filter((n) => !n.readAt).length;
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
-      <h1 className="text-display font-bold">Alerts</h1>
+      <h1 className="text-display font-bold">{t('alerts.title')}</h1>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-title-sm font-semibold">Triggered{unread > 0 && ` · ${unread} new`}</h2>
+          <h2 className="text-title-sm font-semibold">{unread > 0 ? t('alerts.triggeredNew', { count: unread }) : t('alerts.triggered')}</h2>
           {unread > 0 && (
             <form action={readAllNotifications}>
-              <button type="submit" className="text-body-sm font-semibold text-brand">Mark all as read</button>
+              <button type="submit" className="text-body-sm font-semibold text-brand">{t('alerts.markAllRead')}</button>
             </form>
           )}
         </div>
         {notifications.length === 0 ? (
-          <p className="text-body text-fg-muted">Nothing yet. We check prices every 10 minutes.</p>
+          <p className="text-body text-fg-muted">{t('alerts.emptyTriggered')}</p>
         ) : (
           notifications.map((n) => (
             <Link
@@ -44,10 +51,10 @@ export default async function AlertsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-title-sm font-semibold">Watching</h2>
+        <h2 className="text-title-sm font-semibold">{t('alerts.watching')}</h2>
         {subscriptions.length === 0 && (
           <p className="text-body text-fg-muted">
-            Open a product and tap <span className="font-semibold">Track price</span>.
+            {rich('alerts.emptyWatching', { action: <span key="action" className="font-semibold">{t('product.trackPrice')}</span> })}
           </p>
         )}
         {subscriptions.map((s) => (
@@ -56,18 +63,20 @@ export default async function AlertsPage() {
             <Link href={`/products/${s.productId}`} className="min-w-0 flex-1 space-y-0.5">
               <div className="line-clamp-2 text-body font-semibold">{s.title}</div>
               <div className="text-body-sm text-fg-muted">
-                {s.targetPrice !== null ? `Target ≤ ${formatMoney(s.targetPrice, s.lowest?.currency ?? 'UAH')}` : 'Any discount'}
-                {s.lowest && ` · now ${formatMoney(s.lowest.price, s.lowest.currency)} at ${s.lowest.chainName}`}
+                {s.targetPrice !== null
+                  ? t('alerts.target', { price: formatMoney(s.targetPrice, s.lowest?.currency ?? 'UAH') })
+                  : t('alerts.anyDiscount')}
+                {s.lowest && ` · ${t('alerts.now', { price: formatMoney(s.lowest.price, s.lowest.currency), chain: s.lowest.chainName })}`}
               </div>
             </Link>
             <form action={setSubscriptionActive}>
               <input type="hidden" name="id" value={s.id} />
               <input type="hidden" name="active" value={String(!s.isActive)} />
-              <button type="submit" className="text-body-sm font-semibold text-brand">{s.isActive ? 'Pause' : 'Resume'}</button>
+              <button type="submit" className="text-body-sm font-semibold text-brand">{t(s.isActive ? 'alerts.pause' : 'alerts.resume')}</button>
             </form>
             <form action={removeSubscription}>
               <input type="hidden" name="id" value={s.id} />
-              <button type="submit" aria-label={`Stop tracking ${s.title}`} className="text-body-sm font-semibold text-danger">Remove</button>
+              <button type="submit" aria-label={t('alerts.stopTracking', { title: s.title })} className="text-body-sm font-semibold text-danger">{t('alerts.remove')}</button>
             </form>
           </div>
         ))}

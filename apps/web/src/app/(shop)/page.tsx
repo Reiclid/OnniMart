@@ -5,11 +5,12 @@ import { FilterChips } from '@/components/FilterChips';
 import { listingCard, ProductCard, productCard } from '@/components/ProductCard';
 import { currentUser } from '@/lib/session';
 import { SearchField } from '@/components/SearchField';
+import { getT } from '@/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const user = await currentUser();
+  const [user, t] = await Promise.all([currentUser(), getT()]);
   const [{ data: categories }, { data: deals }, picks] = await Promise.all([
     getCategories(),
     getListings({ promo: true, matched: true, pageSize: 12 }),
@@ -27,7 +28,6 @@ export default async function HomePage() {
           <SearchField />
         </div>
         <FilterChips
-          label="Categories"
           param="category"
           items={categories.filter((c) => c.productsCount > 0).map((c) => ({ value: c.slug, label: c.name }))}
           filters={{}}
@@ -35,9 +35,9 @@ export default async function HomePage() {
       </div>
 
       <section className="space-y-3">
-        <h1 className="text-title font-bold">Hot deals</h1>
+        <h1 className="text-title font-bold">{t('home.hotDeals')}</h1>
         {deals.items.length === 0 ? (
-          <p className="text-body text-fg-muted">No deals right now.</p>
+          <p className="text-body text-fg-muted">{t('home.noDeals')}</p>
         ) : (
           <div className="-mx-4 flex gap-3 overflow-x-auto px-4 [scrollbar-width:none] *:w-40 *:shrink-0 sm:mx-0 sm:grid sm:grid-cols-3 sm:px-0 sm:*:w-auto lg:grid-cols-4">
             {deals.items.map((listing) => (
@@ -49,10 +49,10 @@ export default async function HomePage() {
 
       {picks.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-title font-bold">{user ? 'For you' : 'Popular'}</h2>
+          <h2 className="text-title font-bold">{t(user ? 'home.forYou' : 'home.popular')}</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {picks.map((product) => (
-              <ProductCard key={product.id} card={productCard(product)} />
+              <ProductCard key={product.id} card={productCard(product, t)} />
             ))}
           </div>
         </section>

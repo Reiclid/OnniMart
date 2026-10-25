@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ProductSummaryDto } from '@/api/generated/model';
 import { moreProducts } from '@/app/(shop)/actions';
+import { useT } from '@/i18n/client';
 import { ProductCard, productCard } from './ProductCard';
 
 /** Каталог у дві колонки (Figma: For you); наступні сторінки — під час прокручування */
@@ -15,6 +16,7 @@ export function ProductGrid({
   total: number;
   filters: { q?: string; chain?: string; category?: string };
 }) {
+  const t = useT();
   const [items, setItems] = useState(first);
   // Кінець списку або збій: більше не підвантажуємо
   const [done, setDone] = useState(false);
@@ -52,12 +54,12 @@ export function ProductGrid({
     <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {items.map((product) => (
-          <ProductCard key={product.id} card={productCard(product)} />
+          <ProductCard key={product.id} card={productCard(product, t)} />
         ))}
       </div>
       {hasMore && (
         <div ref={end} className="py-6 text-center text-body-sm text-fg-muted" aria-live="polite">
-          Loading more…
+          {t('catalog.loadingMore')}
         </div>
       )}
     </>
