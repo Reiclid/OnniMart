@@ -8,7 +8,9 @@
 import type {
   CreateSubscriptionDto,
   EventBatchDto,
+  GetMyProductsParams,
   NotificationDto,
+  ProductPageDto,
   ProductSummaryDto,
   RecordViewsDto,
   RecordedDto,
@@ -266,41 +268,6 @@ export const deleteSubscription = async (id: string, options?: Parameters<typeof
 );}
 
 
-export type getRecommendationsResponse200 = {
-  data: ProductSummaryDto[]
-  status: 200
-}
-
-export type getRecommendationsResponseSuccess = (getRecommendationsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getRecommendationsResponse = (getRecommendationsResponseSuccess)
-
-export const getGetRecommendationsUrl = () => {
-
-
-
-
-  return `/api/v1/me/recommendations`
-}
-
-/**
- * @summary For you: популярне з категорій підписок
- */
-export const getRecommendations = async ( options?: Parameters<typeof customFetch>[1]): Promise<getRecommendationsResponse> => {
-
-  return customFetch<getRecommendationsResponse>(getGetRecommendationsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
 export type getNotificationsResponse200 = {
   data: NotificationDto[]
   status: 200
@@ -507,6 +474,83 @@ export const trackMyEvents = async (eventBatchDto: EventBatchDto, options?: Para
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(eventBatchDto)
+  }
+);}
+
+
+export type getRecommendationsResponse200 = {
+  data: ProductSummaryDto[]
+  status: 200
+}
+
+export type getRecommendationsResponseSuccess = (getRecommendationsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getRecommendationsResponse = (getRecommendationsResponseSuccess)
+
+export const getGetRecommendationsUrl = () => {
+
+
+
+
+  return `/api/v1/me/recommendations`
+}
+
+/**
+ * @summary For you: ранжувальник v0 за профілем (категорії, поняття, бренди, мережі), до 12
+ */
+export const getRecommendations = async ( options?: Parameters<typeof customFetch>[1]): Promise<getRecommendationsResponse> => {
+
+  return customFetch<getRecommendationsResponse>(getGetRecommendationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type getMyProductsResponse200 = {
+  data: ProductPageDto
+  status: 200
+}
+
+export type getMyProductsResponseSuccess = (getMyProductsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getMyProductsResponse = (getMyProductsResponseSuccess)
+
+export const getGetMyProductsUrl = (params?: GetMyProductsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/me/products?${stringifiedParams}` : `/api/v1/me/products`
+}
+
+/**
+ * @summary Каталог і пошук для користувача: перші 300 результатів переставлені за профілем
+ */
+export const getMyProducts = async (params?: GetMyProductsParams, options?: Parameters<typeof customFetch>[1]): Promise<getMyProductsResponse> => {
+
+  return customFetch<getMyProductsResponse>(getGetMyProductsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 

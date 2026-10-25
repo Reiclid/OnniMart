@@ -9,7 +9,7 @@ import type { Request } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { sessionTokenHash } from './password';
 
-type UserRequest = Request & { userId?: string };
+type UserRequest = Request & { userId?: string; sessionId?: string };
 
 export function bearerToken(request: Request): string {
   const header = request.headers.authorization ?? '';
@@ -27,13 +27,14 @@ export class UserGuard implements CanActivate {
     const session = token
       ? await this.prisma.session.findUnique({
           where: { tokenHash: sessionTokenHash(token) },
-          select: { userId: true, expiresAt: true },
+          select: { id: true, userId: true, expiresAt: true },
         })
       : null;
     if (!session || session.expiresAt <= new Date()) {
       throw new UnauthorizedException('Потрібно увійти');
     }
     request.userId = session.userId;
+    request.sessionId = session.id;
     return true;
   }
 }
@@ -42,4 +43,10 @@ export class UserGuard implements CanActivate {
 export const CurrentUser = createParamDecorator(
   (_data: unknown, context: ExecutionContext) =>
     context.switchToHttp().getRequest<UserRequest>().userId!,
+);
+
+/** id сесії входу — sessionId подій, які API записує сам (покази) */
+export const CurrentSession = createParamDecorator(
+  (_data: unknown, context: ExecutionContext) =>
+    context.switchToHttp().getRequest<UserRequest>().sessionId!,
 );

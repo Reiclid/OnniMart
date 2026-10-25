@@ -313,6 +313,29 @@ const ORIGIN = 'http://localhost:3000';
     ).toBe(400);
     const counter = new PrismaService();
     expect(await counter.event.count()).toBe(1);
+
+    // Ранжувальник v0: персональний пошук пише покази з позицією і сам запит
+    const mine = await (
+      await get('/api/v1/me/products?q=coca&pageSize=10', auth)
+    ).json();
+    expect(mine).toMatchObject({ total: 1, items: [{ id: product.id }] });
+    for (let i = 0; i < 50 && (await counter.event.count()) < 3; i++)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(
+      await counter.event.findMany({
+        where: { type: { in: ['IMPRESSION', 'SEARCH'] } },
+        orderBy: { id: 'asc' },
+        select: { type: true, productId: true, position: true, listId: true },
+      }),
+    ).toEqual([
+      {
+        type: 'IMPRESSION',
+        productId: product.id,
+        position: 0,
+        listId: 'search',
+      },
+      { type: 'SEARCH', productId: null, position: null, listId: 'search' },
+    ]);
     await send('PATCH', '/api/v1/me', { telemetryConsent: false });
     expect(await counter.event.count()).toBe(0);
 

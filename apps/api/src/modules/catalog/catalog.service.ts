@@ -57,6 +57,20 @@ export class CatalogService {
   async getProducts(query: ProductsQueryDto): Promise<ProductPageDto> {
     const page = pageOf(query.page);
     const pageSize = clampPageSize(query.pageSize);
+    const { ids, total } = await this.findProductIds(
+      query,
+      (page - 1) * pageSize,
+      pageSize,
+    );
+    return { items: await this.summaries(ids), total, page, pageSize };
+  }
+
+  /** id товарів у базовому порядку: релевантність Meilisearch або популярність (SQL) */
+  async findProductIds(
+    query: Pick<ProductsQueryDto, 'q' | 'category' | 'chain' | 'multiChain'>,
+    offset: number,
+    limit: number,
+  ): Promise<{ ids: string[]; total: number }> {
     const minChains = isTrue(query.multiChain) ? 2 : 1;
     const q = query.q?.trim();
     const gtin = q && /^\d{8,14}$/.test(q) ? normalizeGtin(q) : null;
@@ -70,21 +84,15 @@ export class CatalogService {
           chain: query.chain,
           minChains,
         }),
-        (page - 1) * pageSize,
-        pageSize,
+        offset,
+        limit,
       ).catch((error: unknown) => {
         this.logger.warn(
           `Meilisearch недоступний, пошук через SQL: ${errorText(error)}`,
         );
         return null;
       });
-      if (found)
-        return {
-          items: await this.summaries(found.ids),
-          total: found.total,
-          page,
-          pageSize,
-        };
+      if (found) return found;
     }
 
     const filters: Prisma.Sql[] = [];
@@ -120,17 +128,11 @@ export class CatalogService {
       this.prisma.$queryRaw<{ id: string }[]>`
         SELECT p.id ${from}
         ORDER BY s.chains DESC, s.listings DESC, p.name
-        LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
+        LIMIT ${limit} OFFSET ${offset}`,
       this.prisma.$queryRaw<{ total: number }[]>`
         SELECT count(*)::int AS total ${from}`,
     ]);
-
-    return {
-      items: await this.summaries(rows.map((r) => r.id)),
-      total,
-      page,
-      pageSize,
-    };
+    return { ids: rows.map((r) => r.id), total };
   }
 
   /** Картки товарів у заданому порядку (релевантність пошуку або сортування SQL) */

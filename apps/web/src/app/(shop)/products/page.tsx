@@ -1,10 +1,11 @@
-import { getCategories, getProducts } from '@/api/generated/catalog/catalog';
+import { getCategories } from '@/api/generated/catalog/catalog';
 import { getChains } from '@/api/generated/monitoring/monitoring';
 import { FilterChips } from '@/components/FilterChips';
 import { ProductGrid } from '@/components/ProductGrid';
 import { SearchField } from '@/components/SearchField';
 import { getT } from '@/i18n/server';
 import { PRODUCTS_PAGE_SIZE } from '@/lib/offers';
+import { findProducts } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,8 +18,8 @@ export default async function SearchPage(props: PageProps<'/products'>) {
   const category = first(params.category);
   const filters = { q, chain, category };
 
-  const [{ data: products }, { data: chains }, { data: categories }, t] = await Promise.all([
-    getProducts({ ...filters, page: 1, pageSize: PRODUCTS_PAGE_SIZE }),
+  const [products, { data: chains }, { data: categories }, t] = await Promise.all([
+    findProducts({ ...filters, page: 1, pageSize: PRODUCTS_PAGE_SIZE }),
     getChains({ status: ['ACTIVE'] }),
     getCategories(),
     getT(),

@@ -5,9 +5,6 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CatalogService } from '../catalog/catalog.service';
-import type { ProductSummaryDto } from '../catalog/dto/catalog.dto';
-import { interleave, topCategories } from './recommendations';
 import { AlertOffer, relevantOffers } from './alerts';
 import type {
   CreateSubscriptionDto,
@@ -78,53 +75,7 @@ const MAX_SUBSCRIPTIONS = 200;
 /** Підписки на ціну й сповіщення користувача */
 @Injectable()
 export class AlertsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly catalog: CatalogService,
-  ) {}
-
-  /**
-   * "For you": популярні товари (у найбільшій кількості мереж) з категорій, за якими
-   * користувач стежить; без підписок — просто популярні.
-   */
-  async recommendations(
-    userId: string,
-    limit = 12,
-  ): Promise<ProductSummaryDto[]> {
-    const subs = await this.prisma.subscription.findMany({
-      where: { userId },
-      select: {
-        product: { select: { id: true, category: { select: { slug: true } } } },
-        variant: {
-          select: {
-            product: {
-              select: { id: true, category: { select: { slug: true } } },
-            },
-          },
-        },
-      },
-      take: MAX_SUBSCRIPTIONS,
-    });
-    const products = subs
-      .map((s) => s.variant?.product ?? s.product)
-      .filter((p) => p !== null);
-    const categories = topCategories(
-      products.map((p) => p.category?.slug ?? null),
-    );
-    const pools = await Promise.all(
-      (categories.length ? categories : [undefined]).map(
-        async (category) =>
-          (
-            await this.catalog.getProducts({
-              category,
-              multiChain: true,
-              pageSize: limit + products.length,
-            })
-          ).items,
-      ),
-    );
-    return interleave(pools, new Set(products.map((p) => p.id)), limit);
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   async list(userId: string): Promise<SubscriptionDto[]> {
     const subs = await this.prisma.subscription.findMany({

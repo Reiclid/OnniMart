@@ -8,6 +8,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { HealthModule } from './modules/health/health.module';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { ScraperModule } from './modules/scraper/scraper.module';
+import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { PrismaModule } from './prisma/prisma.module';
     HealthModule,
     AccountsModule,
     ActivityModule,
+    RecommendationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

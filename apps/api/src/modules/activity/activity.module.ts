@@ -9,5 +9,6 @@ import { ActivityService } from './activity.service';
   imports: [CatalogModule],
   controllers: [MeActivityController, EventsController],
   providers: [ActivityService, UserGuard],
+  exports: [ActivityService],
 })
 export class ActivityModule {}

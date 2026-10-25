@@ -6,10 +6,11 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { ApiError, SESSION_COOKIE } from '@/api/custom-fetch';
 import { login, logout, register } from '@/api/generated/auth/auth';
-import { getProducts, lookupBarcode } from '@/api/generated/catalog/catalog';
+import { lookupBarcode } from '@/api/generated/catalog/catalog';
 import type { MessageKey } from '@/i18n';
 import { getT } from '@/i18n/server';
 import { PRODUCTS_PAGE_SIZE } from '@/lib/offers';
+import { findProducts } from '@/lib/session';
 import {
   createSubscription,
   deleteMe,
@@ -113,5 +114,5 @@ export async function findBarcode(code: string) {
 
 /** Наступна сторінка каталогу для нескінченної прокрутки */
 export async function moreProducts(query: { q?: string; chain?: string; category?: string; page: number }) {
-  return (await getProducts({ ...query, pageSize: PRODUCTS_PAGE_SIZE })).data.items;
+  return (await findProducts({ ...query, pageSize: PRODUCTS_PAGE_SIZE })).items;
 }

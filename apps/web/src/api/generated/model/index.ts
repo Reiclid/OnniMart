@@ -21,6 +21,7 @@ export * from './eventDtoType';
 export * from './getChainsParams';
 export * from './getChainsStatusItem';
 export * from './getListingsParams';
+export * from './getMyProductsParams';
 export * from './getProductsByIdsParams';
 export * from './getProductsParams';
 export * from './getReviewQueueParams';
