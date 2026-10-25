@@ -3,6 +3,7 @@ import {
   centerOf,
   chainOf,
   normalizeBrand,
+  shortNames,
   toStore,
   type ChainRef,
   type OsmFeature,
@@ -39,6 +40,9 @@ describe('chainOf', () => {
     expect(chainOf({ name: 'Сільпо' }, index, ['UA'])?.id).toBe('silpo');
     expect(chainOf({ brand: 'Eko Market' }, index, ['UA'])?.id).toBe('eko');
     expect(chainOf({ brand: 'Denner' }, index, ['DE'])).toBeNull();
+    expect(
+      chainOf({ brand: 'Lidl Express', name: 'Lidl' }, index, ['DE']),
+    ).toBeNull();
   });
 
   it('однакова назва в різних країнах — за країною магазину або вивантаження', () => {
@@ -89,5 +93,34 @@ describe('centerOf / toStore', () => {
       latitude: 49.814361,
       longitude: 6.433741,
     });
+  });
+});
+
+describe('shortNames', () => {
+  it('без країни й уточнення в дужках', () => {
+    expect(shortNames('Lidl France', 'FR')).toEqual(['Lidl']);
+    expect(shortNames('Lidl Österreich', 'AT')).toEqual(['Lidl']);
+    expect(shortNames('Coop Eesti', 'EE')).toEqual(['Coop']);
+    expect(shortNames('Hofer (ALDI SÜD)', 'AT')).toEqual(['Hofer']);
+    expect(shortNames('Real Canadian Superstore', 'CA')).toEqual([]);
+    expect(shortNames('Lidl', 'DE')).toEqual([]);
+    expect(shortNames('S-Market / Prisma', 'FI')).toEqual([
+      'S-Market',
+      'Prisma',
+    ]);
+  });
+  it('точна назва іншої мережі важливіша за скорочену', () => {
+    const idx = brandIndex([
+      { id: 'coop-ee', name: 'Coop Eesti', countryCode: 'EE' },
+      { id: 'coop', name: 'Coop', countryCode: 'EE' },
+    ]);
+    expect(chainOf({ brand: 'Coop' }, idx, ['EE'])?.id).toBe('coop');
+    expect(
+      chainOf(
+        { brand: 'Lidl' },
+        brandIndex([{ id: 'lidl-fr', name: 'Lidl France', countryCode: 'FR' }]),
+        ['FR'],
+      )?.id,
+    ).toBe('lidl-fr');
   });
 });

@@ -921,3 +921,49 @@ export const CHAINS: ChainSeed[] = [
     ['marjane-ma', 'Marjane', 'https://www.marjane.ma', F],
   ]),
 ];
+
+/**
+ * Інші написання в OpenStreetMap (brand), яких не виводить shortNames: формати тієї самої
+ * компанії (Carrefour City, Billa Plus). Не додавати схожі назви інших компаній: Diarco ≠ Dia,
+ * «Netto Marken-Discount» і «Netto City» — це відкинута netto-md-de, а не NETTO Salling.
+ * Пункти видачі (… Drive) — не магазини.
+ */
+export const OSM_BRANDS: Record<string, string[]> = {
+  atb: ['АТБ-Маркет'],
+  'assai-br': ['Assaí Atacadista'],
+  'carrefour-fr': [
+    'Carrefour City',
+    'Carrefour Market',
+    'Carrefour Express',
+    'Carrefour Contact',
+    'Carrefour Montagne',
+  ],
+  'carrefour-ar': ['Carrefour Express', 'Carrefour Market'],
+  'carrefour-be': ['Carrefour Express', 'Carrefour Market'],
+  'carrefour-br': ['Carrefour Express'],
+  'intermarche-fr': [
+    'Intermarché Super',
+    'Intermarché Contact',
+    'Intermarché Express',
+    'Intermarché Hyper',
+  ],
+  'intermarche-be': ['Intermarché Super'],
+  'auchan-fr': ['Auchan Supermarché'],
+  'casino-fr': ['Casino Shop'],
+  'leclerc-fr': ['E.Leclerc Express'],
+  'billa-at': [
+    'Billa Plus',
+    'Billa stop & shop',
+    'Billa Now',
+    'Billa Unterwegs',
+  ],
+  'spar-at': ['Eurospar', 'Interspar', 'Spar Gourmet', 'Spar Express'],
+  'delhaize-be': ['AD Delhaize', 'Proxy Delhaize', 'Delhaize Shop & Go'],
+  'dia-ar': ['Dia Market'],
+  'woolworths-au': ['Woolworths Metro'],
+  'coles-au': ['Coles Local'],
+  'maxima-ee': ['Maxima X', 'Maxima XX'],
+  'tesco-cz': ['Tesco Expres'],
+  'studenac-hr': ['Studenac Market'],
+};
+for (const chain of CHAINS) chain.osmBrands ??= OSM_BRANDS[chain.slug];

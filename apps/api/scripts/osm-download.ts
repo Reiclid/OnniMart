@@ -118,6 +118,8 @@ async function main() {
         stdio: 'inherit',
       },
     );
+    // Ctrl-C (130) — зупинити все, а не перейти до наступної країни
+    if (run.status === 130 || run.signal) process.exit(130);
     if (run.status !== 0) {
       console.error(
         `${extract.id}: помилка (код ${run.status}), далі — наступне`,

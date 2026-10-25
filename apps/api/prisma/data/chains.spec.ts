@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CHAINS } from './chains';
+import { CHAINS, OSM_BRANDS } from './chains';
 import { COUNTRIES } from './countries';
 
 /** Слаги з `SUPPORTED` у Rust-парсері */
@@ -14,6 +14,11 @@ function scraperSources(): string[] {
 }
 
 describe('реєстр мереж', () => {
+  it('написання OSM — лише для мереж з реєстру', () => {
+    const slugs = new Set(CHAINS.map((c) => c.slug));
+    expect(Object.keys(OSM_BRANDS).filter((s) => !slugs.has(s))).toEqual([]);
+  });
+
   it('слаги унікальні й у форматі a-z0-9-', () => {
     const slugs = CHAINS.map((c) => c.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
