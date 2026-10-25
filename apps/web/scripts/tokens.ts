@@ -6,7 +6,9 @@ import { themeCss } from '../src/design/tokens';
 
 const file = join(__dirname, '../src/app/globals.css');
 const css = readFileSync(file, 'utf8');
-const next = css.replace(/@theme \{[\s\S]*?\n\}/, themeCss());
+// Зберігаємо кінці рядків файлу: git на Windows видає CRLF
+const eol = css.includes('\r\n') ? '\r\n' : '\n';
+const next = css.replace(/@theme \{[\s\S]*?\r?\n\}/, themeCss().replace(/\n/g, eol));
 if (next === css) console.log('globals.css уже збігається з tokens.ts');
 else {
   writeFileSync(file, next);

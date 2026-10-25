@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { colors, primitives, themeCss } from './tokens';
 
-const css = readFileSync(join(import.meta.dir, '../app/globals.css'), 'utf8');
+// Кінці рядків — як видав git (CRLF на Windows): порівнюємо без них
+const css = readFileSync(join(import.meta.dir, '../app/globals.css'), 'utf8').replace(/\r\n/g, '\n');
 
 describe('tokens', () => {
   it('globals.css містить блок @theme, згенерований з tokens.ts (bun run tokens)', () => {
