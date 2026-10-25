@@ -16,6 +16,7 @@
     "dev:api": "bun run build:packages && bun --filter api start:dev",
     "dev:worker": "bun run build:packages && bun --filter api start:worker:dev",
     "dev:web": "bun --filter web dev",
+    "share": "bun apps/web/scripts/share.ts",
     "dev:scraper": "cd apps/scraper && cargo run",
     "dev:orval": "cd apps/web && OPENAPI_SPEC=../api/openapi.json bun x orval",
     "dev:migrate": "cd apps/api && bun x prisma migrate dev",

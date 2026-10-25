@@ -9,10 +9,17 @@ import {
   unlinkListing,
 } from '@/api/generated/matching/matching';
 import { triggerScrape } from '@/api/generated/scraper/scraper';
+import { adminAccess } from '@/lib/admin-access';
+import { headers } from 'next/headers';
 
 export type ActionResult = { error: string | null };
 
 async function run(call: () => Promise<unknown>): Promise<ActionResult> {
+  // Серверну дію можна викликати POST-ом на будь-яку адресу, не лише з /admin, тож proxy.ts
+  // її не захищає — перевіряємо доступ тут так само
+  if (adminAccess(await headers(), process.env.ADMIN_WEB_PASSWORD) !== 'ok') {
+    return { error: 'Немає доступу до адмінки' };
+  }
   try {
     await call();
     return { error: null };
