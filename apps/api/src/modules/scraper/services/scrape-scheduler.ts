@@ -28,11 +28,23 @@ export const LOST_RUN_MS = 20 * 60 * 1000;
 export interface ChainSchedule {
   slug: string;
   lastRun: { startedAt: Date; status: string } | null;
+  /** Щоденний обхід після цієї години UTC (мережі лише з акціями); null — лише інтервал */
+  scrapeHourUtc?: number | null;
+}
+
+/** Остання щоденна межа `hour`:00 UTC, що вже настала */
+export function lastDailyBoundary(now: Date, hour: number): Date {
+  const boundary = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour),
+  );
+  if (boundary > now) boundary.setUTCDate(boundary.getUTCDate() - 1);
+  return boundary;
 }
 
 /**
- * Мережі, яким пора на повний обхід: останній запуск був давніше за інтервал
- * і жоден запуск цієї мережі зараз не чекає в черзі й не виконується.
+ * Мережі, яким пора на повний обхід: останній запуск був давніше за інтервал (або до
+ * останньої щоденної межі для мереж з scrapeHourUtc) і жоден запуск цієї мережі зараз
+ * не чекає в черзі й не виконується.
  */
 export function dueChains(
   chains: ChainSchedule[],
@@ -40,20 +52,24 @@ export function dueChains(
   intervalMs: number,
 ): string[] {
   return chains
-    .filter(({ lastRun }) => {
+    .filter(({ lastRun, scrapeHourUtc }) => {
       if (!lastRun) return true;
       const age = now.getTime() - lastRun.startedAt.getTime();
       const active =
         lastRun.status === 'QUEUED' || lastRun.status === 'RUNNING';
       if (active) return age > Math.max(2 * intervalMs, MIN_STALE_RUN_MS);
-      return age >= intervalMs;
+      const daily =
+        scrapeHourUtc != null &&
+        lastRun.startedAt < lastDailyBoundary(now, scrapeHourUtc);
+      return daily || age >= intervalMs;
     })
     .map((chain) => chain.slug);
 }
 
 /**
  * Планувальник збору: раз на SCRAPE_INTERVAL_HOURS (за замовчуванням 24 год) ставить
- * повний обхід кожної увімкненої мережі в чергу парсера. Вмикається SCRAPE_SCHEDULE=true,
+ * повний обхід кожної увімкненої мережі в чергу парсера; мережі з scrapeHourUtc (лише
+ * акції: Kaufland, PENNY, NORMA) — ще й щодня одразу після цієї години. Вмикається SCRAPE_SCHEDULE=true,
  * щоб під час розробки сайти мереж не обходилися без потреби.
  */
 @Injectable()
@@ -144,6 +160,7 @@ export class ScrapeScheduler
         where: { scrapeEnabled: true },
         select: {
           slug: true,
+          scrapeHourUtc: true,
           scrapeRuns: {
             orderBy: { startedAt: 'desc' },
             take: 1,
@@ -152,7 +169,11 @@ export class ScrapeScheduler
         },
       });
       const due = dueChains(
-        chains.map((c) => ({ slug: c.slug, lastRun: c.scrapeRuns[0] ?? null })),
+        chains.map((c) => ({
+          slug: c.slug,
+          scrapeHourUtc: c.scrapeHourUtc,
+          lastRun: c.scrapeRuns[0] ?? null,
+        })),
         now,
         this.intervalMs,
       );

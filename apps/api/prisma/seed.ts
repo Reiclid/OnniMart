@@ -38,6 +38,7 @@ async function seedChains() {
       // Обходимо лише мережі з робочим парсером
       scrapeEnabled: chain.status === 'ACTIVE',
       crawlDelayMs: chain.crawlDelayMs ?? 3000,
+      scrapeHourUtc: chain.scrapeHourUtc ?? null,
       robotsCheckedAt:
         chain.status === 'ACTIVE' || chain.status === 'PAUSED'
           ? ROBOTS_CHECKED_AT

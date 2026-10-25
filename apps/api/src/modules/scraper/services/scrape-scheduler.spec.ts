@@ -1,7 +1,11 @@
 import type { AlertsChecker } from '../../accounts/alerts.checker';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { dueChains, ScrapeScheduler } from './scrape-scheduler';
+import {
+  dueChains,
+  lastDailyBoundary,
+  ScrapeScheduler,
+} from './scrape-scheduler';
 import { IngestionService } from './ingestion.service';
 import { ScraperService } from './scraper.service';
 
@@ -54,6 +58,49 @@ describe('dueChains', () => {
       2 * DAY,
     );
     expect(due).toEqual(['stale']);
+  });
+});
+
+describe('щоденний обхід мереж з акціями (scrapeHourUtc)', () => {
+  it('остання межа: сьогодні, якщо година вже настала, інакше вчора', () => {
+    expect(lastDailyBoundary(NOW, 2).toISOString()).toBe(
+      '2026-10-12T02:00:00.000Z',
+    );
+    expect(lastDailyBoundary(NOW, 4).toISOString()).toBe(
+      '2026-10-11T04:00:00.000Z',
+    );
+  });
+
+  it('запуск до межі → пора, хоч інтервал ще не минув; після межі — ні', () => {
+    const due = dueChains(
+      [
+        {
+          slug: 'kaufland-de',
+          scrapeHourUtc: 4,
+          // 11.10 о 03:00 — до межі 11.10 04:00
+          lastRun: { startedAt: ago(DAY), status: 'SUCCESS' },
+        },
+        {
+          slug: 'penny-de',
+          scrapeHourUtc: 4,
+          // 11.10 о 05:00 — після межі, наступна лише 12.10 04:00
+          lastRun: { startedAt: ago(22 * 60 * 60 * 1000), status: 'SUCCESS' },
+        },
+        {
+          slug: 'norma-de',
+          scrapeHourUtc: 4,
+          lastRun: { startedAt: ago(DAY), status: 'RUNNING' },
+        },
+        {
+          slug: 'silpo',
+          scrapeHourUtc: null,
+          lastRun: { startedAt: ago(DAY), status: 'SUCCESS' },
+        },
+      ],
+      NOW,
+      3 * DAY,
+    );
+    expect(due).toEqual(['kaufland-de']);
   });
 });
 

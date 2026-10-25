@@ -16,7 +16,12 @@ export interface ChainSeed {
   notes?: string;
   /** Пауза між запитами, мс (не менше Crawl-delay з robots.txt) */
   crawlDelayMs?: number;
+  /** Обходити щодня після цієї години UTC (мережі лише з акціями — нові стартують зранку) */
+  scrapeHourUtc?: number;
 }
+
+/** 04:00 UTC = 05:00–06:00 у Німеччині: акції дня вже опубліковані, магазини відкриваються */
+const OFFERS_DAILY_UTC = 4;
 
 const F = 'FULL' as const;
 const P = 'PARTIAL' as const;
@@ -152,6 +157,7 @@ export const CHAINS: ChainSeed[] = [
     status: 'ACTIVE',
     onlinePrices: P,
     notes: 'Лише щотижневі акції',
+    scrapeHourUtc: OFFERS_DAILY_UTC,
   },
   {
     slug: 'penny-de',
@@ -161,6 +167,7 @@ export const CHAINS: ChainSeed[] = [
     status: 'ACTIVE',
     onlinePrices: P,
     notes: 'Лише щотижневі акції',
+    scrapeHourUtc: OFFERS_DAILY_UTC,
   },
   {
     slug: 'norma-de',
@@ -170,6 +177,7 @@ export const CHAINS: ChainSeed[] = [
     status: 'ACTIVE',
     onlinePrices: P,
     notes: 'Лише щотижневі акції',
+    scrapeHourUtc: OFFERS_DAILY_UTC,
   },
 
   // ============ Україна ============

@@ -86,6 +86,9 @@ model StoreChain {
   scrapeEnabled   Boolean   @default(false)
   /// Пауза між запитами до сайту, мс (не менше Crawl-delay з robots.txt)
   crawlDelayMs    Int       @default(3000)
+  /// Щоденний обхід після цієї години UTC, незалежно від SCRAPE_INTERVAL_HOURS: для мереж,
+  /// що публікують лише акції (вони стартують у різні дні тижня з початком торгового дня)
+  scrapeHourUtc   Int?
   robotsCheckedAt DateTime?
 
   createdAt DateTime @default(now())
