@@ -1,51 +1,47 @@
 @import "tailwindcss";
 
 /*
- * Токени дизайн-системи — ті самі значення, що й змінні Figma
- * (OnniMart — UI → Foundations · Components). Класи: bg-surface, text-fg-muted,
- * border-line, rounded-md, text-body, shadow-floating…
+ * Токени дизайн-системи. Блок @theme ЗГЕНЕРОВАНО з src/design/tokens.ts (bun run tokens) —
+ * не редагуйте його вручну. Правила: docs/06-design-system.md.
  */
 @theme {
   --font-sans: var(--font-inter), Arial, Helvetica, sans-serif;
 
-  /* color/bg/* */
-  --color-page: #f4f8fc;
-  --color-surface: #ffffff;
-  --color-selected: #eaf5ff;
-  --color-brand: #0c71c6;
-  --color-accent: #1a9fff;
-  --color-danger: #e0262b;
-  --color-danger-subtle: #ffeceb;
-  /* color/text/* */
-  --color-fg: #121212;
-  --color-fg-muted: #4a6f91;
-  /* color/icon/* */
-  --color-icon: #313131;
-  --color-icon-muted: #5b82a6;
-  /* color/border/* */
-  --color-line: #e3edf7;
-  --color-line-strong: #c9d6e2;
+  --color-page: #f4f8fc; /* color/bg/page, color/bg/subtle */
+  --color-surface: #ffffff; /* color/bg/surface, color/text/on-brand */
+  --color-selected: #eaf5ff; /* color/bg/selected */
+  --color-brand: #0c71c6; /* color/bg/brand, color/text/brand */
+  --color-accent: #1a9fff; /* color/bg/accent, color/icon/brand, color/border/brand */
+  --color-danger: #e0262b; /* color/bg/danger, color/text/danger */
+  --color-danger-subtle: #ffeceb; /* color/bg/danger-subtle */
+  --color-fg: #121212; /* color/text/primary, color/bg/inverse */
+  --color-fg-muted: #4a6f91; /* color/text/secondary */
+  --color-icon: #313131; /* color/icon/default */
+  --color-icon-muted: #5b82a6; /* color/icon/muted */
+  --color-line: #e3edf7; /* color/border/default */
+  --color-line-strong: #c9d6e2; /* color/border/strong */
 
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 20px;
 
-  /* Тінь лише для того, що плаває над контентом */
-  --shadow-floating: 0 4px 16px rgb(13 64 128 / 0.08);
+  --shadow-floating: 0 4px 16px rgb(13 64 128 / 0.08); /* Elevation/1 — floating */
+  --shadow-overlay: 0 8px 32px rgb(13 64 128 / 0.16); /* Elevation/2 — overlay */
 
-  /* Текстові стилі Figma */
-  --text-display: 28px;
+  --text-display-lg: 36px; /* Display/L */
+  --text-display-lg--line-height: 44px;
+  --text-display: 28px; /* Display/M */
   --text-display--line-height: 34px;
-  --text-title: 22px;
+  --text-title: 22px; /* Title/L */
   --text-title--line-height: 28px;
-  --text-title-sm: 17px;
+  --text-title-sm: 17px; /* Title/M */
   --text-title-sm--line-height: 22px;
-  --text-body: 15px;
+  --text-body: 15px; /* Body/M */
   --text-body--line-height: 21px;
-  --text-body-sm: 13px;
+  --text-body-sm: 13px; /* Body/S */
   --text-body-sm--line-height: 18px;
-  --text-caption: 11px;
+  --text-caption: 11px; /* Caption */
   --text-caption--line-height: 14px;
 }
 

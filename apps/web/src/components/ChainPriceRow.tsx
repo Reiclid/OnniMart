@@ -34,10 +34,10 @@ export function ChainPriceRow({ offer, cheapest }: { offer: ListingSummaryDto; c
     </>
   );
   const className = `flex items-center gap-3 rounded-lg border p-3 ${
-    cheapest ? 'border-brand bg-selected' : 'border-line bg-surface'
+    cheapest ? 'border-accent bg-selected' : 'border-line bg-surface'
   }`;
   return offer.url ? (
-    <a href={offer.url} target="_blank" rel="noopener noreferrer" className={`${className} hover:border-brand`}>
+    <a href={offer.url} target="_blank" rel="noopener noreferrer" className={`${className} hover:border-accent`}>
       {body}
     </a>
   ) : (

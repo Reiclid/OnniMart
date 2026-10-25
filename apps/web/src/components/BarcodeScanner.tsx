@@ -129,7 +129,7 @@ export function BarcodeScanner() {
         <div className="relative mx-auto mt-16 flex w-[min(75vw,18rem)] flex-col items-center gap-6">
           <div className="relative aspect-[29/19] w-full">
             {['left-0 top-0 border-l-4 border-t-4 rounded-tl-xl', 'right-0 top-0 border-r-4 border-t-4 rounded-tr-xl', 'bottom-0 left-0 border-b-4 border-l-4 rounded-bl-xl', 'bottom-0 right-0 border-b-4 border-r-4 rounded-br-xl'].map((corner) => (
-              <span key={corner} className={`absolute size-10 border-brand ${corner}`} />
+              <span key={corner} className={`absolute size-10 border-accent ${corner}`} />
             ))}
             {camera === 'on' && !found && <span className="absolute inset-x-4 top-1/2 h-0.5 rounded-full bg-brand shadow-[0_0_12px_var(--color-brand)]" />}
           </div>
@@ -219,7 +219,7 @@ function ManualInput({ onPhoto, onCode, error }: { onPhoto: (file: File | undefi
           placeholder="4820017000277"
           aria-label="Barcode digits"
           title="8–14 digits"
-          className="min-w-0 flex-1 rounded-md border border-line bg-surface px-4 text-body outline-none focus:border-brand"
+          className="min-w-0 flex-1 rounded-md border border-line bg-surface px-4 text-body outline-none focus:border-accent"
         />
         <button type="submit" className={buttonStyles.secondary}>
           Find

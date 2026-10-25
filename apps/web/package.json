@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "generate:api": "orval",
-    "test": "bun test src"
+    "test": "bun test src",
+    "tokens": "bun scripts/tokens.ts"
   },
   "dependencies": {
     "barcode-detector": "^3.2.3",

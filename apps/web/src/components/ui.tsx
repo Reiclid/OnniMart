@@ -8,14 +8,14 @@ export const buttonStyles = {
   secondary: 'inline-flex items-center justify-center gap-2 rounded-md border border-line bg-surface px-5 py-3.5 text-body font-semibold text-fg hover:bg-page',
 };
 
-/** Фільтр мережі або смаку; Selected — bg/selected + border/brand */
+/** Фільтр мережі або смаку; Selected — bg/selected + border/brand (border-accent) */
 export function Chip({ href, selected, children }: { href: string; selected?: boolean; children: ReactNode }) {
   return (
     <Link
       href={href}
       aria-current={selected ? 'page' : undefined}
       className={`shrink-0 rounded-full border px-3.5 py-2 text-body-sm font-semibold ${
-        selected ? 'border-brand bg-selected text-brand' : 'border-line bg-surface text-fg hover:border-line-strong'
+        selected ? 'border-accent bg-selected text-brand' : 'border-line bg-surface text-fg hover:border-line-strong'
       }`}
     >
       {children}

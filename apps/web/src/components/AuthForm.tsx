@@ -5,7 +5,7 @@ import { useActionState } from 'react';
 import { authenticate } from '@/app/(shop)/actions';
 import { buttonStyles } from './ui';
 
-const input = 'w-full rounded-md border border-line bg-surface px-4 py-3 text-body outline-none focus:border-brand';
+const input = 'w-full rounded-md border border-line bg-surface px-4 py-3 text-body outline-none focus:border-accent';
 
 /** Вхід або реєстрація (одна форма, режим з адреси) */
 export function AuthForm({ mode, next }: { mode: 'login' | 'register'; next: string }) {
