@@ -22,12 +22,14 @@ const LATIN = /\p{Script=Latin}/u;
  * Застосовується однаково до обох порівнюваних назв, тож втрата "й" нічого не ламає.
  */
 export function fold(text: string): string {
+  // Апострофи — до NFKD: він розкладає ´ (ALDI SÜD: «JACK´S FARM») на пробіл + наголос,
+  // і після цього «jack´s» ставало двома словами «jack s»
   return text
+    .replace(/['’ʼ`´‘]/g, '')
     .toLowerCase()
     .replace(/ß/g, 'ss')
     .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .replace(/['’ʼ`´]/g, '');
+    .replace(/\p{M}/gu, '');
 }
 
 /** Виправляє латинські літери всередині кириличного слова */
