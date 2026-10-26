@@ -11,6 +11,13 @@ import {
   runMatching,
   unlinkListing,
 } from '@/api/generated/matching/matching';
+import {
+  addVariantBarcode,
+  removeVariantBarcode,
+  updateProduct,
+  updateVariant,
+} from '@/api/generated/catalog/catalog';
+import type { UpdateProductDto, UpdateVariantDto } from '@/api/generated/model';
 import { triggerScrape } from '@/api/generated/scraper/scraper';
 import { adminAccess } from '@/lib/admin-access';
 import { headers } from 'next/headers';
@@ -62,4 +69,20 @@ export async function rejectBarcodesAction(variantId: string) {
 
 export async function undoDecisionAction(id: string, kind: 'match' | 'barcode') {
   return run(() => undoDecision(id, { kind }));
+}
+
+export async function updateProductAction(productId: string, patch: UpdateProductDto) {
+  return run(() => updateProduct(productId, patch));
+}
+
+export async function updateVariantAction(variantId: string, patch: UpdateVariantDto) {
+  return run(() => updateVariant(variantId, patch));
+}
+
+export async function addBarcodeAction(variantId: string, gtin: string) {
+  return run(() => addVariantBarcode(variantId, { gtin }));
+}
+
+export async function removeBarcodeAction(variantId: string, gtin: string) {
+  return run(() => removeVariantBarcode(variantId, gtin));
 }

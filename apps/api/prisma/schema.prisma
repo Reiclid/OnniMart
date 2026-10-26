@@ -174,18 +174,20 @@ model ProductLine {
 /// Конкретний смак / різновид: "Coca-Cola Zero", "Coca-Cola Cherry".
 /// На цьому рівні користувач зазвичай підписується ("будь-яке фасування").
 model Product {
-  id           String  @id @default(uuid())
-  name         String
-  slug         String  @unique
+  id             String  @id @default(uuid())
+  name           String
+  slug           String  @unique
   /// Що відрізняє продукт у межах лінійки: "Zero", "Cherry", "Класична"
-  variantLabel String?
-  description  String?
-  imageUrl     String?
+  variantLabel   String?
+  description    String?
+  imageUrl       String?
   /// Склад, КБЖВ на 100 г, алергени, харчові добавки тощо (напр. з Open Food Facts)
-  attributes   Json?
-  lineId       String?
-  brandId      String?
-  categoryId   String?
+  attributes     Json?
+  lineId         String?
+  brandId        String?
+  categoryId     String?
+  /// Категорію задав модератор в адмінці — автоматичне призначення (assignCategories) її не змінює
+  categoryLocked Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

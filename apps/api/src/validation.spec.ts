@@ -1,5 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
-import { ProductsQueryDto } from './modules/catalog/dto/catalog.dto';
+import {
+  ProductsQueryDto,
+  UpdateProductDto,
+} from './modules/catalog/dto/catalog.dto';
 import { ListingsQueryDto } from './modules/monitoring/dto/monitoring.dto';
 import { TriggerScraperDto } from './modules/scraper/dto/trigger-scraper.dto';
 import { createValidationPipe } from './validation';
@@ -26,6 +29,23 @@ describe('ValidationPipe', () => {
     ['невідоме поле', { store: 'silpo', admin: true }],
   ])('відхиляє тіло: %s → 400', async (_case, value) => {
     await expect(body(value)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('правка товару: усі поля, null очищує, невідоме поле — 400', async () => {
+    const edit = (value: unknown) =>
+      pipe.transform(value, { type: 'body', metatype: UpdateProductDto });
+    const value = {
+      name: 'Напій',
+      brand: null,
+      variantLabel: '',
+      description: 'Опис',
+      imageUrl: null,
+      category: 'drinks',
+    };
+    await expect(edit(value)).resolves.toMatchObject(value);
+    await expect(edit({ slug: 'x' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('перетворює числа з query-рядка', async () => {

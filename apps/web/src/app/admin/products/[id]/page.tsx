@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { ApiError } from '@/api/custom-fetch';
 import { notFound } from 'next/navigation';
-import { getProduct } from '@/api/generated/catalog/catalog';
+import { getCategories, getProduct } from '@/api/generated/catalog/catalog';
 import type { ListingSummaryDto } from '@/api/generated/model';
 import { MatchingAction } from '@/components/MatchingAction';
+import { ProductEditor, VariantEditor } from '@/components/ProductEditor';
 import { StatusBadge } from '@/components/StatusBadge';
 import { formatDateTime, formatPrice, formatScore, lineChipLabel } from '@/lib/format';
 
@@ -11,10 +12,13 @@ export const dynamic = 'force-dynamic';
 
 export default async function ProductPage(props: PageProps<'/admin/products/[id]'>) {
   const { id } = await props.params;
-  const response = await getProduct(id).catch((error: Error) => {
-    if (error instanceof ApiError && error.status === 404) notFound();
-    throw error;
-  });
+  const [response, categories] = await Promise.all([
+    getProduct(id).catch((error: Error) => {
+      if (error instanceof ApiError && error.status === 404) notFound();
+      throw error;
+    }),
+    getCategories(),
+  ]);
   const product = response.data;
   const lineProducts = product.line?.products ?? [];
   const siblings = lineProducts.filter((p) => p.id !== product.id);
@@ -36,6 +40,13 @@ export default async function ProductPage(props: PageProps<'/admin/products/[id]
         <div className="min-w-64 flex-1 space-y-2">
           {product.brand && <div className="text-sm font-medium text-slate-500">{product.brand}</div>}
           <h1 className="text-2xl font-bold">{product.name}</h1>
+          {product.category && (
+            <div className="text-sm text-slate-500">
+              {product.category.name}
+              {product.categoryLocked && ' · задано вручну'}
+            </div>
+          )}
+          {product.description && <p className="text-sm text-slate-600">{product.description}</p>}
           {product.variantLabel && (
             <span className="inline-block rounded bg-amber-50 px-2 py-0.5 text-sm text-amber-800">
               {product.variantLabel}
@@ -61,6 +72,18 @@ export default async function ProductPage(props: PageProps<'/admin/products/[id]
             </div>
           )}
         </div>
+        <details className="w-full border-t border-slate-100 pt-3">
+          <summary className="cursor-pointer text-sm font-medium text-blue-700">
+            Редагувати характеристики
+          </summary>
+          <div className="pt-3">
+            <ProductEditor
+              key={JSON.stringify([product.name, product.brand, product.variantLabel, product.category, product.categoryLocked, product.imageUrl, product.description])}
+              product={product}
+              categories={categories.data}
+            />
+          </div>
+        </details>
       </section>
 
       {product.variants.map((variant) => (
@@ -70,10 +93,17 @@ export default async function ProductPage(props: PageProps<'/admin/products/[id]
             <span className="text-sm text-slate-500">
               {variant.offers.length} {variant.offers.length === 1 ? 'мережа' : 'мереж'}
             </span>
+            {variant.packaging && <span className="text-sm text-slate-500">{variant.packaging}</span>}
             {variant.barcodes.length > 0 && (
               <span className="font-mono text-xs text-slate-500">{variant.barcodes.join(', ')}</span>
             )}
           </div>
+          <details>
+            <summary className="cursor-pointer text-xs text-blue-700">Редагувати фасування і штрихкоди</summary>
+            <div className="pt-2">
+              <VariantEditor key={`${variant.label}|${variant.packaging ?? ''}`} variant={variant} />
+            </div>
+          </details>
           <OffersTable offers={variant.offers} />
         </section>
       ))}

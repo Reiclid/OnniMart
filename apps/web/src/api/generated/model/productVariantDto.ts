@@ -12,6 +12,11 @@ export interface ProductVariantDto {
   /** "0,5 л", "6 × 0,33 л" */
   label: string;
   barcodes: string[];
+  /**
+     * "ПЕТ", "скло"
+     * @nullable
+     */
+  packaging: string | null;
   /** Пропозиції мереж, від найдешевшої за одиницю */
   offers: ListingSummaryDto[];
 }

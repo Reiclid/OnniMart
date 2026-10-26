@@ -117,6 +117,8 @@ export class ProductVariantDto {
   @ApiProperty() id!: string;
   @ApiProperty({ description: '"0,5 л", "6 × 0,33 л"' }) label!: string;
   @ApiProperty({ type: [String] }) barcodes!: string[];
+  @ApiProperty({ type: String, nullable: true, description: '"ПЕТ", "скло"' })
+  packaging!: string | null;
   @ApiProperty({
     type: [ListingSummaryDto],
     description: 'Пропозиції мереж, від найдешевшої за одиницю',
@@ -155,11 +157,80 @@ export class ProductDetailsDto {
   @ApiProperty({ type: String, nullable: true }) brand!: string | null;
   @ApiProperty({ type: String, nullable: true }) variantLabel!: string | null;
   @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+  @ApiProperty({ type: String, nullable: true }) description!: string | null;
   @ApiProperty({ type: CategoryRefDto, nullable: true })
   category!: CategoryRefDto | null;
+  @ApiProperty({
+    description: 'Категорію задав модератор, зіставлення її не змінює',
+  })
+  categoryLocked!: boolean;
   @ApiProperty({ type: ProductLineDto, nullable: true })
   line!: ProductLineDto | null;
   @ApiProperty({ type: [ProductVariantDto] }) variants!: ProductVariantDto[];
+}
+
+/** Правки модератора: відсутнє поле не змінюється, null або "" — очищує */
+export class UpdateProductDto {
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  name?: string;
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 80 })
+  @IsOptional()
+  @IsString()
+  brand?: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Смак / різновид у лінійці: "Zero", "Cherry"',
+  })
+  @IsOptional()
+  @IsString()
+  variantLabel?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  description?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true, description: 'http(s)' })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Category.slug; null — категорію знову визначає зіставлення',
+  })
+  @IsOptional()
+  @IsString()
+  category?: string | null;
+}
+
+export class UpdateVariantDto {
+  @ApiPropertyOptional({
+    description: 'Фасування текстом: "0,5 л", "6 × 330 мл", "200 г", "на вагу"',
+  })
+  @IsOptional()
+  @IsString()
+  quantity?: string;
+  @ApiPropertyOptional({
+    description: 'Підпис; без нього при зміні фасування — автоматичний',
+  })
+  @IsOptional()
+  @IsString()
+  label?: string;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  @IsOptional()
+  @IsString()
+  packaging?: string | null;
+}
+
+export class AddBarcodeDto {
+  @ApiProperty({
+    example: '4820000000000',
+    description: 'EAN-8/13, UPC-A, GTIN-14',
+  })
+  @IsString()
+  gtin!: string;
 }
 
 /** Що знає Open Food Facts про штрихкод (коли товару ще немає в цінах) */

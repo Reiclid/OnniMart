@@ -6,6 +6,7 @@
  * OpenAPI spec version: 1.0
  */
 import type {
+  AddBarcodeDto,
   BarcodeLookupDto,
   CategoryDto,
   GetPriceHistoryParams,
@@ -14,10 +15,230 @@ import type {
   PriceHistoryDto,
   ProductDetailsDto,
   ProductPageDto,
-  ProductSummaryDto
+  ProductSummaryDto,
+  UpdateProductDto,
+  UpdateVariantDto
 } from '../model';
 
 import { customFetch } from '../../custom-fetch';
+
+export type updateProductResponse204 = {
+  data: void
+  status: 204
+}
+
+export type updateProductResponse401 = {
+  data: void
+  status: 401
+}
+
+export type updateProductResponseSuccess = (updateProductResponse204) & {
+  headers: Headers;
+};
+export type updateProductResponseError = (updateProductResponse401) & {
+  headers: Headers;
+};
+
+export type updateProductResponse = (updateProductResponseSuccess | updateProductResponseError)
+
+export const getUpdateProductUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/products/${id}`
+}
+
+/**
+ * @summary Виправити характеристики товару (назва, бренд, категорія, фото…)
+ */
+export const updateProduct = async (id: string,
+    updateProductDto: UpdateProductDto, options?: Parameters<typeof customFetch>[1]): Promise<updateProductResponse> => {
+
+  return customFetch<updateProductResponse>(getUpdateProductUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateProductDto)
+  }
+);}
+
+
+export type getProductResponse200 = {
+  data: ProductDetailsDto
+  status: 200
+}
+
+export type getProductResponseSuccess = (getProductResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getProductResponse = (getProductResponseSuccess)
+
+export const getGetProductUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/products/${id}`
+}
+
+/**
+ * @summary Товар: фасування × мережі, лінійка смаків
+ */
+export const getProduct = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<getProductResponse> => {
+
+  return customFetch<getProductResponse>(getGetProductUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type updateVariantResponse204 = {
+  data: void
+  status: 204
+}
+
+export type updateVariantResponse401 = {
+  data: void
+  status: 401
+}
+
+export type updateVariantResponse409 = {
+  data: void
+  status: 409
+}
+
+export type updateVariantResponseSuccess = (updateVariantResponse204) & {
+  headers: Headers;
+};
+export type updateVariantResponseError = (updateVariantResponse401 | updateVariantResponse409) & {
+  headers: Headers;
+};
+
+export type updateVariantResponse = (updateVariantResponseSuccess | updateVariantResponseError)
+
+export const getUpdateVariantUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/variants/${id}`
+}
+
+/**
+ * @summary Виправити фасування: кількість, підпис, упаковку
+ */
+export const updateVariant = async (id: string,
+    updateVariantDto: UpdateVariantDto, options?: Parameters<typeof customFetch>[1]): Promise<updateVariantResponse> => {
+
+  return customFetch<updateVariantResponse>(getUpdateVariantUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateVariantDto)
+  }
+);}
+
+
+export type addVariantBarcodeResponse204 = {
+  data: void
+  status: 204
+}
+
+export type addVariantBarcodeResponse401 = {
+  data: void
+  status: 401
+}
+
+export type addVariantBarcodeResponse409 = {
+  data: void
+  status: 409
+}
+
+export type addVariantBarcodeResponseSuccess = (addVariantBarcodeResponse204) & {
+  headers: Headers;
+};
+export type addVariantBarcodeResponseError = (addVariantBarcodeResponse401 | addVariantBarcodeResponse409) & {
+  headers: Headers;
+};
+
+export type addVariantBarcodeResponse = (addVariantBarcodeResponseSuccess | addVariantBarcodeResponseError)
+
+export const getAddVariantBarcodeUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/variants/${id}/barcodes`
+}
+
+/**
+ * @summary Додати штрихкод фасуванню вручну
+ */
+export const addVariantBarcode = async (id: string,
+    addBarcodeDto: AddBarcodeDto, options?: Parameters<typeof customFetch>[1]): Promise<addVariantBarcodeResponse> => {
+
+  return customFetch<addVariantBarcodeResponse>(getAddVariantBarcodeUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(addBarcodeDto)
+  }
+);}
+
+
+export type removeVariantBarcodeResponse204 = {
+  data: void
+  status: 204
+}
+
+export type removeVariantBarcodeResponse401 = {
+  data: void
+  status: 401
+}
+
+export type removeVariantBarcodeResponseSuccess = (removeVariantBarcodeResponse204) & {
+  headers: Headers;
+};
+export type removeVariantBarcodeResponseError = (removeVariantBarcodeResponse401) & {
+  headers: Headers;
+};
+
+export type removeVariantBarcodeResponse = (removeVariantBarcodeResponseSuccess | removeVariantBarcodeResponseError)
+
+export const getRemoveVariantBarcodeUrl = (id: string,
+    gtin: string,) => {
+
+
+
+
+  return `/api/v1/variants/${id}/barcodes/${gtin}`
+}
+
+/**
+ * @summary Прибрати помилковий штрихкод з фасування
+ */
+export const removeVariantBarcode = async (id: string,
+    gtin: string, options?: Parameters<typeof customFetch>[1]): Promise<removeVariantBarcodeResponse> => {
+
+  return customFetch<removeVariantBarcodeResponse>(getRemoveVariantBarcodeUrl(id,gtin),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
 
 export type getProductsResponse200 = {
   data: ProductPageDto
@@ -135,41 +356,6 @@ export const getGetCategoriesUrl = () => {
 export const getCategories = async ( options?: Parameters<typeof customFetch>[1]): Promise<getCategoriesResponse> => {
 
   return customFetch<getCategoriesResponse>(getGetCategoriesUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export type getProductResponse200 = {
-  data: ProductDetailsDto
-  status: 200
-}
-
-export type getProductResponseSuccess = (getProductResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getProductResponse = (getProductResponseSuccess)
-
-export const getGetProductUrl = (id: string,) => {
-
-
-
-
-  return `/api/v1/products/${id}`
-}
-
-/**
- * @summary Товар: фасування × мережі, лінійка смаків
- */
-export const getProduct = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<getProductResponse> => {
-
-  return customFetch<getProductResponse>(getGetProductUrl(id),
   {
     ...options,
     method: 'GET'
