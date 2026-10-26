@@ -16,6 +16,11 @@ export interface CreateSubscriptionDto {
      * @nullable
      */
   targetPrice?: number | null;
+  /**
+     * Валюта targetPrice (зазвичай валюта показу); ціни інших валют перераховуються за курсом
+     * @nullable
+     */
+  currency?: string | null;
   notifyOnPromo?: boolean;
   /** Порожній — усі мережі */
   chainIds?: string[];

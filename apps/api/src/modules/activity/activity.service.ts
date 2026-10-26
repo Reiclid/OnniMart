@@ -1,9 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogService } from '../catalog/catalog.service';
 import type { ProductSummaryDto } from '../catalog/dto/catalog.dto';
-import { eventType, MAX_VIEWS, orderedViews } from './activity';
+import { eventType, MAX_FAVOURITES, MAX_VIEWS, orderedViews } from './activity';
 import type { EventBatchDto } from './dto/activity.dto';
 
 /** Кому належать події: акаунт або гість */
@@ -49,6 +53,46 @@ export class ActivityService {
 
   async clearViews(userId: string): Promise<void> {
     await this.prisma.productView.deleteMany({ where: { userId } });
+  }
+
+  /** PRD-01 обране, найновіші першими */
+  async favourites(userId: string): Promise<ProductSummaryDto[]> {
+    return this.catalog.summaries(await this.favouriteIds(userId));
+  }
+
+  async favouriteIds(userId: string): Promise<string[]> {
+    const rows = await this.prisma.favourite.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: MAX_FAVOURITES,
+      select: { productId: true },
+    });
+    return rows.map((r) => r.productId);
+  }
+
+  /** Повторне додавання нічого не змінює (ідемпотентно, як і видалення) */
+  async addFavourite(userId: string, productId: string): Promise<void> {
+    const [product, count] = await Promise.all([
+      this.prisma.product.findUnique({
+        where: { id: productId },
+        select: { id: true },
+      }),
+      this.prisma.favourite.count({ where: { userId } }),
+    ]);
+    if (!product) throw new NotFoundException('Товар не знайдено');
+    if (count >= MAX_FAVOURITES)
+      throw new BadRequestException(
+        `В обраному не більше ${MAX_FAVOURITES} товарів`,
+      );
+    await this.prisma.favourite.upsert({
+      where: { userId_productId: { userId, productId } },
+      create: { userId, productId },
+      update: {},
+    });
+  }
+
+  async removeFavourite(userId: string, productId: string): Promise<void> {
+    await this.prisma.favourite.deleteMany({ where: { userId, productId } });
   }
 
   /** Події акаунта пишуться лише після згоди в профілі; гість підтверджує її в тілі запиту */

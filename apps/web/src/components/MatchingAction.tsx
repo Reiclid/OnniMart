@@ -3,7 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import {
+  acceptBarcodeAction,
   acceptCandidateAction,
+  rejectBarcodesAction,
   rejectCandidatesAction,
   runMatchingAction,
   unlinkListingAction,
@@ -13,7 +15,9 @@ type Action =
   | { kind: 'run' }
   | { kind: 'accept'; candidateId: string }
   | { kind: 'reject'; listingId: string }
-  | { kind: 'unlink'; listingId: string };
+  | { kind: 'unlink'; listingId: string }
+  | { kind: 'accept-barcode'; candidateId: string }
+  | { kind: 'reject-barcodes'; variantId: string };
 
 const STYLES = {
   primary: 'bg-blue-600 text-white hover:bg-blue-700',
@@ -32,6 +36,10 @@ function perform(action: Action) {
       return rejectCandidatesAction(action.listingId);
     case 'unlink':
       return unlinkListingAction(action.listingId);
+    case 'accept-barcode':
+      return acceptBarcodeAction(action.candidateId);
+    case 'reject-barcodes':
+      return rejectBarcodesAction(action.variantId);
   }
 }
 

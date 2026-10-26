@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -20,6 +21,7 @@ import { ProductSummaryDto } from '../catalog/dto/catalog.dto';
 import { ActivityService } from './activity.service';
 import {
   EventBatchDto,
+  FavouriteIdsDto,
   GuestEventBatchDto,
   RecordedDto,
   RecordViewsDto,
@@ -64,6 +66,53 @@ export class MeActivityController {
   })
   clearViews(@CurrentUser() userId: string): Promise<void> {
     return this.activity.clearViews(userId);
+  }
+
+  @Get('favourites')
+  @ApiOperation({
+    summary: 'Обране (найновіші першими)',
+    operationId: 'getFavourites',
+  })
+  @ApiResponse({ status: 200, type: [ProductSummaryDto] })
+  favourites(@CurrentUser() userId: string): Promise<ProductSummaryDto[]> {
+    return this.activity.favourites(userId);
+  }
+
+  @Get('favourites/ids')
+  @ApiOperation({
+    summary: 'Id товарів в обраному — стан «серця»',
+    operationId: 'getFavouriteIds',
+  })
+  @ApiResponse({ status: 200, type: FavouriteIdsDto })
+  async favouriteIds(@CurrentUser() userId: string): Promise<FavouriteIdsDto> {
+    return { productIds: await this.activity.favouriteIds(userId) };
+  }
+
+  @Put('favourites/:productId')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Додати товар в обране',
+    operationId: 'addFavourite',
+  })
+  @ApiResponse({ status: 404, description: 'Товар не знайдено' })
+  addFavourite(
+    @CurrentUser() userId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+  ): Promise<void> {
+    return this.activity.addFavourite(userId, productId);
+  }
+
+  @Delete('favourites/:productId')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Прибрати товар з обраного',
+    operationId: 'removeFavourite',
+  })
+  removeFavourite(
+    @CurrentUser() userId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+  ): Promise<void> {
+    return this.activity.removeFavourite(userId, productId);
   }
 
   @Post('events')

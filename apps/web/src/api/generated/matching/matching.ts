@@ -6,6 +6,8 @@
  * OpenAPI spec version: 1.0
  */
 import type {
+  BarcodeReviewPageDto,
+  GetBarcodeReviewQueueParams,
   GetReviewQueueParams,
   MatchingStatusDto,
   ReviewPageDto,
@@ -208,6 +210,132 @@ export const getRejectCandidatesUrl = (id: string,) => {
 export const rejectCandidates = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<rejectCandidatesResponse> => {
 
   return customFetch<rejectCandidatesResponse>(getRejectCandidatesUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export type getBarcodeReviewQueueResponse200 = {
+  data: BarcodeReviewPageDto
+  status: 200
+}
+
+export type getBarcodeReviewQueueResponseSuccess = (getBarcodeReviewQueueResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getBarcodeReviewQueueResponse = (getBarcodeReviewQueueResponseSuccess)
+
+export const getGetBarcodeReviewQueueUrl = (params?: GetBarcodeReviewQueueParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/matching/barcodes?${stringifiedParams}` : `/api/v1/matching/barcodes`
+}
+
+/**
+ * @summary Черга штрихкодів (PRD-27): фасування без штрихкоду мереж і сумнівні товари Open Food Facts
+ */
+export const getBarcodeReviewQueue = async (params?: GetBarcodeReviewQueueParams, options?: Parameters<typeof customFetch>[1]): Promise<getBarcodeReviewQueueResponse> => {
+
+  return customFetch<getBarcodeReviewQueueResponse>(getGetBarcodeReviewQueueUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type acceptBarcodeCandidateResponse204 = {
+  data: void
+  status: 204
+}
+
+export type acceptBarcodeCandidateResponse401 = {
+  data: void
+  status: 401
+}
+
+export type acceptBarcodeCandidateResponseSuccess = (acceptBarcodeCandidateResponse204) & {
+  headers: Headers;
+};
+export type acceptBarcodeCandidateResponseError = (acceptBarcodeCandidateResponse401) & {
+  headers: Headers;
+};
+
+export type acceptBarcodeCandidateResponse = (acceptBarcodeCandidateResponseSuccess | acceptBarcodeCandidateResponseError)
+
+export const getAcceptBarcodeCandidateUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/matching/barcode-candidates/${id}/accept`
+}
+
+/**
+ * @summary Підтвердити GTIN з Open Food Facts для фасування
+ */
+export const acceptBarcodeCandidate = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<acceptBarcodeCandidateResponse> => {
+
+  return customFetch<acceptBarcodeCandidateResponse>(getAcceptBarcodeCandidateUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export type rejectBarcodeCandidatesResponse204 = {
+  data: void
+  status: 204
+}
+
+export type rejectBarcodeCandidatesResponse401 = {
+  data: void
+  status: 401
+}
+
+export type rejectBarcodeCandidatesResponseSuccess = (rejectBarcodeCandidatesResponse204) & {
+  headers: Headers;
+};
+export type rejectBarcodeCandidatesResponseError = (rejectBarcodeCandidatesResponse401) & {
+  headers: Headers;
+};
+
+export type rejectBarcodeCandidatesResponse = (rejectBarcodeCandidatesResponseSuccess | rejectBarcodeCandidatesResponseError)
+
+export const getRejectBarcodeCandidatesUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/matching/variants/${id}/barcode-candidates/reject`
+}
+
+/**
+ * @summary Відхилити всіх кандидатів OFF для фасування
+ */
+export const rejectBarcodeCandidates = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<rejectBarcodeCandidatesResponse> => {
+
+  return customFetch<rejectBarcodeCandidatesResponse>(getRejectBarcodeCandidatesUrl(id),
   {
     ...options,
     method: 'POST'

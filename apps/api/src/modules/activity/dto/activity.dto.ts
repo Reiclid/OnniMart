@@ -31,6 +31,14 @@ export class RecordViewsDto {
   productIds!: string[];
 }
 
+export class FavouriteIdsDto {
+  @ApiProperty({
+    type: [String],
+    description: 'Обране, найновіші першими — стан «серця» на картках',
+  })
+  productIds!: string[];
+}
+
 export class EventDto {
   @ApiProperty({ enum: EVENT_TYPES })
   @IsIn(EVENT_TYPES)

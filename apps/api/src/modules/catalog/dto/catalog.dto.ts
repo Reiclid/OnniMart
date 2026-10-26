@@ -57,6 +57,13 @@ export class ProductsQueryDto {
   @IsOptional()
   @Matches(/^[a-z0-9-]{2,60}$/, { message: 'slug мережі: a-z, 0-9, дефіс' })
   chain?: string;
+  @ApiPropertyOptional({
+    description:
+      'ISO-код країни (UA, DE) — лише товари, що продаються в її мережах',
+  })
+  @IsOptional()
+  @Matches(/^[A-Z]{2}$/, { message: 'код країни: дві великі латинські літери' })
+  country?: string;
   @ApiPropertyOptional({ description: 'Category.slug: drinks, dairy-eggs…' })
   @IsOptional()
   @Matches(/^[a-z0-9-]{2,40}$/, { message: 'slug категорії: a-z, 0-9, дефіс' })
@@ -266,4 +273,81 @@ export class ReviewPageDto {
   @ApiProperty() total!: number;
   @ApiProperty() page!: number;
   @ApiProperty() pageSize!: number;
+}
+
+/** PRD-27: кандидат OFF для фасування без штрихкоду мереж */
+export class BarcodeCandidateDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() gtin!: string;
+  @ApiProperty({ description: 'Схожість 0..1' }) score!: number;
+  @ApiProperty({ description: 'Як в OFF: «бренди · назва»' }) offName!: string;
+}
+
+export class BarcodeReviewListingDto {
+  @ApiProperty() chainName!: string;
+  @ApiProperty() name!: string;
+}
+
+export class BarcodeReviewItemDto {
+  @ApiProperty() variantId!: string;
+  @ApiProperty() variantLabel!: string;
+  @ApiProperty() productId!: string;
+  @ApiProperty() productName!: string;
+  @ApiProperty({ type: String, nullable: true }) brand!: string | null;
+  @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+  @ApiProperty({ type: [BarcodeReviewListingDto] })
+  listings!: BarcodeReviewListingDto[];
+  @ApiProperty({ type: [BarcodeCandidateDto] })
+  candidates!: BarcodeCandidateDto[];
+}
+
+export class BarcodeReviewPageDto {
+  @ApiProperty({ type: [BarcodeReviewItemDto] }) items!: BarcodeReviewItemDto[];
+  @ApiProperty() total!: number;
+  @ApiProperty() page!: number;
+  @ApiProperty() pageSize!: number;
+}
+
+/** PRD-02: точка графіка ціни */
+export class PricePointDto {
+  @ApiProperty() at!: string;
+  @ApiProperty() price!: number;
+}
+
+export class PriceSeriesDto {
+  @ApiProperty() listingId!: string;
+  @ApiProperty() chainName!: string;
+  @ApiProperty() currency!: string;
+  @ApiProperty({
+    type: [PricePointDto],
+    description: 'Ціна на початок вікна, кожна зміна і поточна ціна',
+  })
+  points!: PricePointDto[];
+}
+
+export class PriceStatsDto {
+  @ApiProperty() currency!: string;
+  @ApiProperty({ description: 'Найнижча поточна ціна серед мереж' })
+  current!: number;
+  @ApiProperty({ description: 'Найнижча ціна за 30 днів (Omnibus)' })
+  low30!: number;
+  @ApiProperty({ description: 'Середня поточна ціна серед мереж' })
+  average!: number;
+  @ApiProperty({
+    description: '(найдорожча − найдешевша) / найдешевша серед мереж',
+  })
+  spread!: number;
+  @ApiProperty({
+    description:
+      'Поточна найнижча ціна — найнижча вже стільки днів (або стільки днів історії, коли lowerSeen = false)',
+  })
+  lowestForDays!: number;
+  @ApiProperty() lowerSeen!: boolean;
+}
+
+export class PriceHistoryDto {
+  @ApiProperty() variantId!: string;
+  @ApiProperty({ enum: [30, 90, 365] }) days!: number;
+  @ApiProperty({ type: [PriceSeriesDto] }) series!: PriceSeriesDto[];
+  @ApiProperty({ type: [PriceStatsDto] }) stats!: PriceStatsDto[];
 }

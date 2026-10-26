@@ -8,8 +8,10 @@
 import type {
   BarcodeLookupDto,
   CategoryDto,
+  GetPriceHistoryParams,
   GetProductsByIdsParams,
   GetProductsParams,
+  PriceHistoryDto,
   ProductDetailsDto,
   ProductPageDto,
   ProductSummaryDto
@@ -203,6 +205,50 @@ export const getGetSimilarProductsUrl = (id: string,) => {
 export const getSimilarProducts = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<getSimilarProductsResponse> => {
 
   return customFetch<getSimilarProductsResponse>(getGetSimilarProductsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type getPriceHistoryResponse200 = {
+  data: PriceHistoryDto
+  status: 200
+}
+
+export type getPriceHistoryResponseSuccess = (getPriceHistoryResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getPriceHistoryResponse = (getPriceHistoryResponseSuccess)
+
+export const getGetPriceHistoryUrl = (id: string,
+    params: GetPriceHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/products/${id}/prices?${stringifiedParams}` : `/api/v1/products/${id}/prices`
+}
+
+/**
+ * @summary Історія цін фасування по мережах і статистика: 30-денний мінімум, розкид, «найнижча за N днів»
+ */
+export const getPriceHistory = async (id: string,
+    params: GetPriceHistoryParams, options?: Parameters<typeof customFetch>[1]): Promise<getPriceHistoryResponse> => {
+
+  return customFetch<getPriceHistoryResponse>(getGetPriceHistoryUrl(id,params),
   {
     ...options,
     method: 'GET'

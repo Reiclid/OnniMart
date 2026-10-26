@@ -6,8 +6,12 @@
  * OpenAPI spec version: 1.0
  */
 
+export * from './barcodeCandidateDto';
 export * from './barcodeFactsDto';
 export * from './barcodeLookupDto';
+export * from './barcodeReviewItemDto';
+export * from './barcodeReviewListingDto';
+export * from './barcodeReviewPageDto';
 export * from './candidateOfferDto';
 export * from './categoryDto';
 export * from './categoryRefDto';
@@ -18,10 +22,16 @@ export * from './createSubscriptionDto';
 export * from './eventBatchDto';
 export * from './eventDto';
 export * from './eventDtoType';
+export * from './exchangeRatesDto';
+export * from './exchangeRatesDtoPerEur';
+export * from './favouriteIdsDto';
+export * from './getBarcodeReviewQueueParams';
 export * from './getChainsParams';
 export * from './getChainsStatusItem';
 export * from './getListingsParams';
 export * from './getMyProductsParams';
+export * from './getPriceHistoryDays';
+export * from './getPriceHistoryParams';
 export * from './getProductsByIdsParams';
 export * from './getProductsParams';
 export * from './getReviewQueueParams';
@@ -48,8 +58,13 @@ export * from './matchMethodCountDtoMethod';
 export * from './matchReportDto';
 export * from './notificationDto';
 export * from './notificationDtoType';
+export * from './priceHistoryDto';
+export * from './priceHistoryDtoDays';
+export * from './pricePointDto';
 export * from './priceRangeDto';
+export * from './priceSeriesDto';
 export * from './priceSnapshotDto';
+export * from './priceStatsDto';
 export * from './productDetailsDto';
 export * from './productLineDto';
 export * from './productPageDto';

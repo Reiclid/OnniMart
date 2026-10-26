@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AlertOffer, relevantOffers } from './alerts';
+import { RatesService } from '../rates/rates.service';
+import { AlertOffer, PriceContext, relevantOffers } from './alerts';
 import type {
   CreateSubscriptionDto,
   NotificationDto,
@@ -21,7 +22,7 @@ const LISTINGS = {
     currentPrice: true,
     regularPrice: true,
     isOnPromo: true,
-    chain: { select: { name: true, currency: true } },
+    chain: { select: { name: true, currency: true, countryCode: true } },
   },
 } satisfies Prisma.ListingFindManyArgs;
 
@@ -57,6 +58,7 @@ export function offersOf(sub: SubscriptionWithOffers): AlertOffer[] {
     listingId: l.id,
     chainId: l.chainId,
     chainName: l.chain.name,
+    country: l.chain.countryCode,
     currency: l.chain.currency,
     price: Number(l.currentPrice),
     regularPrice: l.regularPrice === null ? null : Number(l.regularPrice),
@@ -72,19 +74,48 @@ export function subscriptionTitle(sub: SubscriptionWithOffers): string {
 
 const MAX_SUBSCRIPTIONS = 200;
 
+/** Як порівнювати ціни підписки: її валюта, країна власника, поточні курси */
+export const priceContext = (
+  sub: { currency: string | null },
+  country: string | null,
+  perEur: Record<string, number> | null,
+): PriceContext => ({ currency: sub.currency, country, perEur });
+
 /** Підписки на ціну й сповіщення користувача */
 @Injectable()
 export class AlertsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly rates: RatesService,
+  ) {}
 
   async list(userId: string): Promise<SubscriptionDto[]> {
-    const subs = await this.prisma.subscription.findMany({
-      where: { userId },
-      include: SUBSCRIPTION_INCLUDE,
-      orderBy: { createdAt: 'desc' },
-      take: MAX_SUBSCRIPTIONS,
-    });
-    return subs.map(toSubscriptionDto);
+    const [subs, toDto] = await Promise.all([
+      this.prisma.subscription.findMany({
+        where: { userId },
+        include: SUBSCRIPTION_INCLUDE,
+        orderBy: { createdAt: 'desc' },
+        take: MAX_SUBSCRIPTIONS,
+      }),
+      this.mapper(userId),
+    ]);
+    return subs.map(toDto);
+  }
+
+  /** SubscriptionDto з найдешевшою пропозицією за правилами сповіщень (валюта, країна) */
+  private async mapper(userId: string) {
+    const [user, rates] = await Promise.all([
+      this.prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { countryCode: true },
+      }),
+      this.rates.current(),
+    ]);
+    return (sub: SubscriptionWithOffers) =>
+      toSubscriptionDto(
+        sub,
+        priceContext(sub, user.countryCode, rates?.perEur ?? null),
+      );
   }
 
   async create(
@@ -109,6 +140,7 @@ export class AlertsService {
 
     const fields = {
       targetPrice: dto.targetPrice ?? null,
+      currency: dto.currency ?? null,
       notifyOnPromo: dto.notifyOnPromo ?? true,
       // Без явного списку — улюблені мережі з налаштувань
       chainIds:
@@ -135,7 +167,7 @@ export class AlertsService {
           update: fields,
           include: SUBSCRIPTION_INCLUDE,
         });
-    return toSubscriptionDto(sub);
+    return (await this.mapper(userId))(sub);
   }
 
   async update(
@@ -149,7 +181,7 @@ export class AlertsService {
       data: dto,
       include: SUBSCRIPTION_INCLUDE,
     });
-    return toSubscriptionDto(sub);
+    return (await this.mapper(userId))(sub);
   }
 
   async remove(userId: string, id: string): Promise<void> {
@@ -192,8 +224,11 @@ export class AlertsService {
   }
 }
 
-function toSubscriptionDto(sub: SubscriptionWithOffers): SubscriptionDto {
-  const cheapest = relevantOffers(offersOf(sub), sub.chainIds)[0];
+function toSubscriptionDto(
+  sub: SubscriptionWithOffers,
+  ctx: PriceContext,
+): SubscriptionDto {
+  const cheapest = relevantOffers(offersOf(sub), sub.chainIds, ctx)[0];
   return {
     id: sub.id,
     productId: sub.variant?.product.id ?? sub.product?.id ?? '',
@@ -201,6 +236,7 @@ function toSubscriptionDto(sub: SubscriptionWithOffers): SubscriptionDto {
     title: subscriptionTitle(sub),
     imageUrl: sub.variant?.product.imageUrl ?? sub.product?.imageUrl ?? null,
     targetPrice: sub.targetPrice === null ? null : Number(sub.targetPrice),
+    currency: sub.currency,
     notifyOnPromo: sub.notifyOnPromo,
     isActive: sub.isActive,
     chainIds: sub.chainIds,

@@ -1,5 +1,8 @@
 import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { currentMoney } from '@/lib/session';
 
-export default function ScanPage() {
-  return <BarcodeScanner />;
+export const dynamic = 'force-dynamic';
+
+export default async function ScanPage() {
+  return <BarcodeScanner money={await currentMoney()} />;
 }

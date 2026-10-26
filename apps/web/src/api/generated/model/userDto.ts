@@ -13,12 +13,19 @@ export interface UserDto {
   name: string | null;
   /** @nullable */
   countryCode: string | null;
+  /**
+     * Валюта показу цін; null — валюта країни
+     * @nullable
+     */
+  currencyCode: string | null;
   notifyPush: boolean;
   notifyEmail: boolean;
   /** Лише знижки від N % */
   minDiscount: number;
   /** Улюблені мережі (StoreChain.id) */
   chainIds: string[];
+  /** Категорії з онбордингу (Category.slug) — першими в «Для вас» */
+  interests: string[];
   /** Згода на збір подій для рекомендацій */
   telemetryConsent: boolean;
   createdAt: string;

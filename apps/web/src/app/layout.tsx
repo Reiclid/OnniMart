@@ -17,6 +17,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang={locale} className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
+        {/* Без JS фото не дочекаються decode() — показуємо одразу */}
+        <noscript>
+          <style>{'.photo{opacity:1!important}'}</style>
+        </noscript>
         <I18nProvider locale={locale}>{children}</I18nProvider>
       </body>
     </html>

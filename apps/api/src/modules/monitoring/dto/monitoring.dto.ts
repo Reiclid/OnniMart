@@ -83,6 +83,10 @@ export class ListingsQueryDto {
   @IsOptional()
   @Matches(/^[a-z0-9-]{2,60}$/, { message: 'slug мережі: a-z, 0-9, дефіс' })
   chain?: string;
+  @ApiPropertyOptional({ description: 'ISO-код країни мережі: UA, DE' })
+  @IsOptional()
+  @Matches(/^[A-Z]{2}$/, { message: 'код країни: дві великі латинські літери' })
+  country?: string;
   @ApiPropertyOptional({ description: 'Пошук за назвою або штрихкодом' })
   @IsOptional()
   @IsString()

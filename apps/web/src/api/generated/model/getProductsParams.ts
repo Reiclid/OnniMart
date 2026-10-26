@@ -20,6 +20,10 @@ multiChain?: boolean;
  */
 chain?: string;
 /**
+ * ISO-код країни (UA, DE) — лише товари, що продаються в її мережах
+ */
+country?: string;
+/**
  * Category.slug: drinks, dairy-eggs…
  */
 category?: string;

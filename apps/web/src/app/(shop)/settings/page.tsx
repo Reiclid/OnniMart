@@ -1,69 +1,65 @@
 import { getChains } from '@/api/generated/monitoring/monitoring';
-import { buttonStyles } from '@/components/ui';
-import { getT } from '@/i18n/server';
-import { requireUser } from '@/lib/session';
-import { deleteAccount, saveSettings } from '../actions';
+import Link from 'next/link';
+import { DeleteAccount } from '@/components/DeleteAccount';
+import { Switch } from '@/components/Switch';
+import { listStyles as s, PageHeader } from '@/components/ui';
+import { INTL_LOCALE } from '@/i18n';
+import { getI18n } from '@/i18n/server';
+import { countryList } from '@/lib/country';
+import { currentCountry, requireUser } from '@/lib/session';
+import { saveNotifications } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
-const card = 'divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface';
-const row = 'flex items-center gap-3 px-4 py-3.5 text-body';
-const heading = 'text-caption font-semibold uppercase text-fg-muted';
-
+/** Settings (Figma 08): перемикачі зберігаються одразу, решта рядків веде на підекрани 17–20 */
 export default async function SettingsPage() {
   const user = await requireUser('/settings');
-  const [{ data: chains }, t] = await Promise.all([getChains({ status: ['ACTIVE'] }), getT()]);
+  const [{ data: chains }, { t, locale }, country] = await Promise.all([getChains({ status: ['ACTIVE'] }), getI18n(), currentCountry()]);
+  const preferred = chains.filter((c) => user.chainIds.includes(c.id)).map((c) => c.name);
+  const link = (href: string, label: string, value?: string) => (
+    <Link href={href} className={`${s.row} ${s.link}`}>
+      <span className="flex-1">{label}</span>
+      {value && <span className={s.value}>{value}</span>}
+      <span aria-hidden className="text-fg-muted">›</span>
+    </Link>
+  );
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <h1 className="text-display font-bold">{t('settings.title')}</h1>
-      <form action={saveSettings} className="space-y-6">
-        <section className="space-y-2">
-          <h2 className={heading}>{t('settings.notifications')}</h2>
-          <div className={card}>
-            <label className={row}>
+      <PageHeader back="/profile" backLabel={t('nav.back')} title={t('settings.title')} />
+
+      <section className="space-y-2">
+        <h2 className={s.heading}>{t('settings.notifications')}</h2>
+        <div className={s.card}>
+          <form action={saveNotifications} className="divide-y divide-line">
+            <label className={s.row}>
               <span className="flex-1">{t('settings.push')}</span>
-              <input type="checkbox" name="notifyPush" defaultChecked={user.notifyPush} className="size-5 accent-brand" />
+              <Switch name="notifyPush" defaultChecked={user.notifyPush} label={t('settings.push')} />
             </label>
-            <label className={row}>
+            <label className={s.row}>
               <span className="flex-1">{t('settings.email')}</span>
-              <input type="checkbox" name="notifyEmail" defaultChecked={user.notifyEmail} className="size-5 accent-brand" />
+              <Switch name="notifyEmail" defaultChecked={user.notifyEmail} label={t('settings.email')} />
             </label>
-            <label className={row}>
-              <span className="flex-1">{t('settings.minDiscount')}</span>
-              <select name="minDiscount" defaultValue={user.minDiscount} className="bg-transparent text-body-sm text-fg-muted">
-                {[0, 10, 20, 30, 50].map((v) => (
-                  <option key={v} value={v}>{v === 0 ? t('settings.anyDiscount') : `${v} %`}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </section>
+          </form>
+          {link('/settings/discount', t('settings.minDiscount'), user.minDiscount ? `${user.minDiscount} %` : t('settings.anyDiscount'))}
+        </div>
+      </section>
 
-        <section className="space-y-2">
-          <h2 className={heading}>{t('settings.preferredChains')}</h2>
-          <p className="text-body-sm text-fg-muted">{t('settings.preferredHint')}</p>
-          <div className={card}>
-            {chains.map((chain) => (
-              <label key={chain.id} className={row}>
-                <span className="flex-1">{chain.name}</span>
-                <span className="text-caption text-fg-muted">{chain.countryCode}</span>
-                <input type="checkbox" name="chainIds" value={chain.id} defaultChecked={user.chainIds.includes(chain.id)} className="size-5 accent-brand" />
-              </label>
-            ))}
-          </div>
-        </section>
+      <section className="space-y-2">
+        <h2 className={s.heading}>{t('settings.shopping')}</h2>
+        <div className={s.card}>
+          {link('/settings/country', t('settings.country'), countryList(INTL_LOCALE[locale]).find((c) => c.code === country)?.name)}
+          {link('/settings/chains', t('settings.preferredChains'), preferred.length > 0 ? preferred.join(', ') : t('settings.allChains'))}
+        </div>
+      </section>
 
-        <button type="submit" className={`${buttonStyles.primary} w-full`}>{t('settings.save')}</button>
-      </form>
-
-      <details className="space-y-3">
-        <summary className="cursor-pointer text-body-sm font-semibold text-danger">{t('settings.deleteAccount')}</summary>
-        <p className="text-body-sm text-fg-muted">{t('settings.deleteWarning')}</p>
-        <form action={deleteAccount}>
-          <button type="submit" className={`${buttonStyles.secondary} w-full text-danger`}>{t('settings.deleteConfirm')}</button>
-        </form>
-      </details>
+      <section className="space-y-2">
+        <h2 className={s.heading}>{t('settings.account')}</h2>
+        <div className={s.card}>
+          {link('/settings/privacy', t('privacy.title'))}
+          <DeleteAccount />
+        </div>
+      </section>
     </div>
   );
 }

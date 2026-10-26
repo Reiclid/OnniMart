@@ -197,7 +197,12 @@ export class MonitoringService {
 
 export function buildWhere(query: ListingsQueryDto): Prisma.ListingWhereInput {
   const where: Prisma.ListingWhereInput = {};
-  if (query.chain) where.chain = { slug: query.chain };
+  if (query.chain || query.country) {
+    where.chain = {
+      ...(query.chain && { slug: query.chain }),
+      ...(query.country && { countryCode: query.country }),
+    };
+  }
   if (isTrue(query.promo)) {
     where.isOnPromo = true;
     where.delistedAt = null;

@@ -4,7 +4,7 @@
  * Токени дизайн-системи. Блок @theme ЗГЕНЕРОВАНО з src/design/tokens.ts (bun run tokens) —
  * не редагуйте його вручну. Правила: docs/06-design-system.md.
  */
-@theme {
+@theme static {
   --font-sans: var(--font-inter), Arial, Helvetica, sans-serif;
 
   --color-page: oklch(97.72% 0.0068 247.89); /* #f4f8fc · color/bg/page, color/bg/subtle */
@@ -43,6 +43,28 @@
   --text-body-sm--line-height: 18px;
   --text-caption: 11px; /* Caption */
   --text-caption--line-height: 14px;
+
+  --duration-instant: 90ms;
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 300ms;
+  --duration-page: 340ms;
+  --duration-ambient: 1600ms;
+  --duration-shimmer: 1200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --ease-ambient: cubic-bezier(0.45, 0, 0.55, 1);
+  --duration-spring-pop: 683ms; /* k 500 · c 20 · m 1 */
+  --ease-spring-pop: linear(0, 0.056, 0.198, 0.387, 0.59, 0.782, 0.945, 1.069, 1.152, 1.197, 1.208, 1.194, 1.163, 1.123, 1.081, 1.041, 1.008, 0.983, 0.967, 0.959, 0.957, 0.96, 0.967, 0.975, 0.984, 0.992, 0.999, 1.004, 1.007, 1.009, 1.009, 1.008, 1.007, 1.005, 1.003, 1.001, 1, 0.999, 0.998, 0.998, 0.998, 0.998, 0.999, 1);
+  --duration-spring-snappy: 352ms; /* k 600 · c 40 · m 1 */
+  --ease-spring-snappy: linear(0, 0.062, 0.2, 0.362, 0.519, 0.656, 0.766, 0.851, 0.912, 0.954, 0.982, 0.998, 1.007, 1.011, 1.012, 1.011, 1.009, 1.007, 1.005, 1.004, 1.003, 1.002, 1);
+  --duration-spring-smooth: 435ms; /* k 380 · c 38 · m 1 */
+  --ease-spring-smooth: linear(0, 0.04, 0.132, 0.246, 0.362, 0.472, 0.571, 0.655, 0.726, 0.785, 0.832, 0.87, 0.9, 0.924, 0.942, 0.957, 0.967, 0.976, 0.982, 0.987, 0.99, 0.993, 0.995, 0.996, 0.997, 0.998, 0.999, 1);
+  --duration-spring-sheet: 502ms; /* k 300 · c 34 · m 1 */
+  --ease-spring-sheet: linear(0, 0.033, 0.11, 0.208, 0.312, 0.413, 0.507, 0.591, 0.663, 0.726, 0.778, 0.822, 0.857, 0.887, 0.91, 0.929, 0.945, 0.957, 0.966, 0.974, 0.98, 0.984, 0.988, 0.991, 0.993, 0.995, 0.996, 0.997, 0.998, 0.998, 0.999, 1);
+  --duration-spring-page: 612ms; /* k 260 · c 33 · m 1 */
+  --ease-spring-page: linear(0, 0.028, 0.095, 0.182, 0.275, 0.368, 0.455, 0.535, 0.606, 0.668, 0.722, 0.768, 0.807, 0.84, 0.868, 0.891, 0.91, 0.926, 0.94, 0.951, 0.96, 0.967, 0.973, 0.978, 0.982, 0.985, 0.988, 0.99, 0.992, 0.994, 0.995, 0.996, 0.997, 0.997, 0.998, 0.998, 0.998, 0.999, 1);
 }
 
 :root {
@@ -53,4 +75,68 @@ body {
   background: var(--color-page);
   color: var(--color-fg);
   font-family: var(--font-sans);
+}
+
+/*
+ * Рух (docs/07-motion.md). Лише transform/opacity (scale і translate — окремі властивості, не
+ * перебивають одна одну). Натискання стискає за `instant`, відпускання повертає пружиною.
+ */
+@utility press {
+  transition: scale var(--duration-spring-snappy) var(--ease-spring-snappy), background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+  &:active {
+    scale: var(--press-scale, 0.97);
+    transition-duration: var(--duration-instant);
+    transition-timing-function: var(--ease-standard);
+  }
+}
+/* Картки й рядки: більша площа — менша амплітуда, пружина smooth */
+@utility press-card {
+  transition: scale var(--duration-spring-smooth) var(--ease-spring-smooth), border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
+  &:active {
+    scale: var(--press-scale, 0.98);
+    transition-duration: var(--duration-instant);
+    transition-timing-function: var(--ease-standard);
+  }
+}
+
+/* Поява знизу з каскадом: --i — номер елемента (лише перші кілька), --appear-y — зсув */
+@keyframes appear {
+  from {
+    opacity: 0;
+    translate: 0 var(--appear-y, 12px);
+  }
+}
+@utility appear {
+  animation: appear var(--duration-base) var(--ease-enter) backwards;
+  animation-delay: calc(var(--i, 0) * var(--stagger, 30ms));
+}
+
+/* XS «pop»: іконка вкладки, галочка успіху */
+@keyframes pop-in {
+  from {
+    scale: var(--pop-from, 0.9);
+  }
+}
+@utility pop-in {
+  animation: pop-in var(--duration-spring-pop) var(--ease-spring-pop);
+}
+
+/* Фото проявляється після decode(); до того — плашка page */
+@utility photo {
+  transition: opacity var(--duration-fast) var(--ease-standard);
+  &:not([data-ready]) {
+    opacity: 0;
+  }
+}
+
+/* Без руху: лишаються зміни кольору й прозорості, зникають зсуви, масштаб і цикли */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity, color, background-color, border-color !important;
+  }
 }

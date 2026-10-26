@@ -1,3 +1,5 @@
+import { shownPrice, type Money } from './country';
+
 export function formatPrice(
   value: number | null | undefined,
   currency: string,
@@ -56,23 +58,36 @@ export function formatScore(score: number | null | undefined): string {
 
 /** Вітрина (англійською): "61.90 ₴", "1.59 €" */
 export function formatMoney(value: number, currency: string): string {
-  const symbol =
-    new Intl.NumberFormat('en', { style: 'currency', currency, currencyDisplay: 'narrowSymbol' })
-      .formatToParts(0)
-      .find((part) => part.type === 'currency')?.value ?? currency;
-  return `${value.toFixed(2)} ${symbol}`;
+  return `${value.toFixed(2)} ${currencySymbol(currency)}`;
 }
+
+/**
+ * Цінник у валюті показу: "≈ 80.42 ₴" (перераховано за курсом) або "1.59 €" (рідна валюта);
+ * `original` — справжня ціна мережі для підцінника, якщо перераховано.
+ */
+export function formatShown(value: number, currency: string, money: Money | undefined) {
+  const shown = shownPrice(value, currency, money);
+  return shown.original
+    ? { text: `≈ ${formatMoney(shown.value, shown.currency)}`, original: formatMoney(shown.original.value, shown.original.currency) }
+    : { text: formatMoney(value, currency), original: null };
+}
+
+/** "₴", "€"; `symbol` — однозначний ("A$", "CA$") для списку валют; невідома валюта — її код */
+export const currencySymbol = (currency: string, display: 'narrowSymbol' | 'symbol' = 'narrowSymbol'): string =>
+  new Intl.NumberFormat('en', { style: 'currency', currency, currencyDisplay: display })
+    .formatToParts(0)
+    .find((part) => part.type === 'currency')?.value ?? currency;
 
 const UNITS: Record<string, string> = { л: 'L', кг: 'kg', шт: 'pc' };
 
-/** "49.52 ₴/L" або null, якщо ціну за одиницю не пораховано */
-export function formatUnitPrice(offer: {
-  unitPrice: number | null;
-  unitLabel: string | null;
-  currency: string;
-}): string | null {
+/** "49.52 ₴/L" або null, якщо ціну за одиницю не пораховано; з `money` — у валюті показу, як головний цінник */
+export function formatUnitPrice(
+  offer: { unitPrice: number | null; unitLabel: string | null; currency: string },
+  money?: Money,
+): string | null {
   if (offer.unitPrice === null || !offer.unitLabel) return null;
-  return `${formatMoney(offer.unitPrice, offer.currency)}/${UNITS[offer.unitLabel] ?? offer.unitLabel}`;
+  const unit = shownPrice(offer.unitPrice, offer.currency, money);
+  return `${formatMoney(unit.value, unit.currency)}/${UNITS[offer.unitLabel] ?? offer.unitLabel}`;
 }
 
 /** Підпис різновиду в лінійці ("Zero", "банан"); якщо він не унікальний — повна назва */

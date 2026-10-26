@@ -118,3 +118,58 @@ describe('OffIndex', () => {
     ).not.toBe('match');
   });
 });
+
+describe('OffIndex: дублікати й ознаки (PRD-27, ітерація 2)', () => {
+  it('дублікат з іншою назвою, який рушій звів би в одне фасування, — теж GTIN товару', () => {
+    const index = new OffIndex();
+    index.add(
+      off(
+        '04820000000011',
+        'Молоко 2,5% ультрапастеризоване',
+        ['Селянське'],
+        '900 г',
+        'UA',
+      ),
+    );
+    index.add(
+      off(
+        '04820000000028',
+        'Молоко 2,5% жиру, ультрапастеризоване',
+        ['Селянське'],
+        '900 г',
+        'UA',
+      ),
+    );
+    const decision = index.decide(
+      listing(
+        'Молоко Селянське ультрапастеризоване 2.5% 900г',
+        'Селянське',
+        'UA',
+      ),
+      idf,
+    );
+    expect(decision.kind).toBe('match');
+    expect(decision.kind === 'match' && decision.gtins.sort()).toEqual([
+      '04820000000011',
+      '04820000000028',
+    ]);
+  });
+
+  it('газованість названа лише з одного боку — не збіг', () => {
+    const index = new OffIndex();
+    index.add(
+      off(
+        '04000000000003',
+        'Aquintus Mineralwasser classic',
+        ['Aquintus'],
+        '1 l',
+      ),
+    );
+    expect(
+      index.decide(
+        listing('Aquintus Mineralwasser Medium 1 l', 'Aquintus'),
+        idf,
+      ).kind,
+    ).toBe('none');
+  });
+});

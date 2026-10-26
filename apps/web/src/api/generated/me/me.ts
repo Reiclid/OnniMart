@@ -8,6 +8,7 @@
 import type {
   CreateSubscriptionDto,
   EventBatchDto,
+  FavouriteIdsDto,
   GetMyProductsParams,
   NotificationDto,
   ProductPageDto,
@@ -434,6 +435,146 @@ export const getClearViewsUrl = () => {
 export const clearViews = async ( options?: Parameters<typeof customFetch>[1]): Promise<clearViewsResponse> => {
 
   return customFetch<clearViewsResponse>(getClearViewsUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export type getFavouritesResponse200 = {
+  data: ProductSummaryDto[]
+  status: 200
+}
+
+export type getFavouritesResponseSuccess = (getFavouritesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getFavouritesResponse = (getFavouritesResponseSuccess)
+
+export const getGetFavouritesUrl = () => {
+
+
+
+
+  return `/api/v1/me/favourites`
+}
+
+/**
+ * @summary Обране (найновіші першими)
+ */
+export const getFavourites = async ( options?: Parameters<typeof customFetch>[1]): Promise<getFavouritesResponse> => {
+
+  return customFetch<getFavouritesResponse>(getGetFavouritesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type getFavouriteIdsResponse200 = {
+  data: FavouriteIdsDto
+  status: 200
+}
+
+export type getFavouriteIdsResponseSuccess = (getFavouriteIdsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getFavouriteIdsResponse = (getFavouriteIdsResponseSuccess)
+
+export const getGetFavouriteIdsUrl = () => {
+
+
+
+
+  return `/api/v1/me/favourites/ids`
+}
+
+/**
+ * @summary Id товарів в обраному — стан «серця»
+ */
+export const getFavouriteIds = async ( options?: Parameters<typeof customFetch>[1]): Promise<getFavouriteIdsResponse> => {
+
+  return customFetch<getFavouriteIdsResponse>(getGetFavouriteIdsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type addFavouriteResponse404 = {
+  data: void
+  status: 404
+}
+
+;
+export type addFavouriteResponseError = (addFavouriteResponse404) & {
+  headers: Headers;
+};
+
+export type addFavouriteResponse = (addFavouriteResponseError)
+
+export const getAddFavouriteUrl = (productId: string,) => {
+
+
+
+
+  return `/api/v1/me/favourites/${productId}`
+}
+
+/**
+ * @summary Додати товар в обране
+ */
+export const addFavourite = async (productId: string, options?: Parameters<typeof customFetch>[1]): Promise<addFavouriteResponse> => {
+
+  return customFetch<addFavouriteResponse>(getAddFavouriteUrl(productId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+export type removeFavouriteResponse204 = {
+  data: void
+  status: 204
+}
+
+export type removeFavouriteResponseSuccess = (removeFavouriteResponse204) & {
+  headers: Headers;
+};
+;
+
+export type removeFavouriteResponse = (removeFavouriteResponseSuccess)
+
+export const getRemoveFavouriteUrl = (productId: string,) => {
+
+
+
+
+  return `/api/v1/me/favourites/${productId}`
+}
+
+/**
+ * @summary Прибрати товар з обраного
+ */
+export const removeFavourite = async (productId: string, options?: Parameters<typeof customFetch>[1]): Promise<removeFavouriteResponse> => {
+
+  return customFetch<removeFavouriteResponse>(getRemoveFavouriteUrl(productId),
   {
     ...options,
     method: 'DELETE'

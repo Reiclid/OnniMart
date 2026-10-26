@@ -8,6 +8,7 @@ const offer = (
   listingId: `l-${chainId}`,
   chainId,
   chainName: chainId.toUpperCase(),
+  country: 'UA',
   currency: 'UAH',
   price,
   regularPrice: null,
@@ -71,5 +72,47 @@ describe('decideAlert', () => {
     expect(
       decideAlert(sub({ targetPrice: 50, chainIds: ['silpo'] }), offers, 0),
     ).toBeNull();
+  });
+
+  it('ціль у валюті підписки: ціни інших валют перераховано за курсом', () => {
+    const ctx = {
+      currency: 'USD',
+      country: 'UA',
+      perEur: { EUR: 1, UAH: 50, USD: 1.1 },
+    };
+    // 66 ₴ = 1.32 €= 1.452 $ → 1.45 $
+    const offers = [offer('silpo', 66), offer('eko', 70)];
+    expect(relevantOffers(offers, [], ctx)[0]).toMatchObject({
+      chainId: 'silpo',
+      value: 1.45,
+    });
+    expect(
+      decideAlert(sub({ targetPrice: 1.5 }), offers, 0, ctx),
+    ).toMatchObject({
+      type: 'TARGET_PRICE_REACHED',
+      offer: { chainId: 'silpo', price: 66 },
+    });
+    expect(decideAlert(sub({ targetPrice: 1.4 }), offers, 0, ctx)).toBeNull();
+    // Без курсу порівнювати нема з чим
+    expect(relevantOffers(offers, [], { ...ctx, perEur: null })).toEqual([]);
+  });
+
+  it('без вибраних мереж — лише мережі країни покупця', () => {
+    const ctx = { currency: 'EUR', country: 'DE', perEur: { EUR: 1, UAH: 50 } };
+    const offers = [
+      offer('silpo', 40),
+      offer('aldi', 1.5, { currency: 'EUR', country: 'DE' }),
+    ];
+    expect(relevantOffers(offers, [], ctx).map((o) => o.chainId)).toEqual([
+      'aldi',
+    ]);
+    // Вибрані мережі важливіші за країну
+    expect(
+      relevantOffers(offers, ['silpo'], ctx).map((o) => o.chainId),
+    ).toEqual(['silpo']);
+    // У країні покупця товару немає — усі мережі
+    expect(relevantOffers([offers[0]], [], ctx).map((o) => o.value)).toEqual([
+      0.8,
+    ]);
   });
 });

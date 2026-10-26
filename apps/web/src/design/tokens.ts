@@ -75,6 +75,51 @@ export const elevation: Record<string, { figma: string; css: string }> = {
   overlay: { figma: 'Elevation/2 — overlay', css: '0 8px 32px rgb(13 64 128 / 0.16)' },
 };
 
+/** Рух (docs/07-motion.md §3): тривалості твінів, мс */
+export const durations = { instant: 90, fast: 150, base: 220, slow: 300, page: 340, ambient: 1600, shimmer: 1200 } as const;
+
+/** Криві твінів (cubic-bezier) — ті самі в переходах прототипу Figma */
+export const easings = {
+  standard: [0.2, 0, 0, 1],
+  enter: [0.05, 0.7, 0.1, 1],
+  exit: [0.3, 0, 0.8, 0.15],
+  ambient: [0.45, 0, 0.55, 1],
+} as const;
+
+/** Пружини: жорсткість / демпфування / маса (Figma Spring); у CSS — крива linear() і її тривалість */
+export const springs = {
+  pop: { stiffness: 500, damping: 20, mass: 1 },
+  snappy: { stiffness: 600, damping: 40, mass: 1 },
+  smooth: { stiffness: 380, damping: 38, mass: 1 },
+  sheet: { stiffness: 300, damping: 34, mass: 1 },
+  page: { stiffness: 260, damping: 33, mass: 1 },
+} as const;
+
+/**
+ * Перехідна характеристика пружини з 0 до 1 (аналітичний розв'язок m·x'' + c·x' + k·(x − 1) = 0):
+ * тривалість — доки відхилення не лишиться < 0,1 %, крива — точки кожні ~16 мс для linear().
+ */
+export function springCurve({ stiffness, damping, mass }: { stiffness: number; damping: number; mass: number }) {
+  const w0 = Math.sqrt(stiffness / mass);
+  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
+  const x = (t: number) => {
+    if (zeta < 1) {
+      const wd = w0 * Math.sqrt(1 - zeta * zeta);
+      return 1 - Math.exp(-zeta * w0 * t) * (Math.cos(wd * t) + ((zeta * w0) / wd) * Math.sin(wd * t));
+    }
+    if (zeta === 1) return 1 - Math.exp(-w0 * t) * (1 + w0 * t);
+    const r1 = -w0 * (zeta - Math.sqrt(zeta * zeta - 1));
+    const r2 = -w0 * (zeta + Math.sqrt(zeta * zeta - 1));
+    return 1 - (r2 * Math.exp(r1 * t) - r1 * Math.exp(r2 * t)) / (r2 - r1);
+  };
+  // Останній момент, коли крива ще далі за 0,1 % від 1 (крок 1 мс, межа 2 с)
+  let settle = 0;
+  for (let ms = 0; ms <= 2000; ms++) if (Math.abs(1 - x(ms / 1000)) > 0.001) settle = ms + 1;
+  const steps = Math.max(8, Math.round(settle / 16));
+  const points = Array.from({ length: steps + 1 }, (_, i) => (i === steps ? 1 : Math.round(x((settle * i) / steps / 1000) * 1000) / 1000));
+  return { ms: settle, css: `linear(${points.join(', ')})` };
+}
+
 /** Блок @theme для globals.css: класи Tailwind з цих токенів */
 export function themeCss(): string {
   const lines = ['  --font-sans: var(--font-inter), Arial, Helvetica, sans-serif;', ''];
@@ -90,5 +135,14 @@ export function themeCss(): string {
   for (const [name, t] of Object.entries(type)) {
     lines.push(`  --text-${name}: ${t.size}px; /* ${t.figma} */`, `  --text-${name}--line-height: ${t.lineHeight}px;`);
   }
-  return `@theme {\n${lines.join('\n')}\n}`;
+  // Рух: ease-<ім'я> і duration-(--duration-<ім'я>); пружина — ease-spring-<ім'я> + duration-(--duration-spring-<ім'я>)
+  lines.push('');
+  for (const [name, ms] of Object.entries(durations)) lines.push(`  --duration-${name}: ${ms}ms;`);
+  for (const [name, b] of Object.entries(easings)) lines.push(`  --ease-${name}: cubic-bezier(${b.join(', ')});`);
+  for (const [name, spring] of Object.entries(springs)) {
+    const { ms, css } = springCurve(spring);
+    lines.push(`  --duration-spring-${name}: ${ms}ms; /* k ${spring.stiffness} · c ${spring.damping} · m ${spring.mass} */`, `  --ease-spring-${name}: ${css};`);
+  }
+  // static: змінні руху потрібні й тим правилам, що беруть їх через var(), а не класом
+  return `@theme static {\n${lines.join('\n')}\n}`;
 }

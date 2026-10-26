@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { withFields } from '../../logger';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RatesService } from '../rates/rates.service';
 import { decideAlert, discountOf } from './alerts';
 import {
   offersOf,
+  priceContext,
   SUBSCRIPTION_INCLUDE,
   subscriptionTitle,
 } from './alerts.service';
@@ -16,17 +18,23 @@ import {
 export class AlertsChecker {
   private readonly logger = new Logger(AlertsChecker.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly rates: RatesService,
+  ) {}
 
   async check(): Promise<number> {
     // shortcut: усі активні підписки за раз; при тисячах користувачів — лише товари, чия ціна змінилась
-    const subs = await this.prisma.subscription.findMany({
-      where: { isActive: true },
-      include: {
-        ...SUBSCRIPTION_INCLUDE,
-        user: { select: { minDiscount: true } },
-      },
-    });
+    const [subs, rates] = await Promise.all([
+      this.prisma.subscription.findMany({
+        where: { isActive: true },
+        include: {
+          ...SUBSCRIPTION_INCLUDE,
+          user: { select: { minDiscount: true, countryCode: true } },
+        },
+      }),
+      this.rates.current(),
+    ]);
     const data = subs.flatMap((sub) => {
       const alert = decideAlert(
         {
@@ -38,6 +46,7 @@ export class AlertsChecker {
         },
         offersOf(sub),
         sub.user.minDiscount,
+        priceContext(sub, sub.user.countryCode, rates?.perEur ?? null),
       );
       if (!alert) return [];
       const { offer } = alert;
@@ -50,7 +59,7 @@ export class AlertsChecker {
           title: `${subscriptionTitle(sub)}: ${price} at ${offer.chainName}`,
           body:
             alert.type === 'TARGET_PRICE_REACHED'
-              ? `Below your target ${Number(sub.targetPrice).toFixed(2)} ${offer.currency}`
+              ? `Below your target ${Number(sub.targetPrice).toFixed(2)} ${sub.currency ?? offer.currency}`
               : `−${discountOf(offer)}% promo`,
           payload: {
             productId: sub.variant?.product.id ?? sub.productId,

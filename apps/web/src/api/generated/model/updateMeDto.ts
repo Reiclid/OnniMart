@@ -9,6 +9,11 @@
 export interface UpdateMeDto {
   name?: string;
   countryCode?: string;
+  /**
+     * Валюта показу цін; null — валюта країни
+     * @nullable
+     */
+  currencyCode?: string | null;
   notifyPush?: boolean;
   notifyEmail?: boolean;
   /**
@@ -17,6 +22,8 @@ export interface UpdateMeDto {
      */
   minDiscount?: number;
   chainIds?: string[];
+  /** Category.slug */
+  interests?: string[];
   /** Згода на збір подій; false — відкликати й видалити зібрані */
   telemetryConsent?: boolean;
 }
