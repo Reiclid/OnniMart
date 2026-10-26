@@ -6,6 +6,7 @@ import type { ScrapedProductMessage } from '@repo/contracts';
 import { CatalogService } from '../src/modules/catalog/catalog.service';
 import { MatchingClient } from '../src/modules/catalog/matching/matching.client';
 import { MatchingService } from '../src/modules/catalog/matching/matching.service';
+import { DecisionsService } from '../src/modules/catalog/matching/decisions.service';
 import { ModerationService } from '../src/modules/catalog/matching/moderation.service';
 import { IngestionService } from '../src/modules/scraper/services/ingestion.service';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -218,6 +219,51 @@ const COLA_EAN = '5449000000996';
         ).id,
       },
     });
+  });
+
+  it('скасування рішення модератора повертає картку в чергу з тими самими кандидатами', async () => {
+    const client = {
+      request: () => Promise.resolve(),
+    } as unknown as MatchingClient;
+    const moderation = new ModerationService(prisma, client);
+    const decisions = new DecisionsService(prisma, client);
+    const cola = await prisma.listing.findFirstOrThrow({
+      where: { rawName: 'Напій Coca-Cola 0,5л' },
+    });
+    // Нова картка без штрихкоду, яку модератор вирішує вручну
+    await ingestion.ingest(
+      product('silpo', {
+        name: 'Кола Coca-Cola пет 0,5л',
+        brand: 'Coca-Cola',
+        price: 30,
+      }),
+    );
+    const fresh = await prisma.listing.findFirstOrThrow({
+      where: { rawName: 'Кола Coca-Cola пет 0,5л' },
+    });
+    const candidate = await prisma.matchCandidate.create({
+      data: { listingId: fresh.id, variantId: cola.variantId, score: 0.8 },
+    });
+
+    await moderation.acceptCandidate(candidate.id);
+    expect(
+      (await prisma.listing.findUniqueOrThrow({ where: { id: fresh.id } }))
+        .variantId,
+    ).toBe(cola.variantId);
+
+    await decisions.undoMatch(candidate.id);
+    const back = await prisma.listing.findUniqueOrThrow({
+      where: { id: fresh.id },
+    });
+    expect(back).toMatchObject({ variantId: null, matchStatus: 'PENDING' });
+    expect(
+      await prisma.matchCandidate.findUniqueOrThrow({
+        where: { id: candidate.id },
+      }),
+    ).toMatchObject({ status: 'SUGGESTED', decidedAt: null });
+    // Картка в черзі — повторне скасування неможливе
+    await expect(decisions.undoMatch(candidate.id)).rejects.toThrow();
+    await prisma.listing.delete({ where: { id: fresh.id } });
   });
 
   it('відвʼязування не стирає рішення модератора й підписки', async () => {
