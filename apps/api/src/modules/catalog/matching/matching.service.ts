@@ -52,6 +52,7 @@ const rowSelect = {
   netQuantity: true,
   packCount: true,
   isWeighted: true,
+  delistedAt: true,
   chain: { select: { slug: true, countryCode: true } },
 } satisfies Prisma.ListingSelect;
 
@@ -599,14 +600,18 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       for (const country of countries) {
         index.addName(variant.id, productFeatures, country);
       }
-      for (const listing of linked) {
+      variant.listings.forEach((row, i) => {
+        const listing = linked[i];
+        // Мережа «зайнята» лише активною карткою: знята (ALDI щотижня перевиставляє товар
+        // з новим ID) не заважає новій картці тієї ж мережі приєднатися до свого товару —
+        // інакше дублікат товару і розірвана історія цін. Назва знятої картки лишається в індексі
         index.addName(
           variant.id,
           listing.features,
           listing.country,
-          listing.chainId,
+          row.delistedAt ? undefined : listing.chainId,
         );
-      }
+      });
     }
   }
 

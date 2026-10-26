@@ -183,6 +183,43 @@ const COLA_EAN = '5449000000996';
     expect((await catalog.getProducts({ multiChain: true })).total).toBe(1);
   });
 
+  it('мережа перевиставила товар з новим ID — та сама позиція каталогу, не дублікат', async () => {
+    const old = await prisma.listing.findFirstOrThrow({
+      where: { rawName: { contains: 'Моршинська' }, delistedAt: { not: null } },
+      select: { variantId: true },
+    });
+    await ingestion.ingest(
+      product('novus', {
+        name: 'Вода мінеральна Моршинська негазована 1,5л',
+        external: 'novus-morshynska-relisted',
+        brand: 'Моршинська',
+        price: 24,
+      }),
+    );
+    await matching.run();
+
+    const relisted = await prisma.listing.findFirstOrThrow({
+      where: { externalId: 'novus-morshynska-relisted' },
+      select: { variantId: true },
+    });
+    expect(relisted.variantId).toBe(old.variantId);
+    expect(
+      await prisma.product.count({
+        where: { name: { contains: 'Моршинська' } },
+      }),
+    ).toBe(1);
+    // Наступний тест розраховує на одну картку Моршинської
+    await prisma.listing.delete({
+      where: {
+        id: (
+          await prisma.listing.findFirstOrThrow({
+            where: { externalId: 'novus-morshynska-relisted' },
+          })
+        ).id,
+      },
+    });
+  });
+
   it('відвʼязування не стирає рішення модератора й підписки', async () => {
     const moderation = new ModerationService(prisma, {
       request: () => Promise.resolve(),
