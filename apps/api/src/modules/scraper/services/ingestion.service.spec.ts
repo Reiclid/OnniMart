@@ -255,6 +255,22 @@ describe('IngestionService', () => {
     expect(prisma.scrapeRun.findUnique).toHaveBeenCalledTimes(1);
   });
 
+  it('прогрес на ходу: записані товари запуску додаються до itemsSeen до підсумку', async () => {
+    for (const external of ['1', '2', '3'])
+      await service.ingest(product({ run_id: RUN_ID, external }));
+    await service.handleRunEvent(
+      event({ kind: 'run_finished', items_seen: 3 }),
+    );
+
+    const updates = prisma.scrapeRun.update.mock.calls.map((c) => c[0].data);
+    const increments = updates
+      .map((d: Args) => d.itemsSeen?.increment as number | undefined)
+      .filter((n): n is number => n !== undefined);
+    // Перший товар пишеться одразу, решта — разом перед run_finished
+    expect(increments).toEqual([1, 2]);
+    expect(updates.at(-1)).toMatchObject({ status: 'SUCCESS', itemsSeen: 3 });
+  });
+
   it('ігнорує run_id, якого немає в базі', async () => {
     await service.ingest(product({ run_id: 'missing' }));
     const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];

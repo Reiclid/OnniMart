@@ -23,4 +23,19 @@ export interface ScrapeRunDto {
   itemsFailed: number;
   /** @nullable */
   error: string | null;
+  /**
+     * Обхід триває: скільки товарів було в попередньому вдалому обході
+     * @nullable
+     */
+  expectedItems: number | null;
+  /**
+     * Обхід триває: частка 0..0,99 від попереднього обходу
+     * @nullable
+     */
+  fraction: number | null;
+  /**
+     * Обхід триває: приблизно секунд до кінця
+     * @nullable
+     */
+  etaSeconds: number | null;
 }

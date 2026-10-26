@@ -25,6 +25,9 @@ export const MIN_SEEN_SHARE_TO_DELIST = 0.5;
  */
 export const PROMO_GRACE_MS = 30 * 60 * 60 * 1000;
 
+/** Як часто воркер пише прогрес обходу (товарів записано) у scrape_runs */
+export const PROGRESS_FLUSH_MS = 2000;
+
 /**
  * Зберігає товар, отриманий від парсера:
  *   1. upsert картки мережі (Listing) за (мережа, externalId);
@@ -42,6 +45,12 @@ export class IngestionService {
     string,
     { chain: { id: string } | null; at: number }
   >();
+  /**
+   * Прогрес обходу на ходу: скільки товарів запуску вже записано. Лічильник у БД оновлюється
+   * раз на PROGRESS_FLUSH_MS (а не на кожен товар); у кінці запуску його перепише run_finished
+   */
+  private readonly progress = new Map<string, number>();
+  private progressFlushedAt = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -77,6 +86,11 @@ export class IngestionService {
       : null;
     const seenAt = parseDate(item.scraper_at);
     const runId = await this.existingRun(item.run_id);
+    if (runId) {
+      this.progress.set(runId, (this.progress.get(runId) ?? 0) + 1);
+      if (Date.now() - this.progressFlushedAt > PROGRESS_FLUSH_MS)
+        await this.flushProgress();
+    }
 
     const key = { chainId: chain.id, externalId: item.external };
     const existing = await this.prisma.listing.findUnique({
@@ -173,10 +187,25 @@ export class IngestionService {
     });
   }
 
+  /** Записує накопичені лічильники прогресу (itemsSeen += n) */
+  async flushProgress(): Promise<void> {
+    this.progressFlushedAt = Date.now();
+    const pending = [...this.progress];
+    this.progress.clear();
+    for (const [id, n] of pending) {
+      await this.prisma.scrapeRun.update({
+        where: { id },
+        data: { itemsSeen: { increment: n } },
+      });
+    }
+  }
+
   /** Оновлює ScrapeRun за подією від парсера */
   async handleRunEvent(event: RunEventMessage): Promise<void> {
     const runId = await this.existingRun(event.run_id);
     if (!runId) return;
+    // Товари цього запуску прийшли раніше за подію: спершу їхній прогрес, потім підсумок
+    await this.flushProgress();
 
     const at = parseDate(event.at);
     const counters = {
