@@ -1,7 +1,7 @@
 /** Порівняння двох назв для модератора: які слова є в обох, а яких немає в іншій назві */
 
-const WORD = /[\p{L}\p{N}]+(?:['’ʼ]\p{L}+)*(?:[.,]\p{N}+)?/gu;
-const fold = (s: string) => s.toLocaleLowerCase('uk').replace(/ё/g, 'е').replace(/[’'ʼ]/g, '');
+const WORD = /[\p{L}\p{N}]+(?:['’ʼ´`‘]\p{L}+)*(?:[.,]\p{N}+)?/gu;
+const fold = (s: string) => s.toLocaleLowerCase('uk').replace(/ё/g, 'е').replace(/[’'ʼ´`‘]/g, '');
 
 export interface Token {
   text: string;

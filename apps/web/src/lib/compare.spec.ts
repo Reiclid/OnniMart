@@ -18,5 +18,7 @@ describe('sameValue', () => {
     expect(sameValue('Coca-Cola', 'coca-cola')).toBe(true);
     expect(sameValue('0,5 л', '1 л')).toBe(false);
     expect(sameValue(null, '1 л')).toBeNull();
+    // ALDI SÜD: апостроф гострим наголосом
+    expect(sameValue('JACK´S FARM', "JACK'S FARM")).toBe(true);
   });
 });
