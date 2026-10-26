@@ -20,6 +20,7 @@ import { PriceHistoryService } from './price-history.service';
 import {
   BarcodeLookupDto,
   BarcodeReviewPageDto,
+  DecisionPageDto,
   PriceHistoryDto,
   MatchingStatusDto,
   ProductDetailsDto,
@@ -33,6 +34,7 @@ import {
 } from './dto/catalog.dto';
 import { MatchingClient } from './matching/matching.client';
 import { BarcodeReviewService } from './matching/barcode-review.service';
+import { DecisionsService } from './matching/decisions.service';
 import { ModerationService } from './matching/moderation.service';
 
 @ApiTags('catalog')
@@ -133,6 +135,7 @@ export class MatchingController {
     private readonly matching: MatchingClient,
     private readonly moderation: ModerationService,
     private readonly barcodes: BarcodeReviewService,
+    private readonly decisions: DecisionsService,
   ) {}
 
   @Get('status')
@@ -202,6 +205,49 @@ export class MatchingController {
   @ApiResponse({ status: 204 })
   async reject(@Param('id') id: string): Promise<void> {
     await this.moderation.rejectCandidates(id);
+  }
+
+  @Get('decisions')
+  @ApiOperation({
+    summary:
+      'Журнал рішень модераторів (зіставлення або штрихкоди OFF), найновіші першими',
+    operationId: 'getDecisions',
+  })
+  @ApiQuery({ name: 'kind', required: false, enum: ['match', 'barcode'] })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number })
+  @ApiResponse({ status: 200, type: DecisionPageDto })
+  getDecisions(
+    @Query('kind') kind?: string,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+  ): Promise<DecisionPageDto> {
+    return this.decisions.list(
+      kind === 'barcode' ? 'barcode' : 'match',
+      page,
+      pageSize,
+    );
+  }
+
+  @MutationLimit()
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
+  @Post('decisions/:id/undo')
+  @HttpCode(204)
+  @ApiOperation({
+    summary:
+      'Скасувати рішення модератора: картка (або фасування для штрихкодів OFF) повертається в чергу',
+    operationId: 'undoDecision',
+  })
+  @ApiQuery({ name: 'kind', required: false, enum: ['match', 'barcode'] })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 409, description: 'Рішення вже неактуальне' })
+  async undoDecision(
+    @Param('id') id: string,
+    @Query('kind') kind?: string,
+  ): Promise<void> {
+    if (kind === 'barcode') await this.decisions.undoBarcode(id);
+    else await this.decisions.undoMatch(id);
   }
 
   @Get('barcodes')

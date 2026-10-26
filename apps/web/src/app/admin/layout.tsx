@@ -6,6 +6,7 @@ const NAV = [
   { href: "/admin/listings", label: "Картки мереж" },
   { href: "/admin/matching", label: "Зіставлення" },
   { href: "/admin/barcodes", label: "Штрихкоди OFF" },
+  { href: "/admin/decisions", label: "Рішення" },
 ];
 
 /** Службова частина: перевірка даних, запуск парсера, модерація зіставлень */

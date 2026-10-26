@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { MatchingClient } from './matching.client';
 
@@ -133,27 +134,33 @@ export class ModerationService {
           matchedAt: null,
         },
       });
-      const left = await tx.listing.count({ where: { variantId } });
-      // Порожнє фасування видаляємо, лише якщо на нього ніхто не підписаний
-      const subscribed = await tx.subscription.count({ where: { variantId } });
-      if (left === 0 && subscribed === 0) {
-        // Пропозиції цього фасування ще не рішення — картки зіставляться заново;
-        // ACCEPTED / REJECTED лишаються (variantId → null) як розмічені дані
-        await tx.matchCandidate.deleteMany({
-          where: { variantId, status: 'SUGGESTED' },
-        });
-        const variant = await tx.productVariant.delete({
-          where: { id: variantId },
-        });
-        const [variants, productSubscriptions] = await Promise.all([
-          tx.productVariant.count({ where: { productId: variant.productId } }),
-          tx.subscription.count({ where: { productId: variant.productId } }),
-        ]);
-        if (variants === 0 && productSubscriptions === 0) {
-          await tx.product.delete({ where: { id: variant.productId } });
-        }
-      }
+      await removeIfEmpty(tx, variantId);
     });
     await this.matching.request();
+  }
+}
+
+/**
+ * Фасування без карток видаляємо, лише якщо на нього ніхто не підписаний; товар без фасувань —
+ * так само. Пропозиції цього фасування ще не рішення — картки зіставляться заново;
+ * ACCEPTED / REJECTED лишаються (variantId → null) як розмічені дані
+ */
+export async function removeIfEmpty(
+  tx: Prisma.TransactionClient,
+  variantId: string,
+): Promise<void> {
+  const left = await tx.listing.count({ where: { variantId } });
+  const subscribed = await tx.subscription.count({ where: { variantId } });
+  if (left > 0 || subscribed > 0) return;
+  await tx.matchCandidate.deleteMany({
+    where: { variantId, status: 'SUGGESTED' },
+  });
+  const variant = await tx.productVariant.delete({ where: { id: variantId } });
+  const [variants, productSubscriptions] = await Promise.all([
+    tx.productVariant.count({ where: { productId: variant.productId } }),
+    tx.subscription.count({ where: { productId: variant.productId } }),
+  ]);
+  if (variants === 0 && productSubscriptions === 0) {
+    await tx.product.delete({ where: { id: variant.productId } });
   }
 }

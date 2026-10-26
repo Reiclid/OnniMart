@@ -13,4 +13,9 @@ export interface BarcodeCandidateDto {
   score: number;
   /** Як в OFF: «бренди · назва» */
   offName: string;
+  /**
+     * Мале фото з OFF, якщо є
+     * @nullable
+     */
+  imageUrl: string | null;
 }

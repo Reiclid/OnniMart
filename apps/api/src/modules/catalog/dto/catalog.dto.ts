@@ -281,6 +281,12 @@ export class BarcodeCandidateDto {
   @ApiProperty() gtin!: string;
   @ApiProperty({ description: 'Схожість 0..1' }) score!: number;
   @ApiProperty({ description: 'Як в OFF: «бренди · назва»' }) offName!: string;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Мале фото з OFF, якщо є',
+  })
+  imageUrl!: string | null;
 }
 
 export class BarcodeReviewListingDto {
@@ -356,4 +362,51 @@ export class PriceHistoryDto {
   @ApiProperty({ enum: [30, 90, 365] }) days!: number;
   @ApiProperty({ type: [PriceSeriesDto] }) series!: PriceSeriesDto[];
   @ApiProperty({ type: [PriceStatsDto] }) stats!: PriceStatsDto[];
+}
+
+/** Журнал рішень модераторів: картка мережі (для штрихкодів OFF — null) */
+export class DecisionListingDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() chainName!: string;
+  @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+  @ApiProperty({ type: Number, nullable: true }) price!: number | null;
+  @ApiProperty() currency!: string;
+}
+
+export class DecisionProductDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty({ type: String, nullable: true }) brand!: string | null;
+  @ApiProperty() variantLabel!: string;
+  @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+}
+
+export class DecisionDto {
+  @ApiProperty() id!: string;
+  @ApiProperty({ enum: ['match', 'barcode'] }) kind!: string;
+  @ApiProperty({ enum: ['ACCEPTED', 'REJECTED'] }) status!: string;
+  @ApiProperty({
+    description: 'Відвʼязано на сторінці товару (а не відхилено в черзі)',
+  })
+  unlinked!: boolean;
+  @ApiProperty() decidedAt!: string;
+  @ApiProperty() score!: number;
+  @ApiProperty({ type: DecisionListingDto, nullable: true })
+  listing!: DecisionListingDto | null;
+  @ApiProperty({
+    type: DecisionProductDto,
+    nullable: true,
+    description: 'null — товар уже видалено',
+  })
+  product!: DecisionProductDto | null;
+  @ApiProperty({ type: String, nullable: true }) gtin!: string | null;
+  @ApiProperty({ type: String, nullable: true }) offName!: string | null;
+}
+
+export class DecisionPageDto {
+  @ApiProperty({ type: [DecisionDto] }) items!: DecisionDto[];
+  @ApiProperty() total!: number;
+  @ApiProperty() page!: number;
+  @ApiProperty() pageSize!: number;
 }

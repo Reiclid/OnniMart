@@ -7,11 +7,14 @@
  */
 import type {
   BarcodeReviewPageDto,
+  DecisionPageDto,
   GetBarcodeReviewQueueParams,
+  GetDecisionsParams,
   GetReviewQueueParams,
   MatchingStatusDto,
   ReviewPageDto,
-  RunMatchingResponseDto
+  RunMatchingResponseDto,
+  UndoDecisionParams
 } from '../model';
 
 import { customFetch } from '../../custom-fetch';
@@ -210,6 +213,104 @@ export const getRejectCandidatesUrl = (id: string,) => {
 export const rejectCandidates = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<rejectCandidatesResponse> => {
 
   return customFetch<rejectCandidatesResponse>(getRejectCandidatesUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export type getDecisionsResponse200 = {
+  data: DecisionPageDto
+  status: 200
+}
+
+export type getDecisionsResponseSuccess = (getDecisionsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getDecisionsResponse = (getDecisionsResponseSuccess)
+
+export const getGetDecisionsUrl = (params?: GetDecisionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/matching/decisions?${stringifiedParams}` : `/api/v1/matching/decisions`
+}
+
+/**
+ * @summary Журнал рішень модераторів (зіставлення або штрихкоди OFF), найновіші першими
+ */
+export const getDecisions = async (params?: GetDecisionsParams, options?: Parameters<typeof customFetch>[1]): Promise<getDecisionsResponse> => {
+
+  return customFetch<getDecisionsResponse>(getGetDecisionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type undoDecisionResponse204 = {
+  data: void
+  status: 204
+}
+
+export type undoDecisionResponse401 = {
+  data: void
+  status: 401
+}
+
+export type undoDecisionResponse409 = {
+  data: void
+  status: 409
+}
+
+export type undoDecisionResponseSuccess = (undoDecisionResponse204) & {
+  headers: Headers;
+};
+export type undoDecisionResponseError = (undoDecisionResponse401 | undoDecisionResponse409) & {
+  headers: Headers;
+};
+
+export type undoDecisionResponse = (undoDecisionResponseSuccess | undoDecisionResponseError)
+
+export const getUndoDecisionUrl = (id: string,
+    params?: UndoDecisionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/matching/decisions/${id}/undo?${stringifiedParams}` : `/api/v1/matching/decisions/${id}/undo`
+}
+
+/**
+ * @summary Скасувати рішення модератора: картка (або фасування для штрихкодів OFF) повертається в чергу
+ */
+export const undoDecision = async (id: string,
+    params?: UndoDecisionParams, options?: Parameters<typeof customFetch>[1]): Promise<undoDecisionResponse> => {
+
+  return customFetch<undoDecisionResponse>(getUndoDecisionUrl(id,params),
   {
     ...options,
     method: 'POST'

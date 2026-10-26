@@ -6,6 +6,7 @@ import {
   acceptBarcodeCandidate,
   acceptCandidate,
   rejectBarcodeCandidates,
+  undoDecision,
   rejectCandidates,
   runMatching,
   unlinkListing,
@@ -57,4 +58,8 @@ export async function acceptBarcodeAction(candidateId: string) {
 
 export async function rejectBarcodesAction(variantId: string) {
   return run(() => rejectBarcodeCandidates(variantId));
+}
+
+export async function undoDecisionAction(id: string, kind: 'match' | 'barcode') {
+  return run(() => undoDecision(id, { kind }));
 }

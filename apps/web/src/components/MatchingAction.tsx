@@ -6,6 +6,7 @@ import {
   acceptBarcodeAction,
   acceptCandidateAction,
   rejectBarcodesAction,
+  undoDecisionAction,
   rejectCandidatesAction,
   runMatchingAction,
   unlinkListingAction,
@@ -17,7 +18,8 @@ type Action =
   | { kind: 'reject'; listingId: string }
   | { kind: 'unlink'; listingId: string }
   | { kind: 'accept-barcode'; candidateId: string }
-  | { kind: 'reject-barcodes'; variantId: string };
+  | { kind: 'reject-barcodes'; variantId: string }
+  | { kind: 'undo'; decisionId: string; decision: 'match' | 'barcode' };
 
 const STYLES = {
   primary: 'bg-blue-600 text-white hover:bg-blue-700',
@@ -40,6 +42,8 @@ function perform(action: Action) {
       return acceptBarcodeAction(action.candidateId);
     case 'reject-barcodes':
       return rejectBarcodesAction(action.variantId);
+    case 'undo':
+      return undoDecisionAction(action.decisionId, action.decision);
   }
 }
 
