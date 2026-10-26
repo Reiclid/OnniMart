@@ -17,6 +17,10 @@ describe('brandKey', () => {
     ['Яготинське для дітей', 'iahotynske-dlia-ditey'],
     ['TM Галичина', 'halychyna'],
     ['Ritter Sport®', 'ritter-sport'],
+    // ALDI SÜD пише апостроф гострим наголосом (U+00B4), інші — ' або ’
+    ["JACK'S FARM", 'jacks-farm'],
+    ['JACK´S FARM', 'jacks-farm'],
+    ['JACK’S FARM', 'jacks-farm'],
   ])('%s → %s', (raw, key) => {
     expect(brandKey(raw)).toBe(key);
   });
