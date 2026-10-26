@@ -24,6 +24,8 @@ export interface OffProduct {
   /** brands OFF: часто кілька й не всі правильні («Milbona, Quellbrunn» у води ALDI) */
   brands: string[];
   quantity: ParsedQuantity | null;
+  /** Мале фото з OFF — для модератора */
+  imageUrl?: string | null;
 }
 
 export interface OffCandidate {
@@ -45,6 +47,7 @@ interface Entry {
   key: string;
   /** Як в OFF — для звіту про помилки */
   label: string;
+  imageUrl: string | null;
   /** Назва з кожним брендом OFF окремо: кандидат оцінюється за найкращим */
   names: NameFeatures[];
 }
@@ -99,6 +102,7 @@ export class OffIndex {
         .sort()
         .join(' ')}|${JSON.stringify(Object.entries(attributes).sort())}`,
       label: `${product.brands.join(', ')} · ${product.name}`,
+      imageUrl: product.imageUrl ?? null,
       names,
     });
     for (const features of names) {
@@ -158,6 +162,10 @@ export class OffIndex {
 
   labelOf(gtin: string): string | undefined {
     return this.entries.get(gtin)?.label;
+  }
+
+  imageOf(gtin: string): string | null {
+    return this.entries.get(gtin)?.imageUrl ?? null;
   }
 
   decide(listing: ListingInput, idf: Idf): OffDecision {

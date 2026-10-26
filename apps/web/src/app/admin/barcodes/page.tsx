@@ -100,9 +100,12 @@ function BarcodeCard({ item }: { item: BarcodeReviewItemDto }) {
             cells={[
               <Thumb key="l" src={item.imageUrl} />,
               ...offs.map((c) => (
-                <a key={c.id} href={`https://world.openfoodfacts.org/product/${c.gtin}`} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline">
-                  Фото й склад в OFF ↗
-                </a>
+                <div key={c.id} className="space-y-1">
+                  <Thumb src={c.imageUrl} />
+                  <a href={`https://world.openfoodfacts.org/product/${c.gtin}`} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline">
+                    Склад і всі фото в OFF ↗
+                  </a>
+                </div>
               )),
             ]}
           />
