@@ -31,6 +31,7 @@ export class PriceHistoryService {
           where: { delistedAt: null },
           select: {
             id: true,
+            lastSeenAt: true,
             chain: { select: { name: true, currency: true } },
             // Зміни у вікні; знімок до вікна — окремо нижче (ціна на його початок)
             priceSnapshots: {
@@ -54,6 +55,7 @@ export class PriceHistoryService {
           listingId: l.id,
           chainName: l.chain.name,
           currency: l.chain.currency,
+          lastSeenAt: l.lastSeenAt,
           snapshots: [...(before ? [before] : []), ...l.priceSnapshots].map(
             (s) => ({ price: Number(s.price), at: s.capturedAt }),
           ),
@@ -70,9 +72,16 @@ export class PriceHistoryService {
           listingId: l.listingId,
           chainName: l.chainName,
           currency: l.currency,
-          points: seriesPoints(l.snapshots, windowFrom, now).map((p) => ({
+          // Кінець ряду — останній огляд картки: після нього ціна невідома
+          points: seriesPoints(
+            l.snapshots,
+            windowFrom,
+            l.lastSeenAt && l.lastSeenAt < now ? l.lastSeenAt : now,
+            !!l.lastSeenAt,
+          ).map((p) => ({
             at: p.at.toISOString(),
             price: p.price,
+            observed: p.observed,
           })),
         })),
       stats: priceStats(listings, now),

@@ -312,6 +312,11 @@ export class BarcodeReviewPageDto {
 export class PricePointDto {
   @ApiProperty() at!: string;
   @ApiProperty() price!: number;
+  @ApiProperty({
+    description:
+      'Справжнє спостереження (зміна ціни або останній огляд), а не край вікна',
+  })
+  observed!: boolean;
 }
 
 export class PriceSeriesDto {
@@ -320,7 +325,8 @@ export class PriceSeriesDto {
   @ApiProperty() currency!: string;
   @ApiProperty({
     type: [PricePointDto],
-    description: 'Ціна на початок вікна, кожна зміна і поточна ціна',
+    description:
+      'Ціна на початок вікна, кожна зміна і ціна на останній огляд картки',
   })
   points!: PricePointDto[];
 }

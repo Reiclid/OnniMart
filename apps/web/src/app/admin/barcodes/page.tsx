@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { getBarcodeReviewQueue } from '@/api/generated/matching/matching';
 import type { BarcodeReviewItemDto } from '@/api/generated/model';
+import { CompareRow, Highlight, Thumb, Verdict } from '@/components/Compare';
 import { MatchingAction } from '@/components/MatchingAction';
+import { sameValue } from '@/lib/compare';
 import { formatNumber, formatScore } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +27,7 @@ export default async function BarcodesPage(props: PageProps<'/admin/barcodes'>) 
           Фасування, чиї мережі не публікують штрихкод (ALDI, VARUS). Однозначні збіги приписуються
           автоматично (<code>bun run off:match -- --write</code>), тут — сумнівні: оберіть товар OFF, якщо
           це той самий товар і фасування. Хибний штрихкод гірший за жоден.
+          Жовтим підсвічено слова назви OFF, яких немає ні в назві товару, ні в картках мереж.
         </p>
       </div>
 
@@ -58,53 +61,108 @@ export default async function BarcodesPage(props: PageProps<'/admin/barcodes'>) 
   );
 }
 
+/** «Бренди · назва» з OFF → бренди й назва окремо */
+function splitOff(offName: string): { brands: string[]; name: string } {
+  const at = offName.indexOf(' · ');
+  return at < 0
+    ? { brands: [], name: offName }
+    : { brands: offName.slice(0, at).split(',').map((b) => b.trim()), name: offName.slice(at + 3) };
+}
+
+/** Фасування з каталогу зліва, товари Open Food Facts праворуч — поле до поля */
 function BarcodeCard({ item }: { item: BarcodeReviewItemDto }) {
+  const ours = [item.productName, ...item.listings.map((l) => l.name)].join(' ');
+  const offs = item.candidates.map((c) => ({ ...c, ...splitOff(c.offName) }));
   return (
-    <article className="rounded-lg border border-slate-200 bg-white">
-      <header className="flex flex-wrap items-center gap-4 border-b border-slate-100 p-4">
-        {item.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- зображення з сайту мережі
-          <img src={item.imageUrl} alt="" className="h-14 w-14 rounded object-contain" loading="lazy" />
-        ) : (
-          <div className="h-14 w-14 rounded bg-slate-100" />
-        )}
-        <div className="min-w-64 flex-1">
-          <div className="text-xs text-slate-500">{[item.brand, item.variantLabel].filter(Boolean).join(' · ')}</div>
-          <Link href={`/admin/products/${item.productId}`} className="font-medium text-blue-700 hover:underline">
-            {item.productName}
-          </Link>
-          <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
-            {item.listings.map((l, i) => (
-              <li key={i}>
-                <span className="font-medium">{l.chainName}:</span> {l.name}
-              </li>
+    <article className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <table className="w-full min-w-[640px] border-collapse">
+        <thead>
+          <tr>
+            <th className="w-28 bg-slate-50" />
+            <th className="bg-blue-50/40 px-3 py-2 text-left">
+              <span className="text-xs font-medium text-blue-800">Наш товар (без штрихкоду)</span>
+            </th>
+            {offs.map((c, i) => (
+              <th key={c.id} className="px-3 py-2 text-left font-normal">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-slate-500">Open Food Facts {i + 1}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${c.score >= 0.8 ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                    схожість {formatScore(c.score)}
+                  </span>
+                </div>
+              </th>
             ))}
-          </ul>
-        </div>
-        <MatchingAction action={{ kind: 'reject-barcodes', variantId: item.variantId }} label="Жоден не підходить" variant="secondary" />
-      </header>
-      <ul className="divide-y divide-slate-100">
-        {item.candidates.map((c) => (
-          <li key={c.id} className="flex flex-wrap items-center gap-4 p-4">
-            <div className="w-16 text-center">
-              <div className="text-lg font-semibold">{formatScore(c.score)}</div>
-              <div className="text-xs text-slate-400">схожість</div>
-            </div>
-            <div className="min-w-64 flex-1">
-              <a
-                href={`https://world.openfoodfacts.org/product/${c.gtin}`}
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-blue-700 hover:underline"
-              >
-                {c.offName}
-              </a>
-              <div className="font-mono text-xs text-slate-500">{c.gtin}</div>
-            </div>
-            <MatchingAction action={{ kind: 'accept-barcode', candidateId: c.id }} label="Це той самий товар" variant="success" />
-          </li>
-        ))}
-      </ul>
+          </tr>
+        </thead>
+        <tbody>
+          <CompareRow
+            label="Фото"
+            cells={[
+              <Thumb key="l" src={item.imageUrl} />,
+              ...offs.map((c) => (
+                <a key={c.id} href={`https://world.openfoodfacts.org/product/${c.gtin}`} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline">
+                  Фото й склад в OFF ↗
+                </a>
+              )),
+            ]}
+          />
+          <CompareRow
+            label="Назва"
+            cells={[
+              <div key="l" className="space-y-1">
+                <Link href={`/admin/products/${item.productId}`} className="font-medium text-blue-700 hover:underline">
+                  {item.productName}
+                </Link>
+                <ul className="space-y-0.5 text-xs text-slate-600">
+                  {item.listings.map((l, i) => (
+                    <li key={i}>
+                      <span className="font-medium">{l.chainName}:</span> {l.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>,
+              ...offs.map((c) => (
+                <span key={c.id} className="font-medium">
+                  <Highlight text={c.name} other={ours} />
+                </span>
+              )),
+            ]}
+          />
+          <CompareRow
+            label="Бренд"
+            cells={[
+              item.brand ?? '—',
+              ...offs.map((c) => (
+                <div key={c.id} className="flex flex-wrap items-center gap-2">
+                  {c.brands.join(', ') || '—'}
+                  <Verdict same={item.brand && c.brands.length ? c.brands.some((b) => sameValue(b, item.brand)) : null} />
+                </div>
+              )),
+            ]}
+          />
+          <CompareRow
+            label="Фасування"
+            cells={[
+              item.variantLabel,
+              ...offs.map((c) => (
+                <span key={c.id} className="rounded bg-green-50 px-1.5 py-0.5 text-xs font-medium text-green-700">
+                  ✓ збігається (умова для кандидата)
+                </span>
+              )),
+            ]}
+          />
+          <CompareRow label="Штрихкод" cells={['немає', ...offs.map((c) => <span key={c.id} className="font-mono text-xs">{c.gtin}</span>)]} />
+          <CompareRow
+            label="Рішення"
+            cells={[
+              <MatchingAction key="l" action={{ kind: 'reject-barcodes', variantId: item.variantId }} label="Жоден не підходить" variant="secondary" />,
+              ...offs.map((c) => (
+                <MatchingAction key={c.id} action={{ kind: 'accept-barcode', candidateId: c.id }} label="✓ Той самий товар" variant="success" />
+              )),
+            ]}
+          />
+        </tbody>
+      </table>
     </article>
   );
 }

@@ -11,6 +11,6 @@ export interface PriceSeriesDto {
   listingId: string;
   chainName: string;
   currency: string;
-  /** Ціна на початок вікна, кожна зміна і поточна ціна */
+  /** Ціна на початок вікна, кожна зміна і ціна на останній огляд картки */
   points: PricePointDto[];
 }
