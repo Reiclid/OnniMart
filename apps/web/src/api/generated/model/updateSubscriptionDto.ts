@@ -9,6 +9,11 @@
 export interface UpdateSubscriptionDto {
   /** @nullable */
   targetPrice?: number | null;
+  /**
+     * Валюта targetPrice (зазвичай валюта показу); ціни інших валют перераховуються за курсом
+     * @nullable
+     */
+  currency?: string | null;
   notifyOnPromo?: boolean;
   isActive?: boolean;
 }

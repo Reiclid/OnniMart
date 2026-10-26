@@ -16,7 +16,7 @@ const TABS: { href: string; label: MessageKey; Icon: typeof HomeIcon }[] = [
 
 /** Активна вкладка: Home — лише "/", решта — разом із вкладеними сторінками */
 const isActive = (pathname: string, href: string) =>
-  href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`) || (href === '/profile' && ['/settings', '/login'].includes(pathname));
+  href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`) || (href === '/profile' && /^\/(settings|login)(\/|$)/.test(pathname));
 
 /** Нижня навігація на телефоні (Figma: Tab bar); сканер — у полі пошуку */
 export function TabBar() {
@@ -34,9 +34,10 @@ export function TabBar() {
             key={href}
             href={href}
             aria-current={active ? 'page' : undefined}
-            className={`flex flex-col items-center gap-1 py-2.5 text-caption font-semibold ${active ? 'text-brand' : 'text-fg-muted'}`}
+            className={`flex flex-col items-center gap-1 py-2.5 text-caption font-semibold transition-colors duration-(--duration-fast) ease-standard ${active ? 'text-brand' : 'text-fg-muted'}`}
           >
-            <Icon width={24} height={24} />
+            {/* Нова вкладка: іконка «вискакує» 0,9 → 1 (клас з'являється лише в момент переходу) */}
+            <Icon width={24} height={24} className={active ? 'pop-in' : undefined} />
             {t(label)}
           </Link>
         );

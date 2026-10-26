@@ -120,6 +120,12 @@ OnniMartBot/0.1 (+https://github.com/Reiclid/OnniMart; diploma project)
 - **Оновлення раз на квартал.** Вибірки, свіжіші за 80 днів, повторно не завантажуються.
 - **Альтернатива на майбутнє.** [All The Places](https://www.alltheplaces.xyz) (CC0): офіційні локатори мереж, щотижня, мегабайти замість гігабайтів, але без Сільпо, АТБ, VARUS, ЕКО маркету й МегаМаркету.
 
+**Курси валют** — щоб показати ціну мережі іншої країни ще й у валюті покупця («≈ 1,37 € за курсом НБУ»). Ціни в БД не перераховуються: курс застосовується лише при показі.
+
+- **[ЄЦБ](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html)** — `eurofxref-daily.xml`, ≈ 30 валют за 1 EUR, оновлюється в робочі дні близько 16:00 CET. Гривні там немає.
+- **[НБУ](https://bank.gov.ua/ua/open-data/api-dev)** — `NBUStatService/v1/statdirectory/exchange?valcode=EUR&json`, офіційний курс EUR/UAH на сьогодні.
+- **Як беремо.** Воркер (`RatesUpdater`, `apps/api/src/modules/rates/`) раз на 6 год робить по одному запиту до кожного джерела з User-Agent `OnniMartBot` і кладе курси в Redis (`fx:rates`). Якщо джерело недоступне, лишаються старі курси. Вебсайт бере їх через `GET /api/v1/rates`.
+
 ## Правила поведінки нашого парсера
 
 1. **Чесний User-Agent** з посиланням на проєкт. Не підробляти браузер: тест показав, що АТБ, Сільпо, zakaz.ua, Lidl, ALDI та PENNY пропускають бота з чесним UA.

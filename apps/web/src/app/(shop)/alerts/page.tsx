@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { getNotifications, getSubscriptions } from '@/api/generated/me/me';
 import { ProductImage } from '@/components/ui';
-import { formatMoney } from '@/lib/format';
+import { formatShown } from '@/lib/format';
 import { INTL_LOCALE } from '@/i18n';
 import { getI18n } from '@/i18n/server';
-import { requireUser } from '@/lib/session';
+import { currentMoney, requireUser } from '@/lib/session';
 import { readAllNotifications, removeSubscription, setSubscriptionActive } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -12,10 +12,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function AlertsPage() {
   await requireUser('/alerts');
-  const [{ data: notifications }, { data: subscriptions }, { t, rich, locale }] = await Promise.all([
+  const [{ data: notifications }, { data: subscriptions }, { t, rich, locale }, money] = await Promise.all([
     getNotifications(),
     getSubscriptions(),
     getI18n(),
+    currentMoney(),
   ]);
   const when = (iso: string) =>
     new Intl.DateTimeFormat(INTL_LOCALE[locale], { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
@@ -64,9 +65,9 @@ export default async function AlertsPage() {
               <div className="line-clamp-2 text-body font-semibold">{s.title}</div>
               <div className="text-body-sm text-fg-muted">
                 {s.targetPrice !== null
-                  ? t('alerts.target', { price: formatMoney(s.targetPrice, s.lowest?.currency ?? 'UAH') })
+                  ? t('alerts.target', { price: formatShown(s.targetPrice, s.currency ?? s.lowest?.currency ?? 'UAH', money).text })
                   : t('alerts.anyDiscount')}
-                {s.lowest && ` · ${t('alerts.now', { price: formatMoney(s.lowest.price, s.lowest.currency), chain: s.lowest.chainName })}`}
+                {s.lowest && ` · ${t('alerts.now', { price: formatShown(s.lowest.price, s.lowest.currency, money).text, chain: s.lowest.chainName })}`}
               </div>
             </Link>
             <form action={setSubscriptionActive}>

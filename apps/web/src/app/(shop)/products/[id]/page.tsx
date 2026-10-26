@@ -2,14 +2,20 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ApiError } from '@/api/custom-fetch';
 import { getProduct, getSimilarProducts } from '@/api/generated/catalog/catalog';
-import { ProductCard, productCard } from '@/components/ProductCard';
+import { productCard } from '@/components/ProductCard';
+import { ProductMasonry } from '@/components/ProductMasonry';
+import { BackButton } from '@/components/BackButton';
 import { ChainPriceRow } from '@/components/ChainPriceRow';
+import { RecordView } from '@/components/RecordView';
+import { RollingNumber } from '@/components/RollingNumber';
+import { SlidingPill } from '@/components/SlidingPill';
 import { buttonStyles, Chip, ProductImage } from '@/components/ui';
-import { formatMoney, formatUnitPrice, lineChipLabel } from '@/lib/format';
+import { currencySymbol, formatShown, formatUnitPrice, lineChipLabel } from '@/lib/format';
 import { productView } from '@/lib/offers';
 import { getI18n } from '@/i18n/server';
 import { INTL_LOCALE } from '@/i18n';
-import { currentUser } from '@/lib/session';
+import { COUNTRIES, shownPrice } from '@/lib/country';
+import { currentCountry, currentMoney, currentUser } from '@/lib/session';
 import { trackPrice } from '../../actions';
 
 export const dynamic = 'force-dynamic';
@@ -25,14 +31,24 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
     getSimilarProducts(id).catch(() => ({ data: [] })),
   ]);
   const v = typeof params.v === 'string' ? params.v : undefined;
-  const { offers, cheapest, sizes, updatedAt, variant } = productView(product, v);
+  const country = await currentCountry();
+  const home = COUNTRIES[country].currency;
+  const { offers, cheapest, sizes, updatedAt, variant } = productView(product, v, home);
   const flavours = product.line?.products ?? [];
-  const [user, { t, locale }] = await Promise.all([currentUser(), getI18n()]);
-
+  // Валюта показу: головні цінники перераховано, під ними справжня ціна мережі (у БД — рідна валюта)
+  const [user, { t, locale }, money] = await Promise.all([currentUser(), getI18n(), currentMoney(country)]);
+  const hero = cheapest?.currentPrice != null ? formatShown(cheapest.currentPrice, cheapest.currency, money) : null;
+  // Поріг «Below a price» — у валюті показу, як і головний цінник
+  const target = cheapest?.currentPrice != null ? shownPrice(cheapest.currentPrice, cheapest.currency, money) : null;
   return (
     <div className="space-y-8">
+      <RecordView productId={product.id} />
       <div className="grid gap-6 md:grid-cols-2">
-        <ProductImage src={product.imageUrl} className="aspect-square w-full border border-line md:sticky md:top-6" />
+        <div className="relative md:sticky md:top-6 md:self-start">
+          <ProductImage src={product.imageUrl} sizes="(min-width: 768px) 50vw, 100vw" preload className="aspect-square w-full border border-line" />
+          {/* На десктопі шлях назад — хлібні крихти (Figma: 06 Товар — десктоп) */}
+          <BackButton fallback="/products" label={t('nav.back')} className="absolute top-3 left-3 md:hidden" />
+        </div>
 
         <div className="space-y-6">
           {product.category && (
@@ -47,36 +63,46 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
             <h1 className="text-display font-bold">{product.name}</h1>
           </div>
 
-          {cheapest?.currentPrice != null && (
+          {cheapest && hero && (
             <div className="rounded-lg bg-brand p-5 text-white">
               <div className="text-body-sm opacity-80">{t('product.lowestPrice', { chain: cheapest.chainName })}</div>
-              <div className="text-display font-bold">{formatMoney(cheapest.currentPrice, cheapest.currency)}</div>
-              <div className="text-body-sm opacity-90">{formatUnitPrice(cheapest)}</div>
+              <RollingNumber value={hero.text} className="text-display font-bold" />
+              {/* Ціна за одиницю — у тій самій валюті; порожній рядок не зникає, щоб блок не стрибав */}
+              <div className="text-body-sm opacity-90">
+                <RollingNumber value={formatUnitPrice(cheapest, money) || ' '} />
+              </div>
+              {hero.original && <div className="mt-3 border-t border-white/20 pt-3 text-body-sm opacity-90 tabular-nums">{t('chainRow.inStore', { price: hero.original })}</div>}
             </div>
           )}
 
           {sizes.length > 1 && (
             <section className="space-y-2">
               <h2 className="text-body-sm font-semibold text-fg-muted">{t('product.packSize')}</h2>
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] gap-1 rounded-md bg-page p-1">
+              <SlidingPill className="grid grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] gap-1 rounded-md bg-page p-1">
                 {sizes.map((size) => (
                   <Link
                     key={size.id}
                     href={`?v=${size.id}`}
+                    replace
                     scroll={false}
                     aria-current={size.id === variant?.id ? 'true' : undefined}
-                    className={`rounded-sm px-2 py-2 text-center ${size.id === variant?.id ? 'bg-surface font-semibold shadow-floating' : 'text-fg-muted'}`}
+                    // Товщину й колір бере aria-current: SlidingPill ставить його одразу на дотик,
+                    // і змінна Inter плавно перетікає 400 → 600 разом із пігулкою
+                    className={`relative rounded-sm px-2 py-2 text-center text-fg-muted transition-[color,font-weight] duration-(--duration-spring-smooth) ease-spring-smooth aria-[current=true]:font-semibold aria-[current=true]:text-fg ${
+                      // До гідратації білий фон — у самого сегмента, потім його бере «пігулка»
+                      size.id === variant?.id ? 'bg-surface shadow-floating [[data-ready]_&]:bg-transparent [[data-ready]_&]:shadow-none' : ''
+                    }`}
                   >
                     <div className="text-body">{size.label}</div>
                     {size.unit && (
-                      <div className={`text-caption ${size.best ? 'font-semibold text-brand' : ''}`}>
+                      <div className={`text-caption tabular-nums ${size.best ? 'font-semibold text-brand' : ''}`}>
                         {formatUnitPrice(size.unit)}
                         {size.best && ` · ${t('product.best')}`}
                       </div>
                     )}
                   </Link>
                 ))}
-              </div>
+              </SlidingPill>
             </section>
           )}
 
@@ -85,7 +111,7 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
               <h2 className="text-body-sm font-semibold text-fg-muted">{t('product.flavour')}</h2>
               <div className="flex flex-wrap gap-2">
                 {flavours.map((p) => (
-                  <Chip key={p.id} href={`/products/${p.id}`} selected={p.id === product.id}>
+                  <Chip key={p.id} href={`/products/${p.id}`} selected={p.id === product.id} replace>
                     {lineChipLabel(p, flavours)}
                   </Chip>
                 ))}
@@ -100,6 +126,7 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
                 <form action={trackPrice} className="space-y-3">
                   <input type="hidden" name="productId" value={product.id} />
                   <input type="hidden" name="variantId" value={variant.id} />
+                  <input type="hidden" name="currency" value={target?.currency} />
                   <label className="flex items-center gap-3 text-body">
                     <input type="radio" name="mode" value="any" defaultChecked className="size-5 accent-brand" />
                     {t('product.anyDiscount')}
@@ -113,10 +140,11 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
                       inputMode="decimal"
                       step="0.01"
                       min="0.01"
-                      defaultValue={(cheapest.currentPrice * 0.9).toFixed(2)}
+                      defaultValue={((target?.value ?? cheapest.currentPrice) * 0.9).toFixed(2)}
                       aria-label={t('product.targetPrice')}
                       className="w-28 rounded-sm border border-line px-3 py-2 text-right text-body"
                     />
+                    <span className="text-body text-fg-muted">{currencySymbol(target?.currency ?? cheapest.currency)}</span>
                   </label>
                   <button type="submit" className={`${buttonStyles.primary} w-full`}>{t('product.startTracking', { variant: variant.label })}</button>
                 </form>
@@ -131,7 +159,7 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
           <section className="space-y-2">
             <h2 className="text-title-sm font-semibold">{t('product.pricesInChains')}</h2>
             {offers.map((offer) => (
-              <ChainPriceRow key={offer.id} offer={offer} cheapest={offers.length > 1 && offer.id === cheapest?.id} />
+              <ChainPriceRow key={offer.id} offer={offer} cheapest={offers.length > 1 && offer.id === cheapest?.id} money={money} />
             ))}
             {updatedAt && (
               <p className="text-caption text-fg-muted">
@@ -148,11 +176,7 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
       {similar.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-title-sm font-semibold">{t('product.similar')}</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {similar.map((p) => (
-              <ProductCard key={p.id} card={productCard(p, t)} />
-            ))}
-          </div>
+          <ProductMasonry items={similar.map((p) => ({ card: productCard(p, t, money) }))} />
         </section>
       )}
     </div>

@@ -12,6 +12,10 @@ export type GetListingsParams = {
  */
 chain?: string;
 /**
+ * ISO-код країни мережі: UA, DE
+ */
+country?: string;
+/**
  * Пошук за назвою або штрихкодом
  */
 q?: string;

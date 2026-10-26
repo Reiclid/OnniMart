@@ -29,6 +29,12 @@ describe('productView', () => {
     ]);
   });
 
+  it('країна покупця: її мережі першими, найдешевша — серед них', () => {
+    const view = productView(product, undefined, 'EUR');
+    expect(view.cheapest?.chainName).toBe('ALDI');
+    expect(view.offers.map((o) => o.chainName)).toEqual(['ALDI', 'EKO', 'Silpo']);
+  });
+
   it('обране фасування з ?v=, невідоме — перше', () => {
     expect(productView(product, 'v175').cheapest?.currentPrice).toBe(69.9);
     expect(productView(product, 'nope').variant?.id).toBe('v125');

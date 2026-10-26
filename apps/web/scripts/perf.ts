@@ -5,7 +5,7 @@
 //   API на :3001, сайт: cd apps/web && bun run build && bun run start
 //   bun run perf                (PERF_CHANNEL=msedge — Edge замість Chrome)
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { chromium, type Page } from 'playwright-core';
+import { chromium, type Browser, type Page } from 'playwright-core';
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
 const API = process.env.API_URL ?? 'http://localhost:3001';
@@ -56,11 +56,17 @@ async function navigate(page: Page, go: () => Promise<unknown>) {
   return performance.now() - started;
 }
 
+/** Телефон (більшість відкриває сайт з мобільного, docs/05-user-research.md) зі свіжим кешем; онбординг пройдено, інакше головна веде на /welcome */
+async function phone(browser: Browser) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await context.addCookies(['onnimart_onboarded=1', 'onnimart_country=UA'].map((c) => ({ name: c.split('=')[0], value: c.split('=')[1], url: WEB })));
+  await context.addInitScript(OBSERVERS);
+  return context.newPage();
+}
+
 async function measureWeb(): Promise<Results> {
   const browser = await chromium.launch({ channel: process.env.PERF_CHANNEL ?? 'chrome' });
-  // Телефон: більшість користувачів відкриває сайт з мобільного (docs/05-user-research.md)
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-  await page.addInitScript(OBSERVERS);
+  const page = await phone(browser);
   const results: Results = {};
   const navigations: Record<string, number[]> = {};
   const record = (name: string, ms: number) => (navigations[name] ??= []).push(ms);
@@ -84,15 +90,14 @@ async function measureWeb(): Promise<Results> {
   // LCP і CLS — на холодному завантаженні сторінок, які відкривають найчастіше
   const product = await link('main a[href^="/products/"]').getAttribute('href');
   for (const path of ['/', '/products', product!]) {
-    const cold = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-    await cold.addInitScript(OBSERVERS);
+    const cold = await phone(browser);
     await cold.goto(`${WEB}${path}`, { waitUntil: 'networkidle' });
     await cold.mouse.move(1, 1); // LCP фіксується до першого вводу
     const { lcp, cls } = await readObservers(cold);
     const name = path.startsWith('/products/') ? '/products/[id]' : path;
     results[`lcp ${name}`] = lcp;
     results[`cls ${name}`] = cls;
-    await cold.close();
+    await cold.context().close();
   }
   await browser.close();
   return results;

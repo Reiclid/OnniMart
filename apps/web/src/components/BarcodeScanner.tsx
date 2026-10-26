@@ -7,7 +7,8 @@ import type { BarcodeLookupDto, ProductSummaryDto } from '@/api/generated/model'
 import { findBarcode } from '@/app/(shop)/actions';
 import { useT } from '@/i18n/client';
 import { createDetector, isBarcode, type Detector } from '@/lib/barcode';
-import { formatMoney } from '@/lib/format';
+import type { Money } from '@/lib/country';
+import { formatShown } from '@/lib/format';
 import { BellIcon, ProductImage, buttonStyles } from './ui';
 
 type Camera = 'starting' | 'on' | 'blocked';
@@ -21,7 +22,7 @@ const SCAN_EVERY_MS = 250;
  * кожні 250 мс, знайдений товар — у листі знизу. Без камери (немає HTTPS, заборонено
  * доступ) — фото або цифри вручну.
  */
-export function BarcodeScanner() {
+export function BarcodeScanner({ money }: { money: Money }) {
   const router = useRouter();
   const t = useT();
   const video = useRef<HTMLVideoElement>(null);
@@ -143,7 +144,7 @@ export function BarcodeScanner() {
         <div className="absolute inset-x-0 bottom-0 space-y-4 rounded-t-xl bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-fg">
           <div className="mx-auto h-1 w-10 rounded-full bg-line" />
           {found ? (
-            <FoundSheet found={found} onAgain={() => setFound(null)} />
+            <FoundSheet found={found} money={money} onAgain={() => setFound(null)} />
           ) : (
             <ManualInput onPhoto={onPhoto} onCode={(code) => void lookup(code)} error={error} />
           )}
@@ -153,11 +154,11 @@ export function BarcodeScanner() {
   );
 }
 
-function FoundSheet({ found, onAgain }: { found: Found; onAgain: () => void }) {
+function FoundSheet({ found, money, onAgain }: { found: Found; money: Money; onAgain: () => void }) {
   const t = useT();
   const product = found.result?.product;
   const facts = found.result?.facts;
-  if (!product && facts) return <FactsSheet facts={facts} suggestions={found.result?.suggestions ?? []} onAgain={onAgain} />;
+  if (!product && facts) return <FactsSheet facts={facts} suggestions={found.result?.suggestions ?? []} money={money} onAgain={onAgain} />;
   if (!product) {
     return (
       <>
@@ -169,16 +170,20 @@ function FoundSheet({ found, onAgain }: { found: Found; onAgain: () => void }) {
     );
   }
   const best = product.prices[0];
+  const shown = best && formatShown(best.min, best.currency, money);
   return (
     <>
       <div className="flex items-center gap-4">
         <ProductImage src={product.imageUrl} className="size-18 shrink-0 border border-line" />
         <p className="line-clamp-2 text-body font-semibold">{product.name}</p>
       </div>
-      {best && (
+      {best && shown && (
         <div className="flex items-center justify-between rounded-lg bg-selected p-4">
           <span className="text-body font-semibold text-brand">{t('card.cheapestAt', { chain: best.minChain })}</span>
-          <span className="text-title font-bold">{formatMoney(best.min, best.currency)}</span>
+          <span className="text-right">
+            <span className="block text-title font-bold">{shown.text}</span>
+            {shown.original && <span className="block text-body-sm text-fg-muted">{t('chainRow.inStore', { price: shown.original })}</span>}
+          </span>
         </div>
       )}
       <Link href={`/products/${product.id}`} className={`${buttonStyles.primary} w-full`}>
@@ -201,10 +206,12 @@ function FoundSheet({ found, onAgain }: { found: Found; onAgain: () => void }) {
 function FactsSheet({
   facts,
   suggestions,
+  money,
   onAgain,
 }: {
   facts: NonNullable<BarcodeLookupDto['facts']>;
   suggestions: ProductSummaryDto[];
+  money: Money;
   onAgain: () => void;
 }) {
   const t = useT();
@@ -231,7 +238,7 @@ function FactsSheet({
                     <span className="line-clamp-1 text-body">{s.name}</span>
                     {best && <span className="text-caption text-fg-muted">{t('card.cheapestAt', { chain: best.minChain })}</span>}
                   </span>
-                  {best && <span className="text-body font-semibold">{formatMoney(best.min, best.currency)}</span>}
+                  {best && <span className="text-body font-semibold">{formatShown(best.min, best.currency, money).text}</span>}
                 </Link>
               );
             })}

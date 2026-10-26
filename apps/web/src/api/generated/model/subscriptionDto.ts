@@ -20,6 +20,11 @@ export interface SubscriptionDto {
   imageUrl: string | null;
   /** @nullable */
   targetPrice: number | null;
+  /**
+     * Валюта targetPrice; null — стара підписка (гривня, якщо є)
+     * @nullable
+     */
+  currency: string | null;
   notifyOnPromo: boolean;
   isActive: boolean;
   chainIds: string[];

@@ -2,7 +2,7 @@ import { searchFilter, toSearchDoc, withoutBrand } from './search';
 
 const listing = (slug: string, currency: string, price: number | null) => ({
   currentPrice: price,
-  chain: { slug, currency },
+  chain: { slug, currency, countryCode: currency === 'EUR' ? 'DE' : 'UA' },
 });
 
 describe('toSearchDoc', () => {
@@ -40,6 +40,7 @@ describe('toSearchDoc', () => {
       sizes: '1,5 л 0,5 л',
       categorySlug: 'drinks',
       chains: ['novus', 'eko', 'aldi-sued'],
+      countries: ['UA', 'DE'],
       chainsCount: 3,
       barcodes: ['04820017000277'],
       minPrice: 21.7,
@@ -117,6 +118,7 @@ describe('searchFilter', () => {
       searchFilter({
         category: 'drinks',
         chain: 'novus',
+        country: 'DE',
         minChains: 2,
         excludeId: 'p1',
         excludeLineId: 'l1',
@@ -124,6 +126,7 @@ describe('searchFilter', () => {
     ).toEqual([
       'categorySlug = "drinks"',
       'chains = "novus"',
+      'countries = "DE"',
       'chainsCount >= 2',
       'id != "p1"',
       'lineId != "l1"',

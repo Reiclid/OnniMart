@@ -78,7 +78,7 @@ export class RecommendationsService {
         this.user(userId),
       ]);
       const [candidates, { profile }] = await Promise.all([
-        this.candidates(base.ids, user.countryCode),
+        this.candidates(base.ids, query.country ?? user.countryCode),
         this.profile(userId, user.chainIds),
       ]);
       ids = rankSearch(candidates, profile).slice(offset, offset + pageSize);
@@ -100,14 +100,20 @@ export class RecommendationsService {
   ): Promise<ProductSummaryDto[]> {
     const user = await this.user(userId);
     const { profile, tracked } = await this.profile(userId, user.chainIds);
+    // Категорії з історії, а поки її мало — з онбордингу (холодний старт)
+    const categories = [
+      ...new Set([
+        ...topKeys(profile.category, FOR_YOU_CATEGORIES),
+        ...(user.interests ?? []),
+      ]),
+    ].slice(0, FOR_YOU_CATEGORIES);
     const pools = await Promise.all(
-      [...topKeys(profile.category, FOR_YOU_CATEGORIES), undefined].map(
-        (category) =>
-          this.catalog.findProductIds(
-            { category, multiChain: true },
-            0,
-            FOR_YOU_POOL,
-          ),
+      [...categories, undefined].map((category) =>
+        this.catalog.findProductIds(
+          { category, multiChain: true },
+          0,
+          FOR_YOU_POOL,
+        ),
       ),
     );
     const candidates = await this.candidates(
@@ -129,7 +135,7 @@ export class RecommendationsService {
   private user(userId: string) {
     return this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { countryCode: true, chainIds: true },
+      select: { countryCode: true, chainIds: true, interests: true },
     });
   }
 

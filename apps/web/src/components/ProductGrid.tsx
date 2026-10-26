@@ -4,22 +4,28 @@ import { useEffect, useRef, useState } from 'react';
 import type { ProductSummaryDto } from '@/api/generated/model';
 import { moreProducts } from '@/app/(shop)/actions';
 import { useT } from '@/i18n/client';
-import { ProductCard, productCard } from './ProductCard';
+import type { Money } from '@/lib/country';
+import { cascade, productCard } from './ProductCard';
+import { ProductMasonry } from './ProductMasonry';
 
 /** Каталог у дві колонки (Figma: For you); наступні сторінки — під час прокручування */
 export function ProductGrid({
   first,
   total,
   filters,
+  money,
 }: {
   first: ProductSummaryDto[];
   total: number;
   filters: { q?: string; chain?: string; category?: string };
+  money: Money;
 }) {
   const t = useT();
   const [items, setItems] = useState(first);
   // Кінець списку або збій: більше не підвантажуємо
   const [done, setDone] = useState(false);
+  // Початок останньої довантаженої сторінки: лише вона з'являється каскадом (перша — одразу)
+  const [pageStart, setPageStart] = useState(Infinity);
   const loading = useRef(false);
   const page = useRef(1);
   const end = useRef<HTMLDivElement>(null);
@@ -35,6 +41,7 @@ export function ProductGrid({
           const next = await moreProducts({ ...filters, page: page.current + 1 });
           page.current += 1;
           // Каталог міг змінитись між сторінками — без дублів
+          setPageStart(items.length);
           setItems((prev) => [...prev, ...next.filter((p) => !prev.some((x) => x.id === p.id))]);
           if (next.length === 0) setDone(true);
         } catch {
@@ -52,11 +59,9 @@ export function ProductGrid({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {items.map((product) => (
-          <ProductCard key={product.id} card={productCard(product, t)} />
-        ))}
-      </div>
+      <ProductMasonry
+        items={items.map((product, i) => ({ card: productCard(product, t, money), motion: cascade(i - pageStart, { limit: 6, stagger: 20, y: 8 }) }))}
+      />
       {hasMore && (
         <div ref={end} className="py-6 text-center text-body-sm text-fg-muted" aria-live="polite">
           {t('catalog.loadingMore')}

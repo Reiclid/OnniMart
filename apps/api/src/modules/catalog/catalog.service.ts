@@ -67,7 +67,10 @@ export class CatalogService {
 
   /** id товарів у базовому порядку: релевантність Meilisearch або популярність (SQL) */
   async findProductIds(
-    query: Pick<ProductsQueryDto, 'q' | 'category' | 'chain' | 'multiChain'>,
+    query: Pick<
+      ProductsQueryDto,
+      'q' | 'category' | 'chain' | 'country' | 'multiChain'
+    >,
     offset: number,
     limit: number,
   ): Promise<{ ids: string[]; total: number }> {
@@ -82,6 +85,7 @@ export class CatalogService {
         searchFilter({
           category: query.category,
           chain: query.chain,
+          country: query.country,
           minChains,
         }),
         offset,
@@ -112,6 +116,11 @@ export class CatalogService {
     if (query.chain) {
       filters.push(
         Prisma.sql`EXISTS (SELECT 1 FROM listings cl JOIN product_variants cv ON cv.id = cl."variantId" JOIN store_chains cc ON cc.id = cl."chainId" WHERE cv."productId" = p.id AND cl."delistedAt" IS NULL AND cc.slug = ${query.chain})`,
+      );
+    }
+    if (query.country) {
+      filters.push(
+        Prisma.sql`EXISTS (SELECT 1 FROM listings kl JOIN product_variants kv ON kv.id = kl."variantId" JOIN store_chains kc ON kc.id = kl."chainId" WHERE kv."productId" = p.id AND kl."delistedAt" IS NULL AND kc."countryCode" = ${query.country})`,
       );
     }
     filters.push(Prisma.sql`s.chains >= ${minChains}`);

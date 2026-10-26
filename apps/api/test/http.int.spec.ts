@@ -8,6 +8,7 @@ import { MATCHING_REQUESTS_QUEUE } from '@repo/contracts';
 import type Redis from 'ioredis';
 import { AppModule } from '../src/app.module';
 import { AlertsChecker } from '../src/modules/accounts/alerts.checker';
+import { RatesService } from '../src/modules/rates/rates.service';
 import { MatchingService } from '../src/modules/catalog/matching/matching.service';
 import { IngestionService } from '../src/modules/scraper/services/ingestion.service';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -243,7 +244,11 @@ const ORIGIN = 'http://localhost:3000';
 
     // Воркер: ціна 29.90 ≤ 30 → сповіщення, повторна перевірка не дублює
     const prisma = new PrismaService();
-    const checker = new AlertsChecker(prisma);
+    // Підписка без валюти — курси не потрібні
+    const noRates = {
+      current: () => Promise.resolve(null),
+    } as unknown as RatesService;
+    const checker = new AlertsChecker(prisma, noRates);
     expect(await checker.check()).toBe(1);
     expect(await checker.check()).toBe(0);
     await prisma.$disconnect();

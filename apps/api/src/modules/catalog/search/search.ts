@@ -28,6 +28,8 @@ export interface SearchDoc {
   relatedNames: string[];
   lineId: string | null;
   chains: string[];
+  /** Країни мереж, де товар продається: ["UA", "DE"] — фільтр пошуку за країною */
+  countries: string[];
   chainsCount: number;
   barcodes: string[];
   minPrice: number | null;
@@ -77,6 +79,7 @@ export const INDEX_SETTINGS = {
     'categorySlug',
     'concepts',
     'chains',
+    'countries',
     'chainsCount',
     'lineId',
     'indexedAt',
@@ -108,7 +111,7 @@ export interface IndexedProduct {
     barcodes: { gtin: string }[];
     listings: {
       currentPrice: unknown;
-      chain: { slug: string; currency: string };
+      chain: { slug: string; currency: string; countryCode: string };
     }[];
   }[];
 }
@@ -143,6 +146,7 @@ export function toSearchDoc(
     relatedNames: terms.related,
     lineId: product.lineId,
     chains,
+    countries: [...new Set(listings.map((l) => l.chain.countryCode))],
     chainsCount: chains.length,
     barcodes: product.variants.flatMap((v) => v.barcodes.map((b) => b.gtin)),
     minPrice: prices.length ? Math.min(...prices) : null,
@@ -155,6 +159,7 @@ export function toSearchDoc(
 export function searchFilter(f: {
   category?: string;
   chain?: string;
+  country?: string;
   minChains?: number;
   excludeId?: string;
   excludeLineId?: string | null;
@@ -163,6 +168,7 @@ export function searchFilter(f: {
   return [
     f.category && `categorySlug = ${q(f.category)}`,
     f.chain && `chains = ${q(f.chain)}`,
+    f.country && `countries = ${q(f.country)}`,
     f.minChains && f.minChains > 1 && `chainsCount >= ${f.minChains}`,
     f.excludeId && `id != ${q(f.excludeId)}`,
     f.excludeLineId && `lineId != ${q(f.excludeLineId)}`,

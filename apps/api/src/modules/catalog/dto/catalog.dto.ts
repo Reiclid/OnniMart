@@ -57,6 +57,13 @@ export class ProductsQueryDto {
   @IsOptional()
   @Matches(/^[a-z0-9-]{2,60}$/, { message: 'slug мережі: a-z, 0-9, дефіс' })
   chain?: string;
+  @ApiPropertyOptional({
+    description:
+      'ISO-код країни (UA, DE) — лише товари, що продаються в її мережах',
+  })
+  @IsOptional()
+  @Matches(/^[A-Z]{2}$/, { message: 'код країни: дві великі латинські літери' })
+  country?: string;
   @ApiPropertyOptional({ description: 'Category.slug: drinks, dairy-eggs…' })
   @IsOptional()
   @Matches(/^[a-z0-9-]{2,40}$/, { message: 'slug категорії: a-z, 0-9, дефіс' })

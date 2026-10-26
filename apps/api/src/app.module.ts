@@ -7,6 +7,7 @@ import { ActivityModule } from './modules/activity/activity.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { HealthModule } from './modules/health/health.module';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
+import { RatesModule } from './modules/rates/rates.module';
 import { ScraperModule } from './modules/scraper/scraper.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -23,6 +24,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AccountsModule,
     ActivityModule,
     RecommendationsModule,
+    RatesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

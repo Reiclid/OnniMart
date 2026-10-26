@@ -44,6 +44,13 @@ export class UserDto {
   @ApiProperty({ type: String, nullable: true }) name!: string | null;
   @ApiProperty({ type: String, nullable: true, example: 'UA' })
   countryCode!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'USD',
+    description: 'Валюта показу цін; null — валюта країни',
+  })
+  currencyCode!: string | null;
   @ApiProperty() notifyPush!: boolean;
   @ApiProperty() notifyEmail!: boolean;
   @ApiProperty({ description: 'Лише знижки від N %' }) minDiscount!: number;
@@ -52,6 +59,11 @@ export class UserDto {
     description: 'Улюблені мережі (StoreChain.id)',
   })
   chainIds!: string[];
+  @ApiProperty({
+    type: [String],
+    description: 'Категорії з онбордингу (Category.slug) — першими в «Для вас»',
+  })
+  interests!: string[];
   @ApiProperty({ description: 'Згода на збір подій для рекомендацій' })
   telemetryConsent!: boolean;
   @ApiProperty() createdAt!: string;
@@ -76,6 +88,16 @@ export class UpdateMeDto {
   @Matches(/^[A-Z]{2}$/, { message: 'Код країни ISO: UA, DE…' })
   countryCode?: string;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'USD',
+    description: 'Валюта показу цін; null — валюта країни',
+  })
+  @ValidateIf((_o, value) => value !== null && value !== undefined)
+  @Matches(/^[A-Z]{3}$/, { message: 'Код валюти ISO 4217: UAH, EUR, USD…' })
+  currencyCode?: string | null;
+
   @ApiPropertyOptional() @IsOptional() @IsBoolean() notifyPush?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() notifyEmail?: boolean;
 
@@ -92,6 +114,16 @@ export class UpdateMeDto {
   @ArrayMaxSize(50)
   @IsUUID('all', { each: true })
   chainIds?: string[];
+
+  @ApiPropertyOptional({ type: [String], description: 'Category.slug' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @Matches(/^[a-z0-9-]{2,40}$/, {
+    each: true,
+    message: 'slug категорії: a-z, 0-9, дефіс',
+  })
+  interests?: string[];
 
   @ApiPropertyOptional({
     description: 'Згода на збір подій; false — відкликати й видалити зібрані',
@@ -120,6 +152,12 @@ export class SubscriptionDto {
   title!: string;
   @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
   @ApiProperty({ type: Number, nullable: true }) targetPrice!: number | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Валюта targetPrice; null — стара підписка (гривня, якщо є)',
+  })
+  currency!: string | null;
   @ApiProperty() notifyOnPromo!: boolean;
   @ApiProperty() isActive!: boolean;
   @ApiProperty({ type: [String] }) chainIds!: string[];
@@ -150,6 +188,17 @@ export class CreateSubscriptionDto {
   @Max(1_000_000)
   targetPrice?: number | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'USD',
+    description:
+      'Валюта targetPrice (зазвичай валюта показу); ціни інших валют перераховуються за курсом',
+  })
+  @ValidateIf((_o, value) => value !== null && value !== undefined)
+  @Matches(/^[A-Z]{3}$/, { message: 'Код валюти ISO 4217: UAH, EUR, USD…' })
+  currency?: string | null;
+
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()
@@ -170,6 +219,17 @@ export class UpdateSubscriptionDto {
   @Min(0.01)
   @Max(1_000_000)
   targetPrice?: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'USD',
+    description:
+      'Валюта targetPrice (зазвичай валюта показу); ціни інших валют перераховуються за курсом',
+  })
+  @ValidateIf((_o, value) => value !== null && value !== undefined)
+  @Matches(/^[A-Z]{3}$/, { message: 'Код валюти ISO 4217: UAH, EUR, USD…' })
+  currency?: string | null;
 
   @ApiPropertyOptional() @IsOptional() @IsBoolean() notifyOnPromo?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;

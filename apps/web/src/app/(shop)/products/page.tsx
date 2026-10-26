@@ -5,7 +5,7 @@ import { ProductGrid } from '@/components/ProductGrid';
 import { SearchField } from '@/components/SearchField';
 import { getT } from '@/i18n/server';
 import { PRODUCTS_PAGE_SIZE } from '@/lib/offers';
-import { findProducts } from '@/lib/session';
+import { currentCountry, currentMoney, findProducts } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,12 +18,14 @@ export default async function SearchPage(props: PageProps<'/products'>) {
   const category = first(params.category);
   const filters = { q, chain, category };
 
-  const [products, { data: chains }, { data: categories }, t] = await Promise.all([
+  const [products, { data: chains }, { data: categories }, t, country] = await Promise.all([
     findProducts({ ...filters, page: 1, pageSize: PRODUCTS_PAGE_SIZE }),
     getChains({ status: ['ACTIVE'] }),
     getCategories(),
     getT(),
+    currentCountry(),
   ]);
+  const money = await currentMoney(country);
   const categoryName = categories.find((c) => c.slug === category)?.name;
 
   return (
@@ -37,12 +39,12 @@ export default async function SearchPage(props: PageProps<'/products'>) {
         items={categories.filter((c) => c.productsCount > 0).map((c) => ({ value: c.slug, label: c.name }))}
         filters={filters}
       />
-      <FilterChips param="chain" items={chains.map((c) => ({ value: c.slug, label: c.name }))} filters={filters} />
+      <FilterChips param="chain" items={chains.filter((c) => c.countryCode === country).map((c) => ({ value: c.slug, label: c.name }))} filters={filters} />
       {products.items.length === 0 ? (
         <p className="py-10 text-center text-body text-fg-muted">{t('catalog.empty')}</p>
       ) : (
         // Новий запит або мережа — новий список з першої сторінки
-        <ProductGrid key={`${q}|${chain}|${category}`} first={products.items} total={products.total} filters={filters} />
+        <ProductGrid key={`${q}|${chain}|${category}`} first={products.items} total={products.total} filters={filters} money={money} />
       )}
     </div>
   );

@@ -18,6 +18,8 @@ export * from './createSubscriptionDto';
 export * from './eventBatchDto';
 export * from './eventDto';
 export * from './eventDtoType';
+export * from './exchangeRatesDto';
+export * from './exchangeRatesDtoPerEur';
 export * from './getChainsParams';
 export * from './getChainsStatusItem';
 export * from './getListingsParams';

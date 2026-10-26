@@ -27,10 +27,12 @@ export function toUserDto(user: User): UserDto {
     email: user.email,
     name: user.name,
     countryCode: user.countryCode,
+    currencyCode: user.currencyCode,
     notifyPush: user.notifyPush,
     notifyEmail: user.notifyEmail,
     minDiscount: user.minDiscount,
     chainIds: user.chainIds,
+    interests: user.interests ?? [],
     telemetryConsent: user.telemetryConsentAt !== null,
     createdAt: user.createdAt.toISOString(),
   };
