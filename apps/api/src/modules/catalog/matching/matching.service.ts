@@ -494,6 +494,8 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.product.updateMany({
         where: {
           id: { in: productIds },
+          // Категорію, задану модератором, не чіпаємо
+          categoryLocked: false,
           // Лише ті, що змінились; NULL явно, бо NOT (categoryId = x) для NULL — не true
           ...(categoryId
             ? {

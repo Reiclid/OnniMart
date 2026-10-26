@@ -287,7 +287,9 @@ export class CatalogService {
       brand: product.brand?.name ?? null,
       variantLabel: product.variantLabel,
       imageUrl: product.imageUrl,
+      description: product.description,
       category: product.category,
+      categoryLocked: product.categoryLocked,
       line: product.line
         ? {
             id: product.line.id,
@@ -301,6 +303,7 @@ export class CatalogService {
           label: variant.label,
           netQuantity: toNumber(variant.netQuantity) ?? 0,
           barcodes: variant.barcodes.map((b) => b.gtin),
+          packaging: variant.packaging,
           // Ціни різних країн не порівнюємо напряму: групи за валютою
           // (₴, потім €), усередині — від найдешевшої за одиницю
           offers: variant.listings

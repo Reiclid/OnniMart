@@ -1,9 +1,12 @@
 import { MutationLimit } from '../../common/throttle';
 import {
+  Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   ParseUUIDPipe,
@@ -18,6 +21,7 @@ import {
 import { CatalogService } from './catalog.service';
 import { PriceHistoryService } from './price-history.service';
 import {
+  AddBarcodeDto,
   BarcodeLookupDto,
   BarcodeReviewPageDto,
   DecisionPageDto,
@@ -31,7 +35,10 @@ import {
   RunMatchingResponseDto,
   CategoryDto,
   ProductSummaryDto,
+  UpdateProductDto,
+  UpdateVariantDto,
 } from './dto/catalog.dto';
+import { ProductEditService } from './product-edit.service';
 import { MatchingClient } from './matching/matching.client';
 import { BarcodeReviewService } from './matching/barcode-review.service';
 import { DecisionsService } from './matching/decisions.service';
@@ -43,7 +50,78 @@ export class CatalogController {
   constructor(
     private readonly catalog: CatalogService,
     private readonly prices: PriceHistoryService,
+    private readonly edits: ProductEditService,
   ) {}
+
+  @MutationLimit()
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
+  @Patch('products/:id')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Виправити характеристики товару (назва, бренд, категорія, фото…)',
+    operationId: 'updateProduct',
+  })
+  @ApiResponse({ status: 204 })
+  async updateProduct(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateProductDto,
+  ): Promise<void> {
+    await this.edits.updateProduct(id, { ...body });
+  }
+
+  @MutationLimit()
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
+  @Patch('variants/:id')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Виправити фасування: кількість, підпис, упаковку',
+    operationId: 'updateVariant',
+  })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 409, description: 'Таке фасування в товару вже є' })
+  async updateVariant(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateVariantDto,
+  ): Promise<void> {
+    await this.edits.updateVariant(id, { ...body });
+  }
+
+  @MutationLimit()
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
+  @Post('variants/:id/barcodes')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Додати штрихкод фасуванню вручну',
+    operationId: 'addVariantBarcode',
+  })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 409, description: 'Штрихкод належить іншому товару' })
+  async addBarcode(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: AddBarcodeDto,
+  ): Promise<void> {
+    await this.edits.addBarcode(id, body?.gtin);
+  }
+
+  @MutationLimit()
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
+  @Delete('variants/:id/barcodes/:gtin')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Прибрати помилковий штрихкод з фасування',
+    operationId: 'removeVariantBarcode',
+  })
+  @ApiResponse({ status: 204 })
+  async removeBarcode(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('gtin') gtin: string,
+  ): Promise<void> {
+    await this.edits.removeBarcode(id, gtin);
+  }
 
   @Get('products')
   @ApiOperation({
