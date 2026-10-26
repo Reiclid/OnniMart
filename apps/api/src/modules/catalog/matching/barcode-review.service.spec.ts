@@ -6,8 +6,6 @@ import {
 } from './barcode-review.service';
 import { MatchingClient } from './matching.client';
 
-type Args = any;
-
 function service(candidate: object | null, owner: object | null = null) {
   const prisma = {
     barcodeCandidate: {
@@ -42,16 +40,14 @@ const candidate = (overrides: object = {}) => ({
 });
 
 describe('BarcodeReviewService.accept', () => {
-  it('GTIN стає штрихкодом фасування, решта кандидатів — відхилені, пакет зіставлення', async () => {
+  it('GTIN стає штрихкодом фасування, решта кандидатів лишається в черзі, пакет зіставлення', async () => {
     const { review, prisma, matching } = service(candidate());
     await review.accept('c1');
     expect(prisma.$transaction).toHaveBeenCalled();
     expect(prisma.barcode.createMany.mock.calls[0][0].data).toEqual([
       { gtin: '04061458014045', variantId: 'v1', source: REVIEWED_SOURCE },
     ]);
-    expect(
-      (prisma.barcodeCandidate.updateMany.mock.calls[0] as Args)[0].where,
-    ).toMatchObject({ variantId: 'v1', status: 'SUGGESTED' });
+    expect(prisma.barcodeCandidate.updateMany).not.toHaveBeenCalled();
     expect(matching.request).toHaveBeenCalled();
   });
 

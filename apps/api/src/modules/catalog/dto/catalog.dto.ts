@@ -301,6 +301,11 @@ export class BarcodeReviewItemDto {
   @ApiProperty() productName!: string;
   @ApiProperty({ type: String, nullable: true }) brand!: string | null;
   @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+  @ApiProperty({
+    type: [String],
+    description: 'Штрихкоди, які фасування вже має (у т. ч. щойно прийняті)',
+  })
+  barcodes!: string[];
   @ApiProperty({ type: [BarcodeReviewListingDto] })
   listings!: BarcodeReviewListingDto[];
   @ApiProperty({ type: [BarcodeCandidateDto] })

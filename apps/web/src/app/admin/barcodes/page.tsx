@@ -27,7 +27,9 @@ export default async function BarcodesPage(props: PageProps<'/admin/barcodes'>) 
           Фасування, чиї мережі не публікують штрихкод (ALDI, VARUS). Однозначні збіги приписуються
           автоматично (<code>bun run off:match -- --write</code>), тут — сумнівні: оберіть товар OFF, якщо
           це той самий товар і фасування. Хибний штрихкод гірший за жоден.
-          Жовтим підсвічено слова назви OFF, яких немає ні в назві товару, ні в картках мереж.
+          Жовтим підсвічено слова назви OFF, яких немає ні в назві товару, ні в картках мереж. У фасування
+          буває кілька штрихкодів (ALDI Nord і SÜD, стара й нова упаковка): «Той самий товар» приймає лише цей
+          кандидат, решта лишаються — вирішіть кожного або натисніть «Жоден не підходить».
         </p>
       </div>
 
@@ -80,7 +82,7 @@ function BarcodeCard({ item }: { item: BarcodeReviewItemDto }) {
           <tr>
             <th className="w-28 bg-slate-50" />
             <th className="bg-blue-50/40 px-3 py-2 text-left">
-              <span className="text-xs font-medium text-blue-800">Наш товар (без штрихкоду)</span>
+              <span className="text-xs font-medium text-blue-800">Наш товар</span>
             </th>
             {offs.map((c, i) => (
               <th key={c.id} className="px-3 py-2 text-left font-normal">
@@ -154,7 +156,23 @@ function BarcodeCard({ item }: { item: BarcodeReviewItemDto }) {
               )),
             ]}
           />
-          <CompareRow label="Штрихкод" cells={['немає', ...offs.map((c) => <span key={c.id} className="font-mono text-xs">{c.gtin}</span>)]} />
+          <CompareRow
+            label="Штрихкод"
+            cells={[
+              item.barcodes.length ? (
+                <div key="l" className="space-y-0.5">
+                  {item.barcodes.map((g) => (
+                    <div key={g} className="font-mono text-xs text-green-700">
+                      ✓ {g}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                'немає'
+              ),
+              ...offs.map((c) => <span key={c.id} className="font-mono text-xs">{c.gtin}</span>),
+            ]}
+          />
           <CompareRow
             label="Рішення"
             cells={[

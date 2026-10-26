@@ -17,6 +17,8 @@ export interface BarcodeReviewItemDto {
   brand: string | null;
   /** @nullable */
   imageUrl: string | null;
+  /** Штрихкоди, які фасування вже має (у т. ч. щойно прийняті) */
+  barcodes: string[];
   listings: BarcodeReviewListingDto[];
   candidates: BarcodeCandidateDto[];
 }
