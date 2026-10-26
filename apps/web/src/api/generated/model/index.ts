@@ -6,6 +6,7 @@
  * OpenAPI spec version: 1.0
  */
 
+export * from './addBarcodeDto';
 export * from './barcodeCandidateDto';
 export * from './barcodeFactsDto';
 export * from './barcodeLookupDto';
@@ -95,5 +96,7 @@ export * from './triggerScraperResponseDto';
 export * from './undoDecisionKind';
 export * from './undoDecisionParams';
 export * from './updateMeDto';
+export * from './updateProductDto';
 export * from './updateSubscriptionDto';
+export * from './updateVariantDto';
 export * from './userDto';

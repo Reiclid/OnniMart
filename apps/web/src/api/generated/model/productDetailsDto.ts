@@ -19,7 +19,11 @@ export interface ProductDetailsDto {
   /** @nullable */
   imageUrl: string | null;
   /** @nullable */
+  description: string | null;
+  /** @nullable */
   category: CategoryRefDto | null;
+  /** Категорію задав модератор, зіставлення її не змінює */
+  categoryLocked: boolean;
   /** @nullable */
   line: ProductLineDto | null;
   variants: ProductVariantDto[];
