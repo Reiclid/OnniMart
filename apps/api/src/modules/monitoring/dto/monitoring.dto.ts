@@ -42,6 +42,25 @@ export class ScrapeRunDto {
   })
   itemsFailed!: number;
   @ApiProperty({ type: String, nullable: true }) error!: string | null;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'Обхід триває: скільки товарів було в попередньому вдалому обході',
+  })
+  expectedItems!: number | null;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Обхід триває: частка 0..0,99 від попереднього обходу',
+  })
+  fraction!: number | null;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Обхід триває: приблизно секунд до кінця',
+  })
+  etaSeconds!: number | null;
 }
 
 export const CHAIN_STATUSES = [

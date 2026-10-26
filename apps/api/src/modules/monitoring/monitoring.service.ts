@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { runProgress, type PreviousRun } from './progress';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeGtin } from '@repo/matching';
@@ -115,7 +116,40 @@ export class MonitoringService {
       take: Math.min(Math.max(limit, 1), 100),
       include: { chain: { select: { slug: true, name: true } } },
     });
-    return runs.map(toRunDto);
+    const now = new Date();
+    return Promise.all(
+      runs.map(async (run) => ({
+        ...toRunDto(run),
+        ...runProgress(
+          run,
+          run.status === 'RUNNING' ? await this.previousRun(run) : null,
+          now,
+        ),
+      })),
+    );
+  }
+
+  /** Останній вдалий обхід тієї самої мережі з тим самим обмеженням сторінок — мірило прогресу */
+  private async previousRun(run: {
+    id: string;
+    chainId: string;
+    maxPages: number | null;
+  }): Promise<PreviousRun | null> {
+    const previous = await this.prisma.scrapeRun.findFirst({
+      where: {
+        chainId: run.chainId,
+        id: { not: run.id },
+        maxPages: run.maxPages,
+        status: { in: ['SUCCESS', 'PARTIAL'] },
+        itemsSeen: { gt: 0 },
+        finishedAt: { not: null },
+      },
+      orderBy: { startedAt: 'desc' },
+      select: { itemsSeen: true, startedAt: true, finishedAt: true },
+    });
+    return previous?.finishedAt
+      ? { ...previous, finishedAt: previous.finishedAt }
+      : null;
   }
 
   async getListings(query: ListingsQueryDto): Promise<ListingPageDto> {
@@ -235,5 +269,9 @@ function toRunDto(run: RunWithChain): ScrapeRunDto {
     itemsChanged: run.itemsChanged,
     itemsFailed: run.itemsFailed,
     error: run.error,
+    // Прогрес рахує getScrapeRuns лише для запусків, що тривають
+    expectedItems: null,
+    fraction: null,
+    etaSeconds: null,
   };
 }
