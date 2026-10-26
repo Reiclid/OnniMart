@@ -45,6 +45,7 @@ export class BarcodeReviewService {
               brand: { select: { name: true } },
             },
           },
+          barcodes: { select: { gtin: true } },
           listings: {
             where: { delistedAt: null },
             take: 5,
@@ -76,6 +77,7 @@ export class BarcodeReviewService {
         productName: v.product.name,
         brand: v.product.brand?.name ?? null,
         imageUrl: v.product.imageUrl,
+        barcodes: v.barcodes.map((b) => b.gtin),
         listings: v.listings.map((l) => ({
           chainName: l.chain.name,
           name: l.rawName,
@@ -88,7 +90,7 @@ export class BarcodeReviewService {
     };
   }
 
-  /** GTIN кандидата стає штрихкодом фасування; решта кандидатів фасування — відхилені */
+  /** GTIN кандидата стає штрихкодом фасування; інші кандидати фасування чекають свого рішення */
   async accept(candidateId: string): Promise<void> {
     const candidate = await this.prisma.barcodeCandidate.findUnique({
       where: { id: candidateId },
@@ -115,14 +117,8 @@ export class BarcodeReviewService {
         where: { id: candidate.id },
         data: { status: 'ACCEPTED', decidedAt: now },
       }),
-      this.prisma.barcodeCandidate.updateMany({
-        where: {
-          variantId: candidate.variantId,
-          id: { not: candidate.id },
-          status: 'SUGGESTED',
-        },
-        data: { status: 'REJECTED', decidedAt: now },
-      }),
+      // Решта кандидатів лишається в черзі: у фасування буває кілька штрихкодів (Nord / SÜD,
+      // стара й нова упаковка) — модератор вирішує кожен окремо або «жоден не підходить»
       this.prisma.barcode.createMany({
         data: [
           {
