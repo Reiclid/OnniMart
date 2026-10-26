@@ -100,3 +100,13 @@ export function lineChipLabel(
     ? product.variantLabel
     : product.name;
 }
+
+/** Скільки ще чекати (адмінка, українською): "< 1 хв", "~12 хв", "~1 год 20 хв" */
+export function formatEta(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 1) return '< 1 хв';
+  if (minutes < 60) return `~${minutes} хв`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `~${hours} год ${rest} хв` : `~${hours} год`;
+}
