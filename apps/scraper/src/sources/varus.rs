@@ -10,7 +10,9 @@ use crate::text::{json_object_after, non_empty};
 
 pub const START_URL: &str = "https://varus.ua/";
 const SITE: &str = "https://varus.ua";
-const IMAGES: &str = "https://varus.ua/img/300/300/resize/catalog/product";
+/// Фото товару: `/img/carousel/<ширина>/<висота>/<id>/0` (WebP). Старий шлях
+/// `/img/300/300/resize/catalog/product/...` з 2026 року віддає 400 або заглушку Magento
+const IMAGES: &str = "https://varus.ua/img/carousel/300/300";
 /// Добірки й акційні розділи дублюють товари з основних категорій;
 /// тютюн і кафе — не роздрібні продукти
 const SKIP: &[&str] = &[
@@ -115,9 +117,15 @@ fn product(item: &Value, store: &str, category: &Category, scraped_at: &str) -> 
         price_unit: weighted.then(|| "кг".to_string()),
         in_stock: item.pointer("/stock/is_in_stock").and_then(Value::as_bool).unwrap_or(true),
         url: text("/url_path").map(|path| format!("{SITE}/{path}")),
-        image_url: text("/image").map(|path| format!("{IMAGES}{path}")),
+        image_url: text("/image").and_then(|path| image_url(&path)),
         ..base_product(store, category, scraped_at)
     })
+}
+
+/// id товару з шляху `/product/2549498/main.jpg?t=…` → адреса фото каруселі
+fn image_url(path: &str) -> Option<String> {
+    let id = path.split('/').find(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))?;
+    Some(format!("{IMAGES}/{id}/0"))
 }
 
 #[cfg(test)]
@@ -165,9 +173,10 @@ mod tests {
             oil.url.as_deref(),
             Some("https://varus.ua/maslo-podsolnechnoe-oleyna-tradicionnaya-rafinirovannoe-850-ml")
         );
-        assert!(oil.image_url.as_deref().unwrap().starts_with(
-            "https://varus.ua/img/300/300/resize/catalog/product/product/2549498/main.jpg"
-        ));
+        assert_eq!(
+            oil.image_url.as_deref(),
+            Some("https://varus.ua/img/carousel/300/300/2549498/0")
+        );
 
         let mayo = &listing.products[1];
         assert_eq!(mayo.price, 55.1);
