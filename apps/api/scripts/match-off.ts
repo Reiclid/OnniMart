@@ -108,6 +108,7 @@ async function main() {
         name,
         brands: tags(get('brands')).filter(Boolean),
         quantity: parseQuantity(get('quantity') ?? ''),
+        imageUrl: get('image_small_url') || get('image_url') || null,
       });
     }
   }
@@ -230,11 +231,29 @@ async function main() {
               gtin,
               score,
               offName: index.labelOf(gtin) ?? gtin,
+              imageUrl: index.imageOf(gtin),
             })),
         ),
       skipDuplicates: true,
     });
     console.log(`На модерацію штрихкодів: ${review.count}`);
+
+    // Кандидатам, записаним раніше без фото, — фото з поточного вивантаження
+    const missing = await prisma.barcodeCandidate.findMany({
+      where: { imageUrl: null },
+      select: { id: true, gtin: true },
+    });
+    let photos = 0;
+    for (const { id, gtin } of missing) {
+      const imageUrl = index.imageOf(gtin);
+      if (!imageUrl) continue;
+      await prisma.barcodeCandidate.update({
+        where: { id },
+        data: { imageUrl },
+      });
+      photos++;
+    }
+    console.log(`Дописано фото кандидатам: ${photos} з ${missing.length}`);
   }
   await prisma.$disconnect();
 }

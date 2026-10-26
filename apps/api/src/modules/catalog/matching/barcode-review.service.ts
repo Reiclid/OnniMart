@@ -53,7 +53,13 @@ export class BarcodeReviewService {
           barcodeCandidates: {
             where: { status: 'SUGGESTED' },
             orderBy: { score: 'desc' },
-            select: { id: true, gtin: true, score: true, offName: true },
+            select: {
+              id: true,
+              gtin: true,
+              score: true,
+              offName: true,
+              imageUrl: true,
+            },
           },
         },
         orderBy: { product: { name: 'asc' } },

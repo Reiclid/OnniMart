@@ -264,6 +264,8 @@ model BarcodeCandidate {
   score     Float
   /// Як в OFF: «бренди · назва»
   offName   String
+  /// Мале фото товару з OFF (image_small_url), щоб модератор бачив упаковку
+  imageUrl  String?
   status    CandidateStatus @default(SUGGESTED)
   createdAt DateTime        @default(now())
   decidedAt DateTime?

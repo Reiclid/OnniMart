@@ -155,6 +155,18 @@ describe('OffIndex: дублікати й ознаки (PRD-27, ітерація
     ]);
   });
 
+  it('памʼятає фото товару OFF для модератора', () => {
+    const index = new OffIndex();
+    index.add({
+      ...off('04000000000004', 'Klarspüler', ['Somat'], '750 ml'),
+      imageUrl: 'https://images.openfoodfacts.org/images/products/x.200.jpg',
+    });
+    expect(index.imageOf('04000000000004')).toBe(
+      'https://images.openfoodfacts.org/images/products/x.200.jpg',
+    );
+    expect(index.imageOf('0')).toBeNull();
+  });
+
   it('газованість названа лише з одного боку — не збіг', () => {
     const index = new OffIndex();
     index.add(
