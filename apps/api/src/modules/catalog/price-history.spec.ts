@@ -30,9 +30,9 @@ describe('seriesPoints', () => {
       NOW,
     );
     expect(points).toEqual([
-      { price: 50, at: daysAgo(30) },
-      { price: 45, at: daysAgo(10) },
-      { price: 45, at: NOW },
+      { price: 50, at: daysAgo(30), observed: false },
+      { price: 45, at: daysAgo(10), observed: true },
+      { price: 45, at: NOW, observed: false },
     ]);
   });
 
@@ -40,9 +40,34 @@ describe('seriesPoints', () => {
     expect(
       seriesPoints(listing('silpo', [[5, 50]]).snapshots, daysAgo(30), NOW),
     ).toEqual([
-      { price: 50, at: daysAgo(5) },
-      { price: 50, at: NOW },
+      { price: 50, at: daysAgo(5), observed: true },
+      { price: 50, at: NOW, observed: false },
     ]);
+  });
+
+  it('знімок пізніший за кінець не губиться', () => {
+    expect(
+      seriesPoints(
+        listing('metro', [
+          [20, 329],
+          [1, 535.6],
+        ]).snapshots,
+        daysAgo(30),
+        daysAgo(3),
+        true,
+      ).map((p) => p.price),
+    ).toEqual([329, 535.6]);
+  });
+
+  it('кінець — останній огляд картки: справжня точка', () => {
+    expect(
+      seriesPoints(
+        listing('silpo', [[5, 50]]).snapshots,
+        daysAgo(30),
+        daysAgo(1),
+        true,
+      ).at(-1),
+    ).toEqual({ price: 50, at: daysAgo(1), observed: true });
   });
 });
 

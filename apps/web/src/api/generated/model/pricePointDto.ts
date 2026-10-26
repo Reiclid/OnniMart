@@ -9,4 +9,6 @@
 export interface PricePointDto {
   at: string;
   price: number;
+  /** Справжнє спостереження (зміна ціни або останній огляд), а не край вікна */
+  observed: boolean;
 }

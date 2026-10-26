@@ -22,6 +22,8 @@ export interface ListingHistory {
   chainName: string;
   currency: string;
   snapshots: Snapshot[];
+  /** Останній огляд картки: відтоді ціна та сама (змін не записано) */
+  lastSeenAt?: Date;
 }
 
 export interface CurrencyStats {
@@ -46,21 +48,31 @@ export function windowOf(days: number | undefined): HistoryWindow {
   return HISTORY_WINDOWS.find((w) => w === Number(days)) ?? 30;
 }
 
-/** Точки графіка у вікні: ціна на початок вікна, кожна зміна і поточна ціна «зараз» */
+export interface SeriesPoint extends Snapshot {
+  /** Справжнє спостереження (знімок або останній огляд), а не край вікна */
+  observed: boolean;
+}
+
+/**
+ * Точки графіка у вікні: ціна на початок вікна, кожна зміна і ціна на `end` —
+ * останній огляд картки (`observed`) або «зараз»
+ */
 export function seriesPoints(
   snapshots: Snapshot[],
   from: Date,
-  now: Date,
-): Snapshot[] {
+  end: Date,
+  endObserved = false,
+): SeriesPoint[] {
   const before = snapshots.filter((s) => s.at < from).at(-1);
-  const inside = snapshots.filter((s) => s.at >= from && s.at <= now);
-  const points = [
-    ...(before ? [{ price: before.price, at: from }] : []),
-    ...inside,
+  // Знімок буває пізніший за lastSeenAt (Open Prices пише дату покупки) — його не губимо
+  const inside = snapshots.filter((s) => s.at >= from);
+  const points: SeriesPoint[] = [
+    ...(before ? [{ price: before.price, at: from, observed: false }] : []),
+    ...inside.map((s) => ({ ...s, observed: true })),
   ];
   const last = points.at(-1);
-  return last && last.at < now
-    ? [...points, { price: last.price, at: now }]
+  return last && last.at < end
+    ? [...points, { price: last.price, at: end, observed: endObserved }]
     : points;
 }
 
