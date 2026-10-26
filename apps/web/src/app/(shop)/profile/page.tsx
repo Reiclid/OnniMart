@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getSubscriptions, getViews } from '@/api/generated/me/me';
+import { getFavouriteIds, getSubscriptions, getViews } from '@/api/generated/me/me';
 import { INTL_LOCALE } from '@/i18n';
 import { getI18n } from '@/i18n/server';
 import { countryList } from '@/lib/country';
@@ -13,8 +13,9 @@ const row = 'flex items-center gap-2 px-4 py-3.5 text-body transition-colors dur
 
 export default async function ProfilePage() {
   const user = await requireUser('/profile');
-  const [{ data: subscriptions }, viewed, { t, locale }, country] = await Promise.all([
+  const [{ data: subscriptions }, favourites, viewed, { t, locale }, country] = await Promise.all([
     getSubscriptions(),
+    getFavouriteIds().then((r) => r.data.productIds.length).catch(() => 0),
     getViews().then((r) => r.data.length).catch(() => 0),
     getI18n(),
     currentCountry(),
@@ -40,6 +41,10 @@ export default async function ProfilePage() {
         <Link href="/alerts" className={row}>
           <span className="flex-1">{t('profile.priceAlerts')}</span>
           <span className="text-body-sm text-fg-muted tabular-nums">{t('profile.active', { count: active })}</span>›
+        </Link>
+        <Link href="/profile/favourites" className={row}>
+          <span className="flex-1">{t('favourites.title')}</span>
+          <span className="text-body-sm text-fg-muted tabular-nums">{t('favourites.items', { count: favourites })}</span>›
         </Link>
         <Link href="/profile/viewed" className={row}>
           <span className="flex-1">{t('viewed.title')}</span>

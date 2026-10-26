@@ -59,6 +59,14 @@ export const de: Catalog = {
     pricesUpdated: 'Preise aktualisiert {date}',
     similar: 'Ähnliche Produkte',
   },
+  priceHistory: {
+    title: 'Preisverlauf',
+    chart: 'Preisverlauf nach Händler',
+    window: { '30': '30 Tage', '90': '90 Tage', '365': '1 Jahr' },
+    lowestFor: { one: 'Tiefster Preis seit {count} Tag', other: 'Tiefster Preis seit {count} Tagen' },
+    low30: '30-Tage-Tief: {price}',
+    spread: 'Händler unterscheiden sich um bis zu {percent}',
+  },
   chainRow: {
     cheapest: 'am günstigsten',
     promo: 'Aktion',
@@ -170,6 +178,14 @@ export const de: Catalog = {
     text: 'OnniMart kann die Produkte, die du ansiehst und suchst, nutzen, um Startseite und Suche zu sortieren. Keine Werbung, keine Tracker von Dritten. 180 Tage gespeichert, in den Einstellungen abschaltbar.',
     decline: 'Nein, danke',
     accept: 'Einschalten',
+  },
+  favourites: {
+    title: 'Favoriten',
+    add: 'Zu Favoriten hinzufügen',
+    remove: 'Aus Favoriten entfernen',
+    hint: 'Produkte, die du kaufst, neueste zuerst. Ohne Benachrichtigungen: für Preissenkungen gibt es „Preis beobachten“.',
+    empty: 'Noch leer. Tippe auf das Herz bei einem Produkt, um es hier zu speichern.',
+    items: { one: '{count} Produkt', other: '{count} Produkte' },
   },
   viewed: {
     title: 'Zuletzt angesehen',

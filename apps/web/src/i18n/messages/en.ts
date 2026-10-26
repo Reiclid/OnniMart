@@ -58,6 +58,14 @@ export const en = {
     pricesUpdated: 'Prices updated {date}',
     similar: 'Similar products',
   },
+  priceHistory: {
+    title: 'Price history',
+    chart: 'Price history by chain',
+    window: { '30': '30 days', '90': '90 days', '365': '1 year' },
+    lowestFor: { one: 'Lowest price in {count} day', other: 'Lowest price in {count} days' },
+    low30: '30-day low: {price}',
+    spread: 'Chains differ by up to {percent}',
+  },
   chainRow: {
     cheapest: 'cheapest',
     promo: 'Promo',
@@ -169,6 +177,14 @@ export const en = {
     text: 'OnniMart can use the products you view and search to order Home and search results. No ads, no third-party trackers. Kept 180 days, and you can turn it off in Settings.',
     decline: 'No thanks',
     accept: 'Turn on',
+  },
+  favourites: {
+    title: 'Favourites',
+    add: 'Add to favourites',
+    remove: 'Remove from favourites',
+    hint: 'Products you buy, newest first. No notifications: for price drops use Track price.',
+    empty: 'Nothing here yet. Tap the heart on a product to keep it here.',
+    items: { one: '{count} item', other: '{count} items' },
   },
   viewed: {
     title: 'Recently viewed',

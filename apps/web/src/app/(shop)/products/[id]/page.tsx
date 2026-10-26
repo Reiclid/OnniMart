@@ -1,24 +1,32 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ApiError } from '@/api/custom-fetch';
-import { getProduct, getSimilarProducts } from '@/api/generated/catalog/catalog';
+import { getPriceHistory, getProduct, getSimilarProducts } from '@/api/generated/catalog/catalog';
+import { getFavouriteIds } from '@/api/generated/me/me';
 import { productCard } from '@/components/ProductCard';
 import { ProductMasonry } from '@/components/ProductMasonry';
 import { BackButton } from '@/components/BackButton';
 import { ChainPriceRow } from '@/components/ChainPriceRow';
+import { PriceChart } from '@/components/PriceChart';
 import { RecordView } from '@/components/RecordView';
 import { RollingNumber } from '@/components/RollingNumber';
 import { SlidingPill } from '@/components/SlidingPill';
-import { buttonStyles, Chip, ProductImage } from '@/components/ui';
-import { currencySymbol, formatShown, formatUnitPrice, lineChipLabel } from '@/lib/format';
+import { buttonStyles, Chip, HeartIcon, ProductImage } from '@/components/ui';
+import { currencySymbol, formatMoney, formatShown, formatUnitPrice, lineChipLabel } from '@/lib/format';
 import { productView } from '@/lib/offers';
 import { getI18n } from '@/i18n/server';
 import { INTL_LOCALE } from '@/i18n';
 import { COUNTRIES, shownPrice } from '@/lib/country';
 import { currentCountry, currentMoney, currentUser } from '@/lib/session';
-import { trackPrice } from '../../actions';
+import { toggleFavourite, trackPrice } from '../../actions';
 
 export const dynamic = 'force-dynamic';
+
+const WINDOWS = [
+  ['30', 'priceHistory.window.30'],
+  ['90', 'priceHistory.window.90'],
+  ['365', 'priceHistory.window.365'],
+] as const;
 
 export default async function ProductPage(props: PageProps<'/products/[id]'>) {
   const [{ id }, params] = await Promise.all([props.params, props.searchParams]);
@@ -40,6 +48,18 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
   const hero = cheapest?.currentPrice != null ? formatShown(cheapest.currentPrice, cheapest.currency, money) : null;
   // Поріг «Below a price» — у валюті показу, як і головний цінник
   const target = cheapest?.currentPrice != null ? shownPrice(cheapest.currentPrice, cheapest.currency, money) : null;
+  // Історія цін (PRD-02) — у рідній валюті найдешевшої мережі: минулі ціни за сьогоднішнім курсом вводили б в оману
+  const days = params.days === '90' || params.days === '365' ? params.days : '30';
+  const history =
+    variant && cheapest
+      ? await getPriceHistory(product.id, { variantId: variant.id, days: Number(days) as 30 | 90 | 365 }).then((r) => r.data, () => null)
+      : null;
+  const stats = history?.stats.find((s) => s.currency === cheapest?.currency);
+  const series = history?.series.filter((s) => s.currency === cheapest?.currency) ?? [];
+  // Серце не головне: збій API лишає його порожнім
+  const favourite = user ? await getFavouriteIds().then((r) => r.data.productIds.includes(product.id), () => false) : false;
+  const heart = `press grid size-11 shrink-0 place-items-center rounded-full border border-line bg-surface ${favourite ? 'text-danger' : 'text-fg-muted hover:text-fg'}`;
+
   return (
     <div className="space-y-8">
       <RecordView productId={product.id} />
@@ -58,9 +78,24 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
               <Link href={`/products?category=${product.category.slug}`} className="hover:text-fg">{product.category.name}</Link>
             </nav>
           )}
-          <div className="space-y-1">
-            {product.brand && <div className="text-body-sm font-semibold text-brand">{product.brand}</div>}
-            <h1 className="text-display font-bold">{product.name}</h1>
+          <div className="flex items-start gap-3">
+            <div className="flex-1 space-y-1">
+              {product.brand && <div className="text-body-sm font-semibold text-brand">{product.brand}</div>}
+              <h1 className="text-display font-bold">{product.name}</h1>
+            </div>
+            {user ? (
+              <form action={toggleFavourite}>
+                <input type="hidden" name="productId" value={product.id} />
+                <input type="hidden" name="on" value={String(!favourite)} />
+                <button type="submit" aria-pressed={favourite} aria-label={t(favourite ? 'favourites.remove' : 'favourites.add')} className={heart}>
+                  <HeartIcon fill={favourite ? 'currentColor' : 'none'} />
+                </button>
+              </form>
+            ) : (
+              <Link href={`/login?next=/products/${product.id}`} aria-label={t('favourites.add')} className={heart}>
+                <HeartIcon />
+              </Link>
+            )}
           </div>
 
           {cheapest && hero && (
@@ -153,6 +188,32 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
                   {t('product.signInToTrack')}
                 </Link>
               )}
+            </section>
+          )}
+
+          {stats && series.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-title-sm font-semibold">{t('priceHistory.title')}</h2>
+                <div className="flex gap-1">
+                  {WINDOWS.map(([d, key]) => (
+                    <Chip key={d} href={`?${new URLSearchParams({ ...(variant && { v: variant.id }), days: d })}`} selected={d === days} replace>
+                      {t(key)}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 text-body-sm tabular-nums">
+                {/* «Найнижча за N днів» — лише коли дешевше справді бувало і давно (не шум першого тижня) */}
+                {stats.lowerSeen && stats.lowestForDays >= 7 && (
+                  <span className="rounded-sm bg-selected px-2 py-1 font-semibold text-brand">{t('priceHistory.lowestFor', { count: stats.lowestForDays })}</span>
+                )}
+                <span className="rounded-sm bg-page px-2 py-1">{t('priceHistory.low30', { price: formatMoney(stats.low30, stats.currency) })}</span>
+                {stats.spread > 0 && (
+                  <span className="rounded-sm bg-page px-2 py-1">{t('priceHistory.spread', { percent: `${Math.round(stats.spread * 100)}%` })}</span>
+                )}
+              </div>
+              <PriceChart series={series} highlight={cheapest?.id} locale={INTL_LOCALE[locale]} label={t('priceHistory.chart')} />
             </section>
           )}
 

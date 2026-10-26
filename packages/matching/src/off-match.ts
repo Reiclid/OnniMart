@@ -29,7 +29,7 @@ export interface OffProduct {
 export interface OffCandidate {
   gtin: string;
   score: number;
-  /** Ті самі слова, ознаки й фасування — один товар під різними GTIN (дублікати OFF) */
+  /** Однаковий у дублікатів OFF (ті самі слова й ознаки або рушій звів би їх в одне фасування) */
   key: string;
 }
 
@@ -56,6 +56,16 @@ function quantityBlock(
 ): string | null {
   const key = quantity ? quantityKey(quantity) : 'none';
   return key === 'none' ? null : `${country}|${key}`;
+}
+
+/**
+ * Ознаки, які для штрихкоду мусять бути названі з обох боків: «Mineralwasser Medium» і
+ * «Mineralwasser classic» без позначки газу — різні товари. Між картками мереж це не так суворо.
+ */
+const OFF_STRICT_GROUPS = ['gas'];
+
+function oneSided(a: NameFeatures, b: NameFeatures): boolean {
+  return OFF_STRICT_GROUPS.some((g) => a.attributes[g] !== b.attributes[g]);
 }
 
 export class OffIndex {
@@ -116,11 +126,30 @@ export class OffIndex {
     for (const id of ids) {
       const entry = this.entries.get(id)!;
       const score = Math.max(
-        ...entry.names.map((n) => scorePair(listing.features, n, idf).score),
+        ...entry.names.map((n) =>
+          oneSided(listing.features, n)
+            ? 0
+            : scorePair(listing.features, n, idf).score,
+        ),
       );
       if (score > 0) scored.push({ gtin: id, score, key: entry.key });
     }
-    return scored.sort((a, b) => b.score - a.score);
+    scored.sort((a, b) => b.score - a.score);
+    // Дублікати OFF рідко названі однаково («Молоко 2,5% ультрапастеризоване» і «… жиру, …»):
+    // записи, які рушій сам звів би в одне фасування з найкращим, — той самий товар
+    if (!scored.length) return scored;
+    const top = this.entries.get(scored[0].gtin)!;
+    for (const c of scored.slice(1)) {
+      if (c.key !== top.key && this.same(top, this.entries.get(c.gtin)!, idf))
+        c.key = top.key;
+    }
+    return scored;
+  }
+
+  private same(a: Entry, b: Entry, idf: Idf): boolean {
+    return b.names.some(
+      (n) => scorePair(a.names[0], n, idf).score >= this.thresholds.auto,
+    );
   }
 
   has(gtin: string): boolean {
@@ -143,8 +172,9 @@ export function offDecision(
 ): OffDecision {
   const [best] = scored;
   if (!best || best.score < thresholds.review) return { kind: 'none' };
+  // Той самий товар під кількома GTIN — усі, хоч і з трохи нижчою схожістю до картки
   const same = scored.filter(
-    (c) => c.key === best.key && c.score === best.score,
+    (c) => c.key === best.key && c.score >= thresholds.review,
   );
   const next = scored.find((c) => !same.includes(c));
   if (

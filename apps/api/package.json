@@ -10,6 +10,7 @@
     "stores:import": "bun scripts/import-stores.ts",
     "food:import": "bun scripts/import-food-facts.ts",
     "off:match": "bun scripts/match-off.ts",
+    "rec:evaluate": "bun scripts/evaluate-recs.ts",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

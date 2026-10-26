@@ -5,6 +5,7 @@ const NAV = [
   { href: "/admin/products", label: "Каталог" },
   { href: "/admin/listings", label: "Картки мереж" },
   { href: "/admin/matching", label: "Зіставлення" },
+  { href: "/admin/barcodes", label: "Штрихкоди OFF" },
 ];
 
 /** Службова частина: перевірка даних, запуск парсера, модерація зіставлень */

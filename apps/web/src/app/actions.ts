@@ -3,7 +3,9 @@
 // Зміни через API потребують токена адміністратора (ADMIN_TOKEN). Він лишається на
 // сервері Next.js: кнопки викликають ці серверні дії, а не API напряму з браузера.
 import {
+  acceptBarcodeCandidate,
   acceptCandidate,
+  rejectBarcodeCandidates,
   rejectCandidates,
   runMatching,
   unlinkListing,
@@ -47,4 +49,12 @@ export async function rejectCandidatesAction(listingId: string) {
 
 export async function unlinkListingAction(listingId: string) {
   return run(() => unlinkListing(listingId));
+}
+
+export async function acceptBarcodeAction(candidateId: string) {
+  return run(() => acceptBarcodeCandidate(candidateId));
+}
+
+export async function rejectBarcodesAction(variantId: string) {
+  return run(() => rejectBarcodeCandidates(variantId));
 }

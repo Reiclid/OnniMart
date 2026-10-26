@@ -196,6 +196,7 @@ model Product {
   variants      ProductVariant[]
   subscriptions Subscription[]
   views         ProductView[]
+  favourites    Favourite[]
 
   @@index([lineId])
   @@index([brandId])
@@ -225,12 +226,13 @@ model ProductVariant {
 
   createdAt DateTime @default(now())
 
-  product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
-  barcodes        Barcode[]
-  listings        Listing[]
-  subscriptions   Subscription[]
-  matchCandidates MatchCandidate[]
-  matchKeys       MatchKey[]
+  product           Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  barcodes          Barcode[]
+  barcodeCandidates BarcodeCandidate[]
+  listings          Listing[]
+  subscriptions     Subscription[]
+  matchCandidates   MatchCandidate[]
+  matchKeys         MatchKey[]
 
   @@unique([productId, measure, netQuantity, packCount])
   @@map("product_variants")
@@ -250,6 +252,27 @@ model Barcode {
 
   @@index([variantId])
   @@map("barcodes")
+}
+
+/// PRD-27: сумнівний збіг фасування без штрихкоду мереж з товаром Open Food Facts — черга модерації.
+/// Пише `bun run off:match -- --write`; підтверджений GTIN стає barcodes (source 'openfoodfacts-review')
+model BarcodeCandidate {
+  id        String          @id @default(uuid())
+  variantId String
+  gtin      String          @db.VarChar(14)
+  /// Схожість 0..1 найкращої картки фасування
+  score     Float
+  /// Як в OFF: «бренди · назва»
+  offName   String
+  status    CandidateStatus @default(SUGGESTED)
+  createdAt DateTime        @default(now())
+  decidedAt DateTime?
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([variantId, gtin])
+  @@index([status])
+  @@map("barcode_candidates")
 }
 
 /// Склад і харчова цінність з Open Food Facts за штрихкодом (ODbL; оновлює scripts/import-food-facts.ts)
@@ -561,6 +584,7 @@ model User {
   devices       PushDevice[]
   sessions      Session[]
   views         ProductView[]
+  favourites    Favourite[]
   events        Event[]
 
   @@map("users")
@@ -658,6 +682,21 @@ model PushDevice {
 
   @@index([userId])
   @@map("push_devices")
+}
+
+/// PRD-01: обране («серце») — «я це купую», без сповіщень (сповіщення — subscriptions)
+model Favourite {
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
+  @@index([userId, createdAt])
+  @@index([productId])
+  @@map("favourites")
 }
 
 /// PRD-04: нещодавно переглянуті — один рядок на товар (повторний перегляд оновлює viewedAt), останні 50

@@ -3,6 +3,8 @@ import type { EventType } from '../../generated/prisma/client';
 
 /** "Нещодавно переглянуті": скільки товарів памʼятаємо на користувача */
 export const MAX_VIEWS = 50;
+/** PRD-01: межа обраного на користувача — список віддається цілим */
+export const MAX_FAVOURITES = 500;
 /** Події зберігаються 180 днів (AUDIT §9.3) */
 export const EVENT_RETENTION_DAYS = 180;
 

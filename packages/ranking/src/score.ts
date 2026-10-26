@@ -144,20 +144,30 @@ export function score(
   };
 }
 
-/** Оцінки всіх кандидатів набору (ознаки дешевизни й популярності — відносно цього набору) */
-export function scoreAll(
+/** Ознаки всіх кандидатів набору (дешевизна й популярність — відносно цього набору) */
+export function featuresAll(
   candidates: Candidate[],
   profile: Profile,
-  weights: Weights,
-): Map<string, number> {
+): Map<string, Features> {
   const context = {
     maxChains: Math.max(0, ...candidates.map((c) => c.chains.length)),
     cheap: cheapness(candidates),
   };
   return new Map(
-    candidates.map((c) => [
-      c.id,
-      score(featuresOf(c, profile, context), weights).score,
+    candidates.map((c) => [c.id, featuresOf(c, profile, context)]),
+  );
+}
+
+/** Оцінки v0 всіх кандидатів набору */
+export function scoreAll(
+  candidates: Candidate[],
+  profile: Profile,
+  weights: Weights,
+): Map<string, number> {
+  return new Map(
+    [...featuresAll(candidates, profile)].map(([id, f]) => [
+      id,
+      score(f, weights).score,
     ]),
   );
 }

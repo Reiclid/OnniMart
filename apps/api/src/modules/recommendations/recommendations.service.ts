@@ -11,7 +11,11 @@ import { errorText } from '../../common/errors';
 import { clampPageSize, pageOf } from '../../common/query';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { MAX_VIEWS, retentionCutoff } from '../activity/activity';
+import {
+  MAX_FAVOURITES,
+  MAX_VIEWS,
+  retentionCutoff,
+} from '../activity/activity';
 import type { EventName } from '../activity/activity';
 import { ActivityService } from '../activity/activity.service';
 import { CatalogService } from '../catalog/catalog.service';
@@ -139,17 +143,23 @@ export class RecommendationsService {
     });
   }
 
-  /** Перегляди (view), підписки (track) і події click / chain_click / favourite за 180 днів */
+  /** Перегляди (view), обране (favourite), підписки (track) і події click / chain_click за 180 днів */
   private async profile(
     userId: string,
     preferredChains: string[],
   ): Promise<{ profile: Profile; tracked: Set<string> }> {
-    const [views, subs, events] = await Promise.all([
+    const [views, favourites, subs, events] = await Promise.all([
       this.prisma.productView.findMany({
         where: { userId },
         orderBy: { viewedAt: 'desc' },
         take: MAX_VIEWS,
         select: { productId: true, viewedAt: true },
+      }),
+      this.prisma.favourite.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: MAX_FAVOURITES,
+        select: { productId: true, createdAt: true },
       }),
       this.prisma.subscription.findMany({
         where: { userId },
@@ -164,7 +174,8 @@ export class RecommendationsService {
       this.prisma.event.findMany({
         where: {
           userId,
-          type: { in: ['CLICK', 'CHAIN_CLICK', 'FAVOURITE'] },
+          // Обране — з таблиці favourites (стан, а не історія натискань)
+          type: { in: ['CLICK', 'CHAIN_CLICK'] },
           createdAt: { gte: retentionCutoff(new Date()) },
         },
         orderBy: { createdAt: 'desc' },
@@ -178,6 +189,11 @@ export class RecommendationsService {
         at: v.viewedAt,
         productId: v.productId,
       })),
+      ...favourites.map((f) => ({
+        type: 'favourite' as const,
+        at: f.createdAt,
+        productId: f.productId,
+      })),
       ...subs.map((s) => ({
         type: 'track' as const,
         at: s.createdAt,
@@ -185,7 +201,7 @@ export class RecommendationsService {
         chains: s.chainIds,
       })),
       ...events.map((e) => ({
-        type: e.type.toLowerCase() as 'click' | 'chain_click' | 'favourite',
+        type: e.type.toLowerCase() as 'click' | 'chain_click',
         at: e.createdAt,
         productId: e.productId,
         chains: e.chainId ? [e.chainId] : undefined,
@@ -226,39 +242,11 @@ export class RecommendationsService {
     };
   }
 
-  /** Ознаки кандидатів двома запитами: мережі, країни, знижка; найнижча ціна за одиницю */
-  private async candidates(
+  private candidates(
     ids: string[],
     country: string | null,
   ): Promise<Candidate[]> {
-    if (!ids.length) return [];
-    const list = Prisma.join(ids);
-    const [facts, prices] = await Promise.all([
-      this.prisma.$queryRaw<ProductFacts[]>`
-        SELECT p.id, p.name, p."lineId", p."brandId", c.slug AS category,
-          coalesce(array_agg(DISTINCT l."chainId") FILTER (WHERE l.id IS NOT NULL), '{}') AS chains,
-          coalesce(array_agg(DISTINCT sc."countryCode"::text) FILTER (WHERE l.id IS NOT NULL), '{}') AS countries,
-          coalesce(max(1 - l."currentPrice" / l."regularPrice")
-            FILTER (WHERE l."isOnPromo" AND l."regularPrice" > l."currentPrice"), 0)::float AS discount
-        FROM products p
-        LEFT JOIN categories c ON c.id = p."categoryId"
-        LEFT JOIN product_variants v ON v."productId" = p.id
-        LEFT JOIN listings l ON l."variantId" = v.id
-          AND l."delistedAt" IS NULL AND l."currentPrice" IS NOT NULL
-        LEFT JOIN store_chains sc ON sc.id = l."chainId"
-        WHERE p.id IN (${list})
-        GROUP BY p.id, c.slug`,
-      this.prisma.$queryRaw<UnitPrice[]>`
-        SELECT v."productId" AS id, sc.currency::text AS currency,
-          min(l."currentPrice" / (v."netQuantity" * v."packCount"))::float AS price
-        FROM product_variants v
-        JOIN listings l ON l."variantId" = v.id
-          AND l."delistedAt" IS NULL AND l."currentPrice" IS NOT NULL
-        JOIN store_chains sc ON sc.id = l."chainId"
-        WHERE v."productId" IN (${list}) AND v."netQuantity" > 0 AND NOT v."isWeighted"
-        GROUP BY v."productId", sc.currency`,
-    ]);
-    return toCandidates(ids, facts, prices, country);
+    return loadCandidates(this.prisma, ids, country);
   }
 
   /** Покази з позицією (+ сам запит на першій сторінці); не гальмують відповідь */
@@ -297,4 +285,40 @@ export class RecommendationsService {
         this.logger.warn(`Покази не записано: ${errorText(error)}`);
       });
   }
+}
+
+/** Ознаки кандидатів двома запитами: мережі, країни, знижка; найнижча ціна за одиницю */
+export async function loadCandidates(
+  prisma: PrismaService,
+  ids: string[],
+  country: string | null,
+): Promise<Candidate[]> {
+  if (!ids.length) return [];
+  const list = Prisma.join(ids);
+  const [facts, prices] = await Promise.all([
+    prisma.$queryRaw<ProductFacts[]>`
+      SELECT p.id, p.name, p."lineId", p."brandId", c.slug AS category,
+        coalesce(array_agg(DISTINCT l."chainId") FILTER (WHERE l.id IS NOT NULL), '{}') AS chains,
+        coalesce(array_agg(DISTINCT sc."countryCode"::text) FILTER (WHERE l.id IS NOT NULL), '{}') AS countries,
+        coalesce(max(1 - l."currentPrice" / l."regularPrice")
+          FILTER (WHERE l."isOnPromo" AND l."regularPrice" > l."currentPrice"), 0)::float AS discount
+      FROM products p
+      LEFT JOIN categories c ON c.id = p."categoryId"
+      LEFT JOIN product_variants v ON v."productId" = p.id
+      LEFT JOIN listings l ON l."variantId" = v.id
+        AND l."delistedAt" IS NULL AND l."currentPrice" IS NOT NULL
+      LEFT JOIN store_chains sc ON sc.id = l."chainId"
+      WHERE p.id IN (${list})
+      GROUP BY p.id, c.slug`,
+    prisma.$queryRaw<UnitPrice[]>`
+      SELECT v."productId" AS id, sc.currency::text AS currency,
+        min(l."currentPrice" / (v."netQuantity" * v."packCount"))::float AS price
+      FROM product_variants v
+      JOIN listings l ON l."variantId" = v.id
+        AND l."delistedAt" IS NULL AND l."currentPrice" IS NOT NULL
+      JOIN store_chains sc ON sc.id = l."chainId"
+      WHERE v."productId" IN (${list}) AND v."netQuantity" > 0 AND NOT v."isWeighted"
+      GROUP BY v."productId", sc.currency`,
+  ]);
+  return toCandidates(ids, facts, prices, country);
 }

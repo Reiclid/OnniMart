@@ -2,10 +2,12 @@
 //
 // Оцінка (за замовчуванням, лише читає). Еталон — картки зі штрихкодом: приховуємо його,
 // шукаємо товар OFF за назвою й фасуванням і порівнюємо:
-//   precision — частка правильних GTIN серед приписаних (хибний GTIN гірший за жоден: ціль ≥ 0,95);
+//   precision — частка правильних GTIN серед приписаних карткам, чий GTIN є в OFF (хибний GTIN
+//               гірший за жоден: ціль ≥ 0,95); «усі» — разом з картками, яких в OFF немає;
 //   recall    — частка знайдених серед карток, чий GTIN є в OFF.
 // --write: GTIN однозначного збігу (з дублікатами OFF — усі) → barcodes фасувань без штрихкодів
 // мереж (source 'openfoodfacts-match'). Фасування може мати кілька штрихкодів.
+// Сумнівні збіги → barcode_candidates, їх вирішує модератор (/admin/barcodes).
 // Склад і Nutri-Score для них підтягне наступний food:import.
 //   bun run off:match                       # CSV з static.openfoodfacts.org (≈ 1,5 ГБ потоком)
 //   bun run off:match -- off.csv.gz --write # з локального файлу, із записом
@@ -162,6 +164,8 @@ async function main() {
   );
   /** Фасування → набори GTIN, які дали його картки (рядок — відсортовані GTIN) */
   const byVariant = new Map<string, Set<string>>();
+  /** Фасування → сумнівні кандидати OFF (найкраща схожість серед його карток) */
+  const toReview = new Map<string, Map<string, number>>();
   const counts = { match: 0, review: 0, none: 0 };
   const examples: string[] = [];
   for (const row of listings) {
@@ -169,6 +173,12 @@ async function main() {
     if (variantBarcodes.has(row.variantId)) continue;
     const decision = offDecision(candidatesOf(inputs.get(row.id)!), THRESHOLDS);
     counts[decision.kind]++;
+    if (decision.kind === 'review') {
+      const best = toReview.get(row.variantId) ?? new Map<string, number>();
+      for (const c of decision.candidates)
+        best.set(c.gtin, Math.max(best.get(c.gtin) ?? 0, c.score));
+      toReview.set(row.variantId, best);
+    }
     if (decision.kind !== 'match') continue;
     const gtins = byVariant.get(row.variantId) ?? new Set();
     gtins.add(decision.gtins.join(','));
@@ -205,6 +215,26 @@ async function main() {
       skipDuplicates: true,
     });
     console.log(`\nЗаписано штрихкодів: ${count}. Далі: bun run food:import`);
+
+    // Сумнівні — модераторові (/admin/barcodes); фасування з однозначним збігом туди не йдуть.
+    // Уже розглянуті пари (unique variantId + gtin) не перезаписуються
+    const matched = new Set(confident.map(([variantId]) => variantId));
+    const review = await prisma.barcodeCandidate.createMany({
+      data: [...toReview]
+        .filter(([variantId]) => !matched.has(variantId))
+        .flatMap(([variantId, best]) =>
+          [...best]
+            .filter(([gtin]) => !taken.has(gtin))
+            .map(([gtin, score]) => ({
+              variantId,
+              gtin,
+              score,
+              offName: index.labelOf(gtin) ?? gtin,
+            })),
+        ),
+      skipDuplicates: true,
+    });
+    console.log(`На модерацію штрихкодів: ${review.count}`);
   }
   await prisma.$disconnect();
 }
@@ -220,12 +250,15 @@ function evaluate(
   console.log(
     `\nКарток зі штрихкодом: ${evaluated.length}, з них GTIN є в OFF своєї країни: ${inOff.length}`,
   );
+  // Precision — на картках, чий GTIN є в OFF: лише там правильну відповідь видно.
+  // Поза OFF приписаний GTIN — або інший штрихкод того самого товару, або помилка: їх лише рахуємо
   console.log(
-    '| Поріг авто | Приписано | Правильних | Precision | Recall | F1 | На перевірку |',
+    '| Поріг авто | Приписано | Правильних | Precision (усі) | Precision (GTIN в OFF) | Recall | F1 | Поза OFF | На перевірку |',
   );
-  console.log('|---|---|---|---|---|---|---|');
+  console.log('|---|---|---|---|---|---|---|---|---|');
   for (const auto of AUTO_LEVELS) {
     let matched = 0;
+    let decidable = 0;
     let correct = 0;
     let review = 0;
     for (const l of evaluated) {
@@ -233,16 +266,17 @@ function evaluate(
       if (d.kind === 'review') review++;
       if (d.kind !== 'match') continue;
       matched++;
+      if (l.barcodes.some((g) => index.has(g))) decidable++;
       if (d.gtins.some((g) => l.barcodes.includes(g))) correct++;
       else if (auto === THRESHOLDS.auto)
         errors.push({ listing: l, gtin: d.gtins[0] });
     }
-    const precision = matched ? correct / matched : 0;
+    const precision = decidable ? correct / decidable : 0;
     const recall = inOff.length ? correct / inOff.length : 0;
     const f1 =
       precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
     console.log(
-      `| ${auto.toFixed(2)} | ${matched} | ${correct} | ${pct(precision)} | ${pct(recall)} | ${f1.toFixed(3)} | ${review} |`,
+      `| ${auto.toFixed(2)} | ${matched} | ${correct} | ${pct(matched ? correct / matched : 0)} | ${pct(precision)} | ${pct(recall)} | ${f1.toFixed(3)} | ${matched - decidable} | ${review} |`,
     );
   }
   return errors;

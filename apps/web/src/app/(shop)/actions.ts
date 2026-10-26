@@ -23,12 +23,14 @@ import {
 import { currentCountry, findProducts, guestConsent, localized } from '@/lib/session';
 import { CONSENT_COOKIE, GUEST_COOKIE_MAX_AGE, parseViews, VIEWS_COOKIE } from '@/lib/views';
 import {
+  addFavourite,
   clearViews,
   createSubscription,
   deleteMe,
   deleteSubscription,
   markNotificationsRead,
   recordViews,
+  removeFavourite,
   updateMe,
   updateSubscription,
 } from '@/api/generated/me/me';
@@ -207,6 +209,19 @@ export async function trackPrice(form: FormData) {
     throw error;
   }
   redirect('/alerts');
+}
+
+/** PRD-01: серце на сторінці товару — «я це купую», без сповіщень */
+export async function toggleFavourite(form: FormData) {
+  const productId = String(form.get('productId'));
+  try {
+    await (form.get('on') === 'true' ? addFavourite(productId) : removeFavourite(productId));
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) redirect(`/login?next=/products/${productId}`);
+    throw error;
+  }
+  revalidatePath(`/products/${productId}`);
+  revalidatePath('/profile', 'layout');
 }
 
 export async function setSubscriptionActive(form: FormData) {

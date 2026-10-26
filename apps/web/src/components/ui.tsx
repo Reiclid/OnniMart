@@ -57,6 +57,9 @@ export const GridIcon = (props: IconProps) =>
 
 export const BellIcon = (props: IconProps) => icon(props, <><path d="M18 17V8A6 6 0 0 0 6 8v9" /><path d="M3.5 17h17" /><path d="M10.3 20.5a1.94 1.94 0 0 0 3.4 0" /></>);
 
+export const HeartIcon = (props: IconProps) =>
+  icon(props, <path d="M12 20.5s-8-4.6-8-10.6A4.4 4.4 0 0 1 12 7a4.4 4.4 0 0 1 8 2.9c0 6-8 10.6-8 10.6Z" />);
+
 export const CheckIcon = (props: IconProps) => icon(props, <path d="m5 12.5 4.5 4.5L19 7" />);
 export const ChevronLeftIcon = (props: IconProps) => icon(props, <path d="m15 18-6-6 6-6" />);
 
