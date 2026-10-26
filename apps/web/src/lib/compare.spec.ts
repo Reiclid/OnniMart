@@ -20,5 +20,10 @@ describe('sameValue', () => {
     expect(sameValue(null, '1 л')).toBeNull();
     // ALDI SÜD: апостроф гострим наголосом
     expect(sameValue('JACK´S FARM', "JACK'S FARM")).toBe(true);
+    // Як у рушії: дефіси, крапки й діакритика не важать
+    expect(sameValue('FUNNY-FRISCH', 'FUNNY FRISCH')).toBe(true);
+    expect(sameValue('DR.OETKER', 'Dr. Oetker')).toBe(true);
+    expect(sameValue('Müller', 'MULLER')).toBe(true);
+    expect(sameValue('1,5 л', '15 л')).toBe(false);
   });
 });

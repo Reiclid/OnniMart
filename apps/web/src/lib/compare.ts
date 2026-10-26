@@ -23,9 +23,18 @@ export function compareWords(text: string, other: string): Token[] {
   return out;
 }
 
-/** Однакові значення без регістру й пробілів; невідоме з будь-якого боку — null («не знаємо») */
+/**
+ * Однакові значення за правилами рушія (brandKey): без регістру, діакритики, апострофів, пробілів,
+ * дефісів і крапок — «FUNNY-FRISCH» = «Funny Frisch», «DR.OETKER» = «Dr. Oetker». Десяткова кома
+ * лишається значущою: «1,5 л» ≠ «15 л». Невідоме з будь-якого боку — null («не знаємо»)
+ */
 export function sameValue(a: string | null | undefined, b: string | null | undefined): boolean | null {
   if (!a || !b) return null;
-  const norm = (s: string) => fold(s).replace(/\s+/g, '').replace(',', '.');
+  const norm = (s: string) =>
+    fold(s)
+      .normalize('NFKD')
+      .replace(/\p{M}/gu, '')
+      .replace(/(\d)[.,](\d)/g, '$1d$2')
+      .replace(/[^\p{L}\p{N}]/gu, '');
   return norm(a) === norm(b);
 }
