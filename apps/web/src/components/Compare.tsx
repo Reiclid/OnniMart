@@ -29,12 +29,13 @@ export function Verdict({ same }: { same: boolean | null }) {
 }
 
 /** Фото з сайту мережі або порожнє місце того самого розміру */
-export function Thumb({ src }: { src: string | null }) {
+export function Thumb({ src, small }: { src: string | null; small?: boolean }) {
+  const size = small ? 'h-14 w-14' : 'h-24 w-24';
   return src ? (
     // eslint-disable-next-line @next/next/no-img-element -- зображення з сайту мережі
-    <img src={src} alt="" className="h-24 w-24 rounded border border-slate-100 object-contain" loading="lazy" />
+    <img src={src} alt="" className={`${size} shrink-0 rounded border border-slate-100 object-contain`} loading="lazy" />
   ) : (
-    <div className="grid h-24 w-24 place-items-center rounded bg-slate-100 text-xs text-slate-400">без фото</div>
+    <div className={`grid ${size} shrink-0 place-items-center rounded bg-slate-100 text-xs text-slate-400`}>без фото</div>
   );
 }
 
