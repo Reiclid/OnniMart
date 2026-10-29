@@ -6,6 +6,7 @@ import type { ScrapedProductMessage } from '@repo/contracts';
 import { CatalogService } from '../src/modules/catalog/catalog.service';
 import { MatchingClient } from '../src/modules/catalog/matching/matching.client';
 import { MatchingService } from '../src/modules/catalog/matching/matching.service';
+import { OpenFoodFactsClient } from '../src/modules/catalog/open-food-facts.client';
 import { DecisionsService } from '../src/modules/catalog/matching/decisions.service';
 import { ModerationService } from '../src/modules/catalog/matching/moderation.service';
 import { IngestionService } from '../src/modules/scraper/services/ingestion.service';
@@ -58,7 +59,11 @@ const COLA_EAN = '5449000000996';
     ingestion = new IngestionService(prisma, {
       schedule: () => undefined,
     } as unknown as MatchingService);
-    catalog = new CatalogService(prisma, {} as MatchingClient);
+    catalog = new CatalogService(
+      prisma,
+      {} as MatchingClient,
+      {} as OpenFoodFactsClient,
+    );
 
     await prisma.$executeRawUnsafe(`
       TRUNCATE match_runs, match_keys, match_candidates, price_snapshots, scrape_runs, barcodes,

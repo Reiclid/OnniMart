@@ -21,10 +21,10 @@ import {
   ReviewPageDto,
 } from './dto/catalog.dto';
 import { MatchingClient } from './matching/matching.client';
+import { OpenFoodFactsClient } from './open-food-facts.client';
 import {
   fromOffProduct,
   isRelevantSuggestion,
-  offCode,
   rankBrands,
   suggestionQueries,
   type FoodFactsRow,
@@ -39,9 +39,6 @@ import {
 
 const SIMILAR_LIMIT = 8;
 const SUGGESTIONS_LIMIT = 6;
-const OFF_PRODUCT_URL = 'https://world.openfoodfacts.org/api/v2/product/';
-const OFF_USER_AGENT = 'OnniMartBot/0.1 (diploma project; reiclid@gmail.com)';
-const OFF_TIMEOUT_MS = 4000;
 import { normalizeGtin } from '@repo/matching';
 
 /** Каталог для клієнтів і адмінки: товари, фасування, пропозиції мереж, черга модерації */
@@ -52,6 +49,7 @@ export class CatalogService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly matching: MatchingClient,
+    private readonly off: OpenFoodFactsClient,
   ) {}
 
   async getProducts(query: ProductsQueryDto): Promise<ProductPageDto> {
@@ -360,24 +358,13 @@ export class CatalogService {
 
   /** Товар з API Open Food Facts; знайдений — у food_facts, щоб не питати вдруге */
   private async fetchOffFacts(gtin: string): Promise<FoodFactsRow | null> {
-    try {
-      const response = await fetch(`${OFF_PRODUCT_URL}${offCode(gtin)}`, {
-        headers: { 'user-agent': OFF_USER_AGENT },
-        signal: AbortSignal.timeout(OFF_TIMEOUT_MS),
-      });
-      if (!response.ok) return null;
-      const body = (await response.json()) as {
-        status?: number;
-        product?: Record<string, unknown>;
-      };
-      if (body.status !== 1 || !body.product) return null;
-      const row = fromOffProduct(gtin, body.product);
-      await saveFoodFacts(this.prisma, [row]);
-      return row;
-    } catch (error) {
-      this.logger.warn(`Open Food Facts ${gtin}: ${errorText(error)}`);
-      return null;
-    }
+    const product = await this.off.product(gtin);
+    if (!product) return null;
+    const row = fromOffProduct(gtin, product);
+    await saveFoodFacts(this.prisma, [row]).catch((error) =>
+      this.logger.warn(`food_facts ${gtin}: ${errorText(error)}`),
+    );
+    return row;
   }
 
   /** Схожі з цінами: бренд + назва, бренд, назва — поки не набереться SUGGESTIONS_LIMIT */
