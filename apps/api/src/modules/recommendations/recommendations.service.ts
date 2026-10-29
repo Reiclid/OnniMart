@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import {
   buildProfile,
   rankForYou,
@@ -11,6 +11,7 @@ import { errorText } from '../../common/errors';
 import { clampPageSize, pageOf } from '../../common/query';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { createRedis } from '../../redis';
 import {
   MAX_FAVOURITES,
   MAX_VIEWS,
@@ -25,6 +26,7 @@ import type {
   ProductsQueryDto,
 } from '../catalog/dto/catalog.dto';
 import {
+  rankedPoolKey,
   toCandidates,
   toSignals,
   type Action,
@@ -40,20 +42,27 @@ const FOR_YOU_CATEGORIES = 3;
 const FOR_YOU_POOL = 60;
 const PROFILE_EVENTS = 500;
 const PROFILE_SUBSCRIPTIONS = 200;
+/** Скільки живе переставлений пул пошуку (сторінки 2+ беруться з нього) */
+const RANKED_POOL_TTL_S = 10 * 60;
 
 /**
  * Ранжувальник v0 (AUDIT §9.3) за персональним пошуком і "Для вас". Профіль рахується на запит
  * з переглядів, підписок і подій; покази пишуться в events (лише за згодою) з позицією.
  */
 @Injectable()
-export class RecommendationsService {
+export class RecommendationsService implements OnModuleDestroy {
   private readonly logger = new Logger(RecommendationsService.name);
+  private readonly redis = createRedis();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly catalog: CatalogService,
     private readonly activity: ActivityService,
   ) {}
+
+  onModuleDestroy() {
+    this.redis.disconnect();
+  }
 
   /**
    * Перші SEARCH_POOL результатів (кратно сторінці) — переставлені за профілем; далі — базовий
@@ -77,16 +86,28 @@ export class RecommendationsService {
         pageSize,
       ));
     } else {
-      const [base, user] = await Promise.all([
-        this.catalog.findProductIds(query, 0, pool),
-        this.user(userId),
-      ]);
-      const [candidates, { profile }] = await Promise.all([
-        this.candidates(base.ids, query.country ?? user.countryCode),
-        this.profile(userId, user.chainIds),
-      ]);
-      ids = rankSearch(candidates, profile).slice(offset, offset + pageSize);
-      total = base.total;
+      // Сторінка 1 ранжується заново (свіжий профіль), далі — той самий пул: інакше перегляд
+      // товару між сторінками переставляє пул і прокрутка повторює або губить картки
+      const key = rankedPoolKey(sessionId, query, pageSize);
+      let ranked = page > 1 ? await this.cachedPool(key) : null;
+      if (!ranked) {
+        const [base, user] = await Promise.all([
+          this.catalog.findProductIds(query, 0, pool),
+          this.user(userId),
+        ]);
+        const [candidates, { profile }] = await Promise.all([
+          this.candidates(base.ids, query.country ?? user.countryCode),
+          this.profile(userId, user.chainIds),
+        ]);
+        ranked = { ids: rankSearch(candidates, profile), total: base.total };
+        void this.redis
+          .set(key, JSON.stringify(ranked), 'EX', RANKED_POOL_TTL_S)
+          .catch((error) =>
+            this.logger.warn(`Пул пошуку не збережено: ${errorText(error)}`),
+          );
+      }
+      ids = ranked.ids.slice(offset, offset + pageSize);
+      total = ranked.total;
     }
     const q = query.q?.trim();
     this.logShown(userId, sessionId, ids, {
@@ -134,6 +155,17 @@ export class RecommendationsService {
       explored,
     });
     return this.catalog.summaries(ids);
+  }
+
+  private async cachedPool(
+    key: string,
+  ): Promise<{ ids: string[]; total: number } | null> {
+    try {
+      const raw = await this.redis.get(key);
+      return raw ? (JSON.parse(raw) as { ids: string[]; total: number }) : null;
+    } catch {
+      return null; // без Redis — просто ранжуємо заново
+    }
   }
 
   private user(userId: string) {
