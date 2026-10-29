@@ -28,6 +28,7 @@ import {
   extractFeatures,
   Idf,
   idfFromCounts,
+  learnVariations,
   lineOf,
   ListingInput,
   listingInput,
@@ -39,6 +40,8 @@ import {
   stripQuantity,
   variantLabel,
   variantLabelOf,
+  variationGroup,
+  Variations,
 } from '@repo/matching';
 
 const rowSelect = {
@@ -65,11 +68,13 @@ const quantitySelect = {
   isWeighted: true,
 } satisfies Prisma.ProductVariantSelect;
 
-/** Словник брендів, IDF і написання брендів — за назвами всіх карток */
+/** Словник брендів, IDF, вивчені варіації і написання брендів — за назвами всіх карток */
 interface Vocabulary {
   builtAt: number;
   dictionaries: BrandDictionaries;
   idfs: Map<string, Idf>;
+  /** Варіації (смаки, сорти), вивчені з активних карток і штрихкодів (PRD-30) */
+  variations: Variations;
   /** Як бренд записаний у мережах: ключ → перша назва ("coca-cola" → "Coca-Cola") */
   brandNames: Map<string, string>;
 }
@@ -203,6 +208,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     );
     const index = new CatalogIndex();
     for (const [country, idf] of vocabulary.idfs) index.setIdf(country, idf);
+    index.setVariations(vocabulary.variations);
     await this.loadCandidates(index, [...inputs.values()], vocabulary);
 
     const report: MatchReport = {
@@ -328,7 +334,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       await this.redis.set(BRAND_DICTIONARY_KEY, signature).catch(() => null);
     }
 
-    const [frequencies, totals] = await Promise.all([
+    const [frequencies, totals, samples] = await Promise.all([
       this.prisma.$queryRaw<{ country: string; token: string; df: number }[]>`
         SELECT country, token, count(*)::int AS df FROM (
           SELECT DISTINCT l.id, c."countryCode" AS country, t.token
@@ -341,6 +347,16 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
         SELECT c."countryCode" AS country, count(*)::int AS total
         FROM listings l JOIN store_chains c ON c.id = l."chainId"
         GROUP BY 1`,
+      this.prisma.listing.findMany({
+        where: { delistedAt: null },
+        select: {
+          chainId: true,
+          rawBrand: true,
+          nameTokens: true,
+          barcodes: true,
+          ...quantitySelect,
+        },
+      }),
     ]);
     const df = new Map<string, Map<string, number>>();
     for (const row of frequencies) {
@@ -357,8 +373,19 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
           idfFromCounts(total, df.get(country) ?? new Map<string, number>()),
         ]),
       ),
+      variations: learnVariations(
+        samples.map((row) => ({
+          chainId: row.chainId,
+          group: variationGroup(brandKey(row.rawBrand), toQuantity(row)),
+          tokens: row.nameTokens,
+          barcodes: row.barcodes,
+        })),
+      ),
       brandNames,
     };
+    this.logger.log(
+      `Словник оновлено: ${this.vocabulary.variations.size} вивчених варіацій`,
+    );
     return this.vocabulary;
   }
 

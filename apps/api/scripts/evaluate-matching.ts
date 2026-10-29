@@ -10,16 +10,23 @@
 // "На модерацію" — картки, для яких алгоритм лише запропонував кандидата (0,70–поріг);
 // у метриках вони не об'єднані, але показано, скільки з них модератор підтвердив би.
 //
-// Запуск: bun scripts/evaluate-matching.ts [--errors]
+// Варіації (PRD-30) вчаться з активних карток усіх мереж, як у воркері;
+// --no-variations — порівняння без них.
+//
+// Запуск: bun scripts/evaluate-matching.ts [--errors] [--no-variations]
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import {
+  brandKey,
   CatalogIndex,
+  learnVariations,
   ListingInput,
   quantityKey,
   THRESHOLDS,
   prepareListings,
+  variationGroup,
+  Variations,
 } from '@repo/matching';
 
 const AUTO_LEVELS = [0.8, 0.85, 0.9, 0.95];
@@ -41,6 +48,7 @@ async function main() {
       netQuantity: true,
       packCount: true,
       isWeighted: true,
+      delistedAt: true,
       chain: { select: { countryCode: true, slug: true } },
     },
     orderBy: [{ chain: { slug: 'asc' } }, { rawName: 'asc' }],
@@ -55,6 +63,24 @@ async function main() {
       netQuantity: r.netQuantity === null ? null : Number(r.netQuantity),
     })),
   );
+  const rawBrand = new Map(rows.map((r) => [r.id, r.rawBrand]));
+  const active = new Set(
+    rows.filter((r) => r.delistedAt === null).map((r) => r.id),
+  );
+  const variations: Variations = process.argv.includes('--no-variations')
+    ? new Map<string, number>()
+    : learnVariations(
+        [...inputs.values()]
+          .filter((l) => active.has(l.id))
+          .map((l) => ({
+            chainId: l.chainId,
+            // Як у воркері: бренд мережі (rawBrand), бо знайдений у назві не зберігається
+            group: variationGroup(brandKey(rawBrand.get(l.id)), l.quantity),
+            tokens: l.features.tokens.map((t) => t.norm),
+            barcodes: l.barcodes,
+          })),
+      );
+  console.log(`Вивчених варіацій: ${variations.size}`);
   // Експеримент — лише на картках зі штрихкодом: для них відома правильна відповідь
   const evaluated = [...inputs.values()].filter((l) => l.barcodes.length > 0);
   const truth = truthPairs(evaluated);
@@ -76,7 +102,10 @@ async function main() {
 
   let errorsAtDefault: { text: string; sameName: boolean }[] = [];
   for (const auto of AUTO_LEVELS) {
-    const result = simulate(evaluated, vocabulary, { ...THRESHOLDS, auto });
+    const result = simulate(evaluated, vocabulary, variations, {
+      ...THRESHOLDS,
+      auto,
+    });
     const predicted = predictedPairs(result.cluster, inputs);
     const correct = [...predicted].filter((p) => truth.has(p)).length;
     const precision = predicted.size ? correct / predicted.size : 0;
@@ -150,10 +179,12 @@ function pairKey(a: string, b: string): string {
 function simulate(
   listings: ListingInput[],
   vocabulary: Map<string, string[][]>,
+  variations: Variations,
   thresholds: typeof THRESHOLDS,
 ) {
   const index = new CatalogIndex(thresholds);
   for (const [country, docs] of vocabulary) index.setVocabulary(country, docs);
+  index.setVariations(variations);
   const cluster = new Map<string, string>();
   const membersOf = new Map<string, ListingInput[]>();
   const reviews: { listing: ListingInput; top: ListingInput | undefined }[] =

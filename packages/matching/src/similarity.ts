@@ -1,10 +1,11 @@
-import type { NameFeatures } from './features';
+import type { NameFeatures } from "./features";
+import type { Variations } from "./variations";
 
 /** Вага слова — IDF: рідкісні слова ("слива", "Карпатський") важать більше за часті ("молоко") */
 export type Idf = (token: string) => number;
 
 /** Ознаки, відсутність яких з одного боку теж означає інший товар: Coca-Cola ≠ Coca-Cola Zero */
-const STRICT_GROUPS = new Set(['sugar', 'caffeine', 'lactose', 'organic']);
+const STRICT_GROUPS = new Set(["sugar", "caffeine", "lactose", "organic"]);
 
 /** Будує IDF за назвами (кожна назва — набір слів): log((N + 1) / (df + 1)) + 1 */
 export function buildIdf(documents: Iterable<string[]>): Idf {
@@ -110,7 +111,7 @@ export function nameSimilarity(a: string[], b: string[], idf: Idf): number {
 export function brandSimilarity(a: string | null, b: string | null): number {
   if (!a && !b) return 1;
   if (!a || !b) return 0.85;
-  if (a === b || a.replace(/-/g, '') === b.replace(/-/g, '')) return 1;
+  if (a === b || a.replace(/-/g, "") === b.replace(/-/g, "")) return 1;
   if (a.startsWith(`${b}-`) || b.startsWith(`${a}-`)) return 0.8;
   return 0;
 }
@@ -143,32 +144,73 @@ export interface PairScore {
   conflict?: string;
 }
 
+/**
+ * Слово-варіація, якого немає в другій назві (з точністю до закінчення):
+ * "almighurt erdbeere" проти "almighurt stracciatella" → "erdbeere".
+ */
+export function unmatchedVariation(
+  tokens: string[],
+  other: string[],
+  variations: Variations,
+): string | null {
+  for (const word of tokens) {
+    if (!variations.has(word)) continue;
+    if (!other.some((t) => tokenSimilarity(word, t) >= 0.9)) return word;
+  }
+  return null;
+}
+
+/**
+ * Вивчені варіації в парі назв: "both" — з обох боків ("erdbeere" проти
+ * "stracciatella"), це різні товари, як різні смаки зі словника; "one" — лише з
+ * одного боку: та сама назва з уточненням ("Gourmet Gold") або пропозиція на всю
+ * лінійку ("Almighurt" проти "Almighurt Erdbeere", PRD-30).
+ */
+export function variationMismatch(
+  a: string[],
+  b: string[],
+  variations: Variations | undefined,
+): "both" | "one" | null {
+  if (!variations?.size) return null;
+  const left = unmatchedVariation(a, b, variations) !== null;
+  const right = unmatchedVariation(b, a, variations) !== null;
+  if (left && right) return "both";
+  return left || right ? "one" : null;
+}
+
+/** Варіація лише з одного боку: слабкі пари випадають, сильні йдуть модератору, не автоматично */
+const ONE_SIDED_VARIATION = 0.85;
+
 export function scorePair(
   a: NameFeatures,
   b: NameFeatures,
   idf: Idf,
+  variations?: Variations,
 ): PairScore {
   const conflict = attributeConflict(a.attributes, b.attributes);
   if (conflict) return { score: 0, name: 0, brand: 0, conflict };
   const brand = brandSimilarity(a.brand, b.brand);
-  if (brand === 0) return { score: 0, name: 0, brand: 0, conflict: 'brand' };
+  if (brand === 0) return { score: 0, name: 0, brand: 0, conflict: "brand" };
+  const tokensA = a.tokens.map((t) => t.norm);
+  const tokensB = b.tokens.map((t) => t.norm);
+  const variation = variationMismatch(tokensA, tokensB, variations);
+  if (variation === "both") {
+    return { score: 0, name: 0, brand, conflict: "variation" };
+  }
   // Ні бренду, ні значущих слів ("Пакет 0,5 л") — порівнювати нічого
   if (!a.brand && !b.brand && !a.tokens.length && !b.tokens.length) {
-    return { score: 0, name: 0, brand, conflict: 'empty' };
+    return { score: 0, name: 0, brand, conflict: "empty" };
   }
-  const name = nameSimilarity(
-    a.tokens.map((t) => t.norm),
-    b.tokens.map((t) => t.norm),
-    idf,
-  );
+  const name = nameSimilarity(tokensA, tokensB, idf);
   // Жирність / міцність вказана лише з одного боку — трохи менше впевненості
   const percentPenalty =
     (a.attributes.percent === undefined) !==
     (b.attributes.percent === undefined)
       ? 0.9
       : 1;
+  const variationPenalty = variation === "one" ? ONE_SIDED_VARIATION : 1;
   return {
-    score: round(name * brand * percentPenalty),
+    score: round(name * brand * percentPenalty * variationPenalty),
     name: round(name),
     brand,
   };
