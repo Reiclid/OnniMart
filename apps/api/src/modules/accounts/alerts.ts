@@ -73,6 +73,41 @@ export function relevantOffers(
     .sort((a, b) => a.value - b.value);
 }
 
+/** Параметри тексту сповіщення з payload; null — старий запис, лише готовий текст */
+export interface NotificationParams {
+  product: string;
+  price: number;
+  currency: string;
+  chain: string;
+  target: number | null;
+  targetCurrency: string | null;
+  discount: number | null;
+}
+
+export function notificationParams(
+  payload: unknown,
+): NotificationParams | null {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const text = (v: unknown) => (typeof v === 'string' ? v : null);
+  const num = (v: unknown) => (typeof v === 'number' ? v : null);
+  const [product, price, currency, chain] = [
+    text(p.product),
+    num(p.price),
+    text(p.currency),
+    text(p.chain),
+  ];
+  if (product === null || price === null || !currency || !chain) return null;
+  return {
+    product,
+    price,
+    currency,
+    chain,
+    target: num(p.target),
+    targetCurrency: text(p.targetCurrency),
+    discount: num(p.discount),
+  };
+}
+
 export const discountOf = (o: AlertOffer) =>
   o.regularPrice && o.regularPrice > o.price
     ? Math.round((1 - o.price / o.regularPrice) * 100)

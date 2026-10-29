@@ -67,6 +67,7 @@ export * from './matchMethodCountDtoMethod';
 export * from './matchReportDto';
 export * from './notificationDto';
 export * from './notificationDtoType';
+export * from './notificationParamsDto';
 export * from './priceHistoryDto';
 export * from './priceHistoryDtoDays';
 export * from './pricePointDto';

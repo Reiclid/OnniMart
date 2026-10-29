@@ -132,6 +132,9 @@ export const en = {
     resume: 'Resume',
     remove: 'Remove',
     stopTracking: 'Stop tracking {title}',
+    noticeTitle: '{product}: {price} at {chain}',
+    noticeTarget: 'Below your target {target}',
+    noticePromo: '−{discount}% promo',
   },
   settings: {
     title: 'Settings',
