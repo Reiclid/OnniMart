@@ -108,7 +108,7 @@ export class ProductEditService {
     if (quantity) await this.matching.request();
   }
 
-  async addBarcode(variantId: string, code: unknown) {
+  async addBarcode(variantId: string, code: unknown): Promise<void> {
     const gtin = gtinOf(code);
     await this.ensureVariant(variantId);
     const owner = await this.prisma.barcode.findUnique({
@@ -126,9 +126,19 @@ export class ProductEditService {
         `Штрихкод ${gtin} уже належить товару «${owner.variant.product.name}» (${owner.variant.label})`,
       );
     }
-    await this.prisma.barcode.create({
-      data: { gtin, variantId, source: ADMIN_SOURCE },
-    });
+    try {
+      await this.prisma.barcode.create({
+        data: { gtin, variantId, source: ADMIN_SOURCE },
+      });
+    } catch (error) {
+      // Хтось додав той самий штрихкод між перевіркою й записом — та сама відповідь, що й вище
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      )
+        return this.addBarcode(variantId, code);
+      throw error;
+    }
     // Незіставлені картки з цим штрихкодом приєднаються в наступному пакеті
     await this.matching.request();
   }

@@ -1,4 +1,5 @@
 import { ConflictException } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MatchingClient } from './matching/matching.client';
 import { ADMIN_SOURCE, ProductEditService } from './product-edit.service';
@@ -91,5 +92,27 @@ describe('ProductEditService', () => {
     expect(prisma.barcode.create).toHaveBeenCalledWith({
       data: { gtin: '05449000000996', variantId: 'v1', source: ADMIN_SOURCE },
     });
+  });
+
+  it('штрихкод додали одночасно — 409, а не 500', async () => {
+    const { edits, prisma } = service();
+    prisma.barcode.create.mockImplementationOnce(() => {
+      throw new Prisma.PrismaClientKnownRequestError('unique', {
+        code: 'P2002',
+        clientVersion: 'test',
+      });
+    });
+    // Перша перевірка — вільний, повторна (після P2002) — уже чужий
+    prisma.barcode.findUnique
+      .mockImplementationOnce(() => Promise.resolve(null))
+      .mockImplementationOnce(() =>
+        Promise.resolve({
+          variantId: 'v2',
+          variant: { label: '1 л', product: { name: 'Fanta' } },
+        }),
+      );
+    await expect(edits.addBarcode('v1', '5449000000996')).rejects.toThrow(
+      ConflictException,
+    );
   });
 });
