@@ -121,6 +121,35 @@ const COLA_EAN = '5449000000996';
     });
   });
 
+  it('немає в наявності — ціна не найнижча, пропозиція в кінці', async () => {
+    const novus = await prisma.listing.findFirstOrThrow({
+      where: { chain: { slug: 'novus' }, rawName: { contains: 'Coca-Cola' } },
+    });
+    await prisma.listing.update({
+      where: { id: novus.id },
+      data: { inStock: false },
+    });
+    try {
+      const page = await catalog.getProducts({ multiChain: true });
+      expect(page.items[0]).toMatchObject({
+        chainsCount: 2,
+        prices: [{ min: 31.5, max: 31.5, minChain: 'SILPO' }],
+      });
+      const detail = await catalog.getProduct(page.items[0].id);
+      expect(
+        detail.variants[0].offers.map((o) => [o.chainName, o.inStock]),
+      ).toEqual([
+        ['SILPO', true],
+        ['NOVUS', false],
+      ]);
+    } finally {
+      await prisma.listing.update({
+        where: { id: novus.id },
+        data: { inStock: true },
+      });
+    }
+  });
+
   it('категорія товару — з категорій і назв карток', async () => {
     const categories = await catalog.getCategories();
     expect(categories.find((c) => c.slug === 'drinks')).toMatchObject({
