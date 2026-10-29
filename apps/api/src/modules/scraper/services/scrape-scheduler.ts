@@ -109,7 +109,7 @@ export class ScrapeScheduler
     this.redis.disconnect();
   }
 
-  /** Кожні 10 хв: зняти втрачені запуски й акції, що закінчились, сповіщення за підписками, події старші за 180 днів, далі — заплановані обходи */
+  /** Кожні 10 хв: зняти втрачені запуски й акції, що закінчились, сповіщення за підписками, події старші за 180 днів і прострочені сесії, далі — заплановані обходи */
   async maintain(now = new Date()): Promise<void> {
     await this.reapLostRuns(now);
     await this.ingestion
@@ -126,6 +126,12 @@ export class ScrapeScheduler
       .deleteMany({ where: { createdAt: { lt: retentionCutoff(now) } } })
       .catch((error) =>
         this.logger.error(`Видалення старих подій: ${errorText(error)}`),
+      );
+    // Прострочені сесії (вхід інакше чистить лише сесії того, хто знову увійшов)
+    await this.prisma.session
+      .deleteMany({ where: { expiresAt: { lte: now } } })
+      .catch((error) =>
+        this.logger.error(`Видалення сесій: ${errorText(error)}`),
       );
     if (this.enabled) await this.tick(now);
   }

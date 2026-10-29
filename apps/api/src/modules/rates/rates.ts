@@ -14,6 +14,8 @@ export const NBU_URL =
 
 /** ЄЦБ оновлює курси раз на робочий день (≈16:00 CET), НБУ — щодня; частіше не питаємо */
 export const RATES_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+/** Джерела мовчать довше — курси не показуємо: краще ціна мережі, ніж "≈" за старим курсом */
+export const RATES_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface ExchangeRates {
   /** Дата курсів ЄЦБ (YYYY-MM-DD) */
@@ -84,6 +86,15 @@ export function parseStoredRates(raw: string | null): ExchangeRates | null {
     return null;
   }
 }
+
+/** Курси, ще придатні для показу й сповіщень; застарілі — як їх немає */
+export const usableRates = (
+  rates: ExchangeRates | null,
+  now: Date,
+): ExchangeRates | null =>
+  rates && now.getTime() - new Date(rates.fetchedAt).getTime() < RATES_EXPIRE_MS
+    ? rates
+    : null;
 
 /** Сума в іншій валюті через EUR, до копійок; null — курсу немає */
 export function convert(
