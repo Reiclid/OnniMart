@@ -61,13 +61,18 @@ export class AlertsChecker {
             alert.type === 'TARGET_PRICE_REACHED'
               ? `Below your target ${Number(sub.targetPrice).toFixed(2)} ${sub.currency ?? offer.currency}`
               : `−${discountOf(offer)}% promo`,
+          // Дані для тексту мовою покупця (веб, notificationParams); title/body — запасний текст
           payload: {
             productId: sub.variant?.product.id ?? sub.productId,
             variantId: sub.variantId,
             listingId: offer.listingId,
+            product: subscriptionTitle(sub),
             price: offer.price,
             currency: offer.currency,
             chain: offer.chainName,
+            target: sub.targetPrice === null ? null : Number(sub.targetPrice),
+            targetCurrency: sub.currency ?? offer.currency,
+            discount: discountOf(offer),
           },
           dedupeKey: alert.dedupeKey,
         },

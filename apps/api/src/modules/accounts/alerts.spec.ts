@@ -1,4 +1,9 @@
-import { AlertOffer, decideAlert, relevantOffers } from './alerts';
+import {
+  AlertOffer,
+  decideAlert,
+  notificationParams,
+  relevantOffers,
+} from './alerts';
 
 const offer = (
   chainId: string,
@@ -135,5 +140,37 @@ describe('decideAlert', () => {
     expect(relevantOffers([offers[0]], [], ctx).map((o) => o.value)).toEqual([
       0.8,
     ]);
+  });
+});
+
+describe('notificationParams', () => {
+  it('нове сповіщення — дані для тексту мовою покупця', () => {
+    expect(
+      notificationParams({
+        productId: 'p1',
+        product: 'Cola · 0,5 л',
+        price: 29.9,
+        currency: 'UAH',
+        chain: 'NOVUS',
+        target: 30,
+        targetCurrency: 'UAH',
+        discount: 0,
+      }),
+    ).toEqual({
+      product: 'Cola · 0,5 л',
+      price: 29.9,
+      currency: 'UAH',
+      chain: 'NOVUS',
+      target: 30,
+      targetCurrency: 'UAH',
+      discount: 0,
+    });
+  });
+
+  it('старе сповіщення без назви товару — null (веб покаже готовий текст)', () => {
+    expect(
+      notificationParams({ productId: 'p1', price: 29.9, currency: 'UAH' }),
+    ).toBeNull();
+    expect(notificationParams(null)).toBeNull();
   });
 });

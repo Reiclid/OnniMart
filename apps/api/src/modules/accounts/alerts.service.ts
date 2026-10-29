@@ -6,7 +6,12 @@ import {
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RatesService } from '../rates/rates.service';
-import { AlertOffer, PriceContext, relevantOffers } from './alerts';
+import {
+  AlertOffer,
+  notificationParams,
+  PriceContext,
+  relevantOffers,
+} from './alerts';
 import type {
   CreateSubscriptionDto,
   NotificationDto,
@@ -210,6 +215,7 @@ export class AlertsService {
       body: n.body,
       productId:
         (n.payload as { productId?: string } | null)?.productId ?? null,
+      params: notificationParams(n.payload),
       createdAt: n.createdAt.toISOString(),
       readAt: n.readAt?.toISOString() ?? null,
     }));

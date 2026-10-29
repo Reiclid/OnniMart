@@ -235,6 +235,19 @@ export class UpdateSubscriptionDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
+/** Дані для тексту сповіщення мовою покупця */
+export class NotificationParamsDto {
+  @ApiProperty({ description: 'Товар · фасування' }) product!: string;
+  @ApiProperty() price!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty() chain!: string;
+  @ApiProperty({ type: Number, nullable: true }) target!: number | null;
+  @ApiProperty({ type: String, nullable: true })
+  targetCurrency!: string | null;
+  @ApiProperty({ type: Number, nullable: true, description: 'Знижка, %' })
+  discount!: number | null;
+}
+
 export class NotificationDto {
   @ApiProperty() id!: string;
   @ApiProperty({
@@ -249,6 +262,12 @@ export class NotificationDto {
   @ApiProperty() title!: string;
   @ApiProperty() body!: string;
   @ApiProperty({ type: String, nullable: true }) productId!: string | null;
+  @ApiProperty({
+    type: NotificationParamsDto,
+    nullable: true,
+    description: 'null — старе сповіщення: показати title/body',
+  })
+  params!: NotificationParamsDto | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty({ type: String, nullable: true }) readAt!: string | null;
 }
