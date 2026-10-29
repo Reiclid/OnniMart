@@ -49,6 +49,30 @@ describe('toSearchDoc', () => {
     });
   });
 
+  it('ціна того, чого немає в наявності, не мінімальна, але мережа лишається', () => {
+    const doc = toSearchDoc(
+      {
+        id: 'p',
+        name: 'Cola',
+        lineId: null,
+        brand: null,
+        category: null,
+        variants: [
+          {
+            label: '1 л',
+            barcodes: [],
+            listings: [
+              { ...listing('eko', 'UAH', 19), inStock: false },
+              listing('novus', 'UAH', 25),
+            ],
+          },
+        ],
+      },
+      1,
+    );
+    expect(doc).toMatchObject({ minPrice: 25, chains: ['eko', 'novus'] });
+  });
+
   it('лише німецькі мережі — ціна в євро; без цін — null', () => {
     const base = {
       id: 'p',

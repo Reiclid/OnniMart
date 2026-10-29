@@ -15,7 +15,8 @@ import type {
 } from './dto/accounts.dto';
 
 const LISTINGS = {
-  where: { delistedAt: null, currentPrice: { not: null } },
+  // Немає в наявності — не пропозиція: «ціна досягла цілі» на відсутній товар лише дратує
+  where: { delistedAt: null, inStock: true, currentPrice: { not: null } },
   select: {
     id: true,
     chainId: true,

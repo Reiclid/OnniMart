@@ -158,6 +158,7 @@ export class CatalogService {
               select: {
                 currentPrice: true,
                 isOnPromo: true,
+                inStock: true,
                 chain: { select: { name: true, currency: true } },
               },
             },
@@ -173,6 +174,8 @@ export class CatalogService {
       .map((product) => {
         const listings = product.variants.flatMap((v) => v.listings);
         const chains = [...new Set(listings.map((l) => l.chain.name))].sort();
+        // Ціни й акції — лише того, що є в наявності
+        const available = listings.filter((l) => l.inStock);
         return {
           id: product.id,
           name: product.name,
@@ -184,13 +187,13 @@ export class CatalogService {
           listingsCount: listings.length,
           chains,
           prices: priceRanges(
-            listings.map((l) => ({
+            available.map((l) => ({
               currency: l.chain.currency,
               price: toNumber(l.currentPrice),
               chain: l.chain.name,
             })),
           ),
-          onPromo: listings.some((l) => l.isOnPromo),
+          onPromo: available.some((l) => l.isOnPromo),
         };
       });
   }
@@ -305,12 +308,13 @@ export class CatalogService {
           barcodes: variant.barcodes.map((b) => b.gtin),
           packaging: variant.packaging,
           // Ціни різних країн не порівнюємо напряму: групи за валютою
-          // (₴, потім €), усередині — від найдешевшої за одиницю
+          // (₴, потім €), усередині — від найдешевшої за одиницю; немає в наявності — в кінці групи
           offers: variant.listings
             .map(toListingDto)
             .sort(
               (a, b) =>
                 currencyRank(a.currency) - currencyRank(b.currency) ||
+                Number(!a.inStock) - Number(!b.inStock) ||
                 (a.unitPrice ?? a.currentPrice ?? Infinity) -
                   (b.unitPrice ?? b.currentPrice ?? Infinity),
             ),

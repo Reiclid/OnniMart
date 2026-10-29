@@ -111,6 +111,8 @@ export interface IndexedProduct {
     barcodes: { gtin: string }[];
     listings: {
       currentPrice: unknown;
+      /** Немає в наявності — мережа лишається у фільтрі, але ціна не рахується */
+      inStock?: boolean;
       chain: { slug: string; currency: string; countryCode: string };
     }[];
   }[];
@@ -128,7 +130,7 @@ export function toSearchDoc(
     ? 'UAH'
     : (listings[0]?.chain.currency ?? null);
   const prices = listings
-    .filter((l) => l.chain.currency === currency)
+    .filter((l) => l.chain.currency === currency && l.inStock !== false)
     .map((l) => Number(l.currentPrice));
   const chains = [...new Set(listings.map((l) => l.chain.slug))];
   const concept = conceptOf(product.name, product.category?.slug);

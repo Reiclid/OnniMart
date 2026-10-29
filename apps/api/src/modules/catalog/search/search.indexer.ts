@@ -49,6 +49,7 @@ export class SearchIndexer {
               where: { delistedAt: null },
               select: {
                 currentPrice: true,
+                inStock: true,
                 chain: {
                   select: { slug: true, currency: true, countryCode: true },
                 },
