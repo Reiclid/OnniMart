@@ -1,4 +1,10 @@
-import { QuantityInfo } from './catalog-index';
+import {
+  CatalogIndex,
+  ListingInput,
+  QuantityInfo,
+  quantityKey,
+  THRESHOLDS,
+} from './catalog-index';
 import { extractFeatures } from './features';
 import { scorePair, variationMismatch } from './similarity';
 import { learnVariations, VariationSample, variationGroup } from './variations';
@@ -123,8 +129,9 @@ describe('variationMismatch', () => {
     );
   });
 
-  it('варіація лише з одного боку — "one"', () => {
-    expect(variationMismatch(['erdbeere'], [], variations)).toBe('one');
+  it('варіація лише з одного боку — сторона, де вона є', () => {
+    expect(variationMismatch(['erdbeere'], [], variations)).toBe('a');
+    expect(variationMismatch([], ['erdbeere'], variations)).toBe('b');
   });
 
   it('та сама варіація з іншим закінченням — немає розбіжності', () => {
@@ -140,9 +147,10 @@ describe('variationMismatch', () => {
 
 describe('scorePair з вивченими варіаціями (черга модерації, 26.10.2026)', () => {
   const variations = learnVariations(ALDI);
+  // ALDI не вказує бренд, тож "almighurt" — звичайне слово назви
   const sued = (flavour: string) =>
-    extractFeatures(`Almighurt 150 g, ${flavour}`, 'Almighurt');
-  const rangeOffer = extractFeatures('Almighurt', 'Almighurt');
+    extractFeatures(`Almighurt 150 g, ${flavour}`, null);
+  const rangeOffer = extractFeatures('Almighurt', null);
 
   it('Almighurt Erdbeere і Stracciatella — різні товари', () => {
     expect(
@@ -158,6 +166,8 @@ describe('scorePair з вивченими варіаціями (черга мо�
     const plain = scorePair(sued('Erdbeere'), rangeOffer, flat);
     const learned = scorePair(sued('Erdbeere'), rangeOffer, flat, variations);
     expect(learned.conflict).toBeUndefined();
+    expect(learned.extraVariation).toBe('a');
+    expect(plain.score).toBeGreaterThan(0);
     expect(learned.score).toBeCloseTo(plain.score * 0.85, 2);
   });
 
@@ -165,5 +175,123 @@ describe('scorePair з вивченими варіаціями (черга мо�
     expect(
       scorePair(sued('Erdbeere'), sued('Erdbeere'), flat, variations),
     ).toMatchObject({ score: 1 });
+  });
+});
+
+describe('слова вибору: пропозиція на кілька товарів', () => {
+  it('розпізнає "oder", "verschiedene", "в асортименті", але не "або"', () => {
+    expect(extractFeatures('Grill- oder Ofenkäse').choice).toBe(true);
+    expect(
+      extractFeatures('Roll-Top Rucksack, verschiedene Farben').choice,
+    ).toBe(true);
+    expect(
+      extractFeatures('Серветки вологі Smile Antibacterial 15шт в асортименті')
+        .choice,
+    ).toBe(true);
+    expect(
+      extractFeatures('Хек тушка свіжоморожений або дефростований ваговий')
+        .choice,
+    ).toBeUndefined();
+    expect(extractFeatures('Ofenkäse').choice).toBeUndefined();
+  });
+
+  it('пропозиція на вибір і конкретний товар — різні; дві однакові пропозиції — той самий', () => {
+    const offer = extractFeatures('Wodka Original oder Citron', 'Gorbatschow');
+    const vodka = extractFeatures('Wodka Original', 'Gorbatschow');
+    expect(scorePair(offer, vodka, flat)).toMatchObject({
+      score: 0,
+      conflict: 'choice',
+    });
+    expect(scorePair(offer, offer, flat).score).toBe(1);
+  });
+});
+
+describe('CatalogIndex: пропозиція на всю лінійку', () => {
+  // Нижчий поріг модерації, щоб пара "Almighurt" ↔ смак до нього діставала
+  const thresholds = { ...THRESHOLDS, review: 0.5 };
+  let next = 0;
+  const listing = (name: string, chainId: string): ListingInput => ({
+    id: `l${next++}`,
+    chainId,
+    country: 'DE',
+    barcodes: [],
+    quantity: G150,
+    features: extractFeatures(name, null),
+  });
+
+  function catalog(flavours: string[]) {
+    const index = new CatalogIndex(thresholds);
+    index.setVariations(
+      learnVariations(
+        ['erdbeere', 'stracciatella', 'kirsche'].map((f) =>
+          sample('aldi-sued', `almighurt ${f}`),
+        ),
+      ),
+    );
+    flavours.forEach((flavour, i) => {
+      const seed = listing(`Almighurt 150 g, ${flavour}`, 'aldi-sued');
+      index.addProduct(`p${i}`, seed.features, 'DE');
+      index.addVariant(`v${i}`, `p${i}`, quantityKey(G150));
+      index.addName(`v${i}`, seed.features, 'DE', 'aldi-sued');
+    });
+    return index;
+  }
+
+  it('кілька смаків того самого розміру — "Almighurt" не пропонується як жоден із них', () => {
+    const decision = catalog(['Erdbeere', 'Stracciatella']).decide(
+      listing('Almighurt', 'aldi-nord'),
+    );
+    expect(decision.kind).toBe('product');
+  });
+
+  it('лише один смак — пара йде модератору', () => {
+    const decision = catalog(['Erdbeere']).decide(
+      listing('Almighurt', 'aldi-nord'),
+    );
+    expect(decision).toMatchObject({
+      kind: 'review',
+      candidates: [{ variantId: 'v0', extraVariation: 'b' }],
+    });
+  });
+
+  it('картка зі смаком не пропонується як пропозиція на лінійку, коли в блоці є інший смак', () => {
+    const index = catalog(['Erdbeere']);
+    // Пропозиція ALDI Nord на всю лінійку
+    const offer = listing('Almighurt', 'aldi-nord');
+    index.addProduct('range', offer.features, 'DE');
+    index.addVariant('vr', 'range', quantityKey(G150));
+    index.addName('vr', offer.features, 'DE', 'aldi-nord');
+
+    // Своя мережа вже має полуницю — "Almighurt" тут лінійка, а не страчателла
+    const decision = index.decide(
+      listing('Almighurt Stracciatella', 'aldi-sued'),
+    );
+    expect(decision.kind).toBe('product');
+
+    // Без іншого смаку в блоці пара йде модератору
+    const alone = new CatalogIndex(thresholds);
+    alone.setVariations(
+      learnVariations(
+        ['erdbeere', 'stracciatella', 'kirsche'].map((f) =>
+          sample('aldi-sued', `almighurt ${f}`),
+        ),
+      ),
+    );
+    alone.addProduct('range', offer.features, 'DE');
+    alone.addVariant('vr', 'range', quantityKey(G150));
+    alone.addName('vr', offer.features, 'DE', 'aldi-nord');
+    expect(
+      alone.decide(listing('Almighurt Stracciatella', 'aldi-sued')),
+    ).toMatchObject({
+      kind: 'review',
+      candidates: [{ variantId: 'vr', extraVariation: 'a' }],
+    });
+  });
+
+  it('картка зі смаком знаходить свій смак', () => {
+    const decision = catalog(['Erdbeere', 'Stracciatella']).decide(
+      listing('Almighurt Erdbeere', 'aldi-nord'),
+    );
+    expect(decision).toMatchObject({ kind: 'fuzzy', variantId: 'v0' });
   });
 });

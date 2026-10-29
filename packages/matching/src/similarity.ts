@@ -140,8 +140,10 @@ export interface PairScore {
   score: number;
   name: number;
   brand: number;
-  /** Чому пара відкинута: група ознак або "brand" */
+  /** Чому пара відкинута: група ознак, "brand", "variation" або "choice" */
   conflict?: string;
+  /** Вивчена варіація є лише в цій назві пари (PRD-30) */
+  extraVariation?: 'a' | 'b';
 }
 
 /**
@@ -162,20 +164,41 @@ export function unmatchedVariation(
 
 /**
  * Вивчені варіації в парі назв: "both" — з обох боків ("erdbeere" проти
- * "stracciatella"), це різні товари, як різні смаки зі словника; "one" — лише з
- * одного боку: та сама назва з уточненням ("Gourmet Gold") або пропозиція на всю
- * лінійку ("Almighurt" проти "Almighurt Erdbeere", PRD-30).
+ * "stracciatella"), це різні товари, як різні смаки зі словника; "a" / "b" — лише в
+ * цій назві: та сама назва з уточненням ("Gourmet Gold") або друга назва — пропозиція
+ * на всю лінійку ("Almighurt Erdbeere" проти "Almighurt", PRD-30).
  */
 export function variationMismatch(
   a: string[],
   b: string[],
   variations: Variations | undefined,
-): 'both' | 'one' | null {
+): 'both' | 'a' | 'b' | null {
   if (!variations?.size) return null;
   const left = unmatchedVariation(a, b, variations) !== null;
   const right = unmatchedVariation(b, a, variations) !== null;
   if (left && right) return 'both';
-  return left || right ? 'one' : null;
+  return left ? 'a' : right ? 'b' : null;
+}
+
+/**
+ * Назви відрізняються лише вивченими варіаціями: "сусідні смаки" однієї назви
+ * ("knoppers riegel nuss" і "knoppers riegel kokos"), а не зовсім інші товари.
+ */
+export function differsOnlyByVariation(
+  a: string[],
+  b: string[],
+  variations: Variations | undefined,
+): boolean {
+  if (!variations?.size) return false;
+  const extra = (x: string[], y: string[]) =>
+    x.filter((w) => !y.some((t) => tokenSimilarity(w, t) >= 0.9));
+  const left = extra(a, b);
+  const right = extra(b, a);
+  return (
+    left.length > 0 &&
+    right.length > 0 &&
+    [...left, ...right].every((w) => variations.has(w))
+  );
 }
 
 /** Варіація лише з одного боку: слабкі пари випадають, сильні йдуть модератору, не автоматично */
@@ -189,6 +212,10 @@ export function scorePair(
 ): PairScore {
   const conflict = attributeConflict(a.attributes, b.attributes);
   if (conflict) return { score: 0, name: 0, brand: 0, conflict };
+  // "Grill- oder Ofenkäse" — не той самий товар, що "Grillkäse"
+  if (!a.choice !== !b.choice) {
+    return { score: 0, name: 0, brand: 0, conflict: 'choice' };
+  }
   const brand = brandSimilarity(a.brand, b.brand);
   if (brand === 0) return { score: 0, name: 0, brand: 0, conflict: 'brand' };
   const tokensA = a.tokens.map((t) => t.norm);
@@ -208,11 +235,14 @@ export function scorePair(
     (b.attributes.percent === undefined)
       ? 0.9
       : 1;
-  const variationPenalty = variation === 'one' ? ONE_SIDED_VARIATION : 1;
+  const oneSided = variation === 'a' || variation === 'b';
   return {
-    score: round(name * brand * percentPenalty * variationPenalty),
+    score: round(
+      name * brand * percentPenalty * (oneSided ? ONE_SIDED_VARIATION : 1),
+    ),
     name: round(name),
     brand,
+    ...(oneSided && { extraVariation: variation }),
   };
 }
 

@@ -26,7 +26,19 @@ export interface NameFeatures {
   attributeLabels: string[];
   /** Слова-смаки (банан, cherry) — для групування смаків у лінійку */
   flavours: Token[];
+  /**
+   * Пропозиція на кілька товарів одразу: "Grill- oder Ofenkäse", "в асортименті"
+   * (PRD-30). Це не конкретний товар — зіставляється лише з такою самою пропозицією.
+   */
+  choice?: true;
 }
+
+/**
+ * Слова вибору в назві. "або" не враховується: в українських мережах це стан
+ * товару ("свіжоморожений або дефростований"), а не вибір між товарами.
+ */
+const CHOICE =
+  /(^|[\s,(-])(oder|versch\.|verschiedene|sortiert|в асортименті)(?=$|[\s,.)])/iu;
 
 type AttributeRule = { group: string; value: string; phrases: string[] };
 
@@ -402,6 +414,7 @@ export function extractFeatures(
     attributes,
     attributeLabels,
     flavours: tokens.filter((t) => FLAVOURS.has(t.norm)),
+    ...(CHOICE.test(name) && { choice: true as const }),
   };
 }
 
