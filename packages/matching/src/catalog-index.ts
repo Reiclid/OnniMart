@@ -1,7 +1,7 @@
-import type { NameFeatures } from "./features";
-import type { Measure } from "./normalization/quantity";
-import { buildIdf, Idf, PairScore, scorePair } from "./similarity";
-import type { Variations } from "./variations";
+import type { NameFeatures } from './features';
+import type { Measure } from './normalization/quantity';
+import { buildIdf, Idf, PairScore, scorePair } from './similarity';
+import type { Variations } from './variations';
 
 export interface QuantityInfo {
   measure: Measure | null;
@@ -37,8 +37,8 @@ export type Thresholds = typeof THRESHOLDS;
 
 /** "VOLUME:500:1", "MASS:1000:1:w" (ваговий), "none" — фасування невідоме */
 export function quantityKey(q: QuantityInfo): string {
-  if (!q.measure || !q.netQuantity) return "none";
-  return `${q.measure}:${Math.round(q.netQuantity)}:${q.packCount}${q.isWeighted ? ":w" : ""}`;
+  if (!q.measure || !q.netQuantity) return 'none';
+  return `${q.measure}:${Math.round(q.netQuantity)}:${q.packCount}${q.isWeighted ? ':w' : ''}`;
 }
 
 export interface ListingInput {
@@ -64,15 +64,15 @@ export interface CandidateScore extends PairScore {
 
 export type MatchDecision =
   /** Штрихкод уже відомий */
-  | { kind: "barcode"; variantId: string }
+  | { kind: 'barcode'; variantId: string }
   /** Висока схожість з наявним фасуванням */
-  | { kind: "fuzzy"; variantId: string; score: number }
+  | { kind: 'fuzzy'; variantId: string; score: number }
   /** Середня схожість — у чергу модерації */
-  | { kind: "review"; candidates: CandidateScore[] }
+  | { kind: 'review'; candidates: CandidateScore[] }
   /** Той самий товар, але іншого фасування — нове фасування наявного товару */
-  | { kind: "variant"; productId: string; score: number }
+  | { kind: 'variant'; productId: string; score: number }
   /** Схожого немає — новий товар */
-  | { kind: "product" };
+  | { kind: 'product' };
 
 interface VariantEntry {
   id: string;
@@ -243,7 +243,7 @@ export class CatalogIndex {
   decide(listing: ListingInput): MatchDecision {
     for (const gtin of listing.barcodes) {
       const variantId = this.byBarcode.get(gtin);
-      if (variantId) return { kind: "barcode", variantId };
+      if (variantId) return { kind: 'barcode', variantId };
     }
 
     const scored = this.scoreCandidates(listing);
@@ -255,12 +255,12 @@ export class CatalogIndex {
       (!best.barcodeMismatch || best.score >= this.thresholds.barcodeOverride);
     if (best && trusted && best.score >= this.thresholds.auto) {
       if (!second || best.score - second.score >= this.thresholds.margin) {
-        return { kind: "fuzzy", variantId: best.variantId, score: best.score };
+        return { kind: 'fuzzy', variantId: best.variantId, score: best.score };
       }
     }
     if (best && best.score >= this.thresholds.review) {
       return {
-        kind: "review",
+        kind: 'review',
         candidates: domestic
           .filter((c) => c.score >= this.thresholds.review)
           .slice(0, 3),
@@ -275,15 +275,15 @@ export class CatalogIndex {
         foreign[0].score - foreign[1].score >= this.thresholds.margin)
     ) {
       return {
-        kind: "fuzzy",
+        kind: 'fuzzy',
         variantId: foreign[0].variantId,
         score: foreign[0].score,
       };
     }
 
     const product = this.bestProduct(listing);
-    if (product) return { kind: "variant", ...product };
-    return { kind: "product" };
+    if (product) return { kind: 'variant', ...product };
+    return { kind: 'product' };
   }
 
   /** Той самий товар (бренд + назва) без такого фасування */
@@ -330,7 +330,7 @@ export class CatalogIndex {
 
 /** Ключі блоків: перші 4 літери кожного слова; назва лише з бренду — "∅" */
 function stems(features: NameFeatures): string[] {
-  if (features.tokens.length === 0) return ["∅"];
+  if (features.tokens.length === 0) return ['∅'];
   return [...new Set(features.tokens.map((t) => t.norm.slice(0, 4)))];
 }
 

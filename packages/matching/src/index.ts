@@ -8,18 +8,18 @@
  *   prepare          ознаки та IDF-словник для набору карток;
  *   naming           назви лінійок і підписи різновидів / фасувань;
  *   off-match        картки без штрихкоду → товари Open Food Facts (PRD-27);
- *   variations   варіації (смаки, сорти), вивчені з карток мереж і штрихкодів (PRD-30);
+ *   variations       варіації (смаки, сорти), вивчені з карток мереж і штрихкодів (PRD-30);
  *   concepts         поняття товару (хліб = Brot = bread) для мультимовного пошуку (PRD-19).
  */
-export * from "./normalization/gtin";
-export * from "./normalization/quantity";
-export * from "./normalization/text";
-export * from "./features";
-export * from "./similarity";
-export * from "./variations";
-export * from "./catalog-index";
-export * from "./prepare";
-export * from "./naming";
-export * from "./categories";
-export * from "./concepts";
-export * from "./off-match";
+export * from './normalization/gtin';
+export * from './normalization/quantity';
+export * from './normalization/text';
+export * from './features';
+export * from './similarity';
+export * from './variations';
+export * from './catalog-index';
+export * from './prepare';
+export * from './naming';
+export * from './categories';
+export * from './concepts';
+export * from './off-match';
