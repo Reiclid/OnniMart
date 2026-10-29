@@ -22,6 +22,7 @@
     "start:worker:prod": "node dist/worker",
     "openapi": "bun scripts/generate-openapi.ts",
     "match:evaluate": "bun scripts/evaluate-matching.ts",
+    "match:recheck": "bun scripts/recheck-review.ts",
     "listings:reparse": "bun scripts/reparse-listings.ts",
     "catalog:reset": "bun scripts/reset-catalog.ts",
     "search:reindex": "bun scripts/reindex-search.ts",
