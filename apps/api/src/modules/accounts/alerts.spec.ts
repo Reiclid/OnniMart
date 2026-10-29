@@ -38,6 +38,27 @@ describe('decideAlert', () => {
     });
   });
 
+  it('та сама ціна в нову акцію — новий ключ, тобто нове сповіщення', () => {
+    const promo = (since: string) =>
+      decideAlert(
+        sub(),
+        [
+          offer('eko', 39.9, {
+            isOnPromo: true,
+            regularPrice: 49.9,
+            priceSince: new Date(since),
+          }),
+        ],
+        0,
+      )!.dedupeKey;
+    expect(promo('2026-10-19T08:00:00Z')).toBe(
+      's1:l-eko:39.90:' + Date.parse('2026-10-19T08:00:00Z'),
+    );
+    expect(promo('2026-10-26T08:00:00Z')).not.toBe(
+      promo('2026-10-19T08:00:00Z'),
+    );
+  });
+
   it('ціль не досягнута й акцій немає — нічого', () => {
     expect(
       decideAlert(sub({ targetPrice: 40 }), [offer('eko', 49.9)], 0),

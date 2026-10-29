@@ -11,6 +11,8 @@ export interface AlertOffer {
   price: number;
   regularPrice: number | null;
   isOnPromo: boolean;
+  /** Коли картка отримала поточну ціну: та сама ціна в нову акцію — нове сповіщення */
+  priceSince?: Date;
 }
 
 /** Як порівнювати ціни підписки: її валюта, країна покупця й курси за 1 EUR */
@@ -33,7 +35,7 @@ export interface AlertSubscription {
 export interface Alert {
   type: 'TARGET_PRICE_REACHED' | 'PROMO_STARTED';
   offer: AlertOffer;
-  /** Повторно не повідомляємо, доки та сама картка має ту саму ціну */
+  /** Повторно не повідомляємо, доки та сама картка тримає ту саму ціну без перерви */
   dedupeKey: string;
 }
 
@@ -86,7 +88,8 @@ export function decideAlert(
   const cheapest = relevant[0];
   if (!cheapest) return null;
   const key = (o: AlertOffer) =>
-    `${subscription.id}:${o.listingId}:${o.price.toFixed(2)}`;
+    `${subscription.id}:${o.listingId}:${o.price.toFixed(2)}` +
+    (o.priceSince ? `:${o.priceSince.getTime()}` : '');
 
   if (
     subscription.targetPrice !== null &&
