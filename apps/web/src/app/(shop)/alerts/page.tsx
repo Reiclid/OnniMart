@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { getNotifications, getSubscriptions } from '@/api/generated/me/me';
+import type { NotificationDto } from '@/api/generated/model';
 import { ProductImage } from '@/components/ui';
-import { formatShown } from '@/lib/format';
+import { formatMoney, formatShown } from '@/lib/format';
 import { INTL_LOCALE } from '@/i18n';
 import { getI18n } from '@/i18n/server';
 import { currentMoney, requireUser } from '@/lib/session';
@@ -21,6 +22,15 @@ export default async function AlertsPage() {
   const when = (iso: string) =>
     new Intl.DateTimeFormat(INTL_LOCALE[locale], { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
   const unread = notifications.filter((n) => !n.readAt).length;
+  // Текст мовою покупця з даних сповіщення; старі записи — готовий англійський текст
+  const noticeTitle = ({ params: p, title }: NotificationDto) =>
+    p ? t('alerts.noticeTitle', { product: p.product, price: formatMoney(p.price, p.currency), chain: p.chain }) : title;
+  const noticeBody = ({ params: p, type, body }: NotificationDto) =>
+    !p
+      ? body
+      : type === 'TARGET_PRICE_REACHED' && p.target !== null
+        ? t('alerts.noticeTarget', { target: formatMoney(p.target, p.targetCurrency ?? p.currency) })
+        : t('alerts.noticePromo', { discount: p.discount ?? 0 });
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
@@ -44,8 +54,8 @@ export default async function AlertsPage() {
               href={n.productId ? `/products/${n.productId}` : '/alerts'}
               className={`block rounded-lg border p-4 ${n.readAt ? 'border-line bg-surface' : 'border-danger bg-danger-subtle'}`}
             >
-              <div className="text-body font-semibold">{n.title}</div>
-              <div className="text-body-sm text-fg-muted">{n.body} · {when(n.createdAt)}</div>
+              <div className="text-body font-semibold">{noticeTitle(n)}</div>
+              <div className="text-body-sm text-fg-muted">{noticeBody(n)} · {when(n.createdAt)}</div>
             </Link>
           ))
         )}

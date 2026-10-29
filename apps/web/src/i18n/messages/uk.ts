@@ -143,6 +143,9 @@ export const uk: Catalog = {
     resume: 'Відновити',
     remove: 'Видалити',
     stopTracking: 'Не стежити: {title}',
+    noticeTitle: '{product}: {price} у {chain}',
+    noticeTarget: 'Нижче вашої цілі {target}',
+    noticePromo: 'Акція −{discount}%',
   },
   settings: {
     title: 'Налаштування',

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 1.0
  */
 import type { NotificationDtoType } from './notificationDtoType';
+import type { NotificationParamsDto } from './notificationParamsDto';
 
 export interface NotificationDto {
   id: string;
@@ -14,6 +15,11 @@ export interface NotificationDto {
   body: string;
   /** @nullable */
   productId: string | null;
+  /**
+     * null — старе сповіщення: показати title/body
+     * @nullable
+     */
+  params: NotificationParamsDto | null;
   createdAt: string;
   /** @nullable */
   readAt: string | null;

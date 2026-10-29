@@ -133,6 +133,9 @@ export const de: Catalog = {
     resume: 'Fortsetzen',
     remove: 'Entfernen',
     stopTracking: 'Nicht mehr beobachten: {title}',
+    noticeTitle: '{product}: {price} bei {chain}',
+    noticeTarget: 'Unter Ihrem Zielpreis {target}',
+    noticePromo: '−{discount}% Aktion',
   },
   settings: {
     title: 'Einstellungen',
