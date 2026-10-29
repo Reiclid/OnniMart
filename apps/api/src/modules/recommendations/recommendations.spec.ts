@@ -1,4 +1,9 @@
-import { toCandidates, toSignals, type ProductFacts } from './recommendations';
+import {
+  toCandidates,
+  toSignals,
+  type ProductFacts,
+  rankedPoolKey,
+} from './recommendations';
 
 const facts = (id: string, over: Partial<ProductFacts> = {}): ProductFacts => ({
   id,
@@ -91,5 +96,20 @@ describe('toSignals', () => {
         brand: undefined,
       },
     ]);
+  });
+});
+
+describe('rankedPoolKey', () => {
+  it('сторінки одного пошуку — один пул; інший запит, фільтр чи сесія — інший', () => {
+    const key = rankedPoolKey('s1', { q: ' Cola ', country: 'UA' }, 24);
+    expect(rankedPoolKey('s1', { q: 'cola', country: 'UA' }, 24)).toBe(key);
+    expect(rankedPoolKey('s1', { q: 'fanta', country: 'UA' }, 24)).not.toBe(
+      key,
+    );
+    expect(
+      rankedPoolKey('s1', { q: 'cola', country: 'UA', category: 'drinks' }, 24),
+    ).not.toBe(key);
+    expect(rankedPoolKey('s2', { q: 'cola', country: 'UA' }, 24)).not.toBe(key);
+    expect(rankedPoolKey('s1', { q: 'cola', country: 'UA' }, 48)).not.toBe(key);
   });
 });

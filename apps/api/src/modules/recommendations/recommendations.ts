@@ -82,3 +82,29 @@ export function toSignals(
     };
   });
 }
+
+/**
+ * Ключ переставленого пулу пошуку в Redis: сесія входу + усі фільтри без номера сторінки.
+ * Наступні сторінки нескінченної прокрутки беруться з того самого пулу, а не ранжуються заново.
+ */
+export function rankedPoolKey(
+  sessionId: string,
+  query: {
+    q?: string;
+    multiChain?: boolean;
+    chain?: string;
+    country?: string;
+    category?: string;
+  },
+  pageSize: number,
+): string {
+  const filters = [
+    query.q?.trim().toLowerCase() ?? '',
+    query.multiChain ? '1' : '',
+    query.chain ?? '',
+    query.country ?? '',
+    query.category ?? '',
+    pageSize,
+  ];
+  return `rank:${sessionId}:${JSON.stringify(filters)}`;
+}
