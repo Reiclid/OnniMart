@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdminGuard } from './auth/admin.guard';
+import { THROTTLER_OPTIONS } from './common/throttle';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { ActivityModule } from './modules/activity/activity.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
@@ -14,8 +15,7 @@ import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
-    // Не більше 120 запитів за хвилину з однієї адреси (зміни — окремо, див. MUTATION_LIMIT)
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRoot(THROTTLER_OPTIONS),
     PrismaModule,
     CatalogModule,
     ScraperModule,

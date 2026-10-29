@@ -32,16 +32,18 @@ export class AdminGuard implements CanActivate {
     }
     const header = request.headers.authorization ?? '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-    if (!sameSecret(token, expected)) {
+    if (!isAdminToken(token)) {
       throw new UnauthorizedException('Потрібен токен адміністратора');
     }
     return true;
   }
 }
 
-/** Порівняння без витоку довжини збігу через час відповіді */
-function sameSecret(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
+/** Чи це ADMIN_TOKEN; порівняння без витоку довжини збігу через час відповіді */
+export function isAdminToken(token: string): boolean {
+  const expected = process.env.ADMIN_TOKEN;
+  if (!expected) return false;
+  const left = Buffer.from(token);
+  const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);
 }
