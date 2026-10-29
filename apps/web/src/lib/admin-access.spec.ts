@@ -26,4 +26,12 @@ describe('adminAccess', () => {
     expect(adminAccess(headers('Basic %%%'), 'p:ss')).toBe('challenge');
     expect(adminAccess(headers(basic('admin', 'p:ss')), 'p:ss')).toBe('ok');
   });
+
+  it('після 10 невдалих паролів адресу не пускає навіть з правильним, інші адреси — так', () => {
+    const from = (ip: string, password: string) =>
+      new Headers({ host: 'abc.trycloudflare.com', 'cf-connecting-ip': ip, authorization: basic('admin', password) });
+    for (let i = 0; i < 10; i++) expect(adminAccess(from('6.6.6.6', `guess${i}`), 'secret')).toBe('challenge');
+    expect(adminAccess(from('6.6.6.6', 'secret'), 'secret')).toBe('forbidden');
+    expect(adminAccess(from('7.7.7.7', 'secret'), 'secret')).toBe('ok');
+  });
 });
