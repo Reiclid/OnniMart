@@ -15,13 +15,17 @@ export interface VariationSample {
   barcodes: string[];
 }
 
-/** Група для контрасту: бренд + фасування; фасування невідоме — null (так само як блоки зіставлення) */
+/**
+ * Група для контрасту: бренд + фасування. null — фасування невідоме або товар
+ * ваговий: вагові овочі й мʼясо без бренду в мережі утворюють одну групу, і
+ * "капуста" / "морква" виглядали б смаками.
+ */
 export function variationGroup(
   brand: string | null,
   quantity: QuantityInfo,
 ): string | null {
   const key = quantityKey(quantity);
-  return key === 'none' ? null : `${brand ?? ''}|${key}`;
+  return key === 'none' || quantity.isWeighted ? null : `${brand ?? ''}|${key}`;
 }
 
 export const VARIATION_RULES = {
@@ -34,7 +38,7 @@ export const VARIATION_RULES = {
 /**
  * Вчить варіації за двома властивостями предметної області:
  *   - мережа не продає той самий товар двічі: дві її картки одного бренду й фасування,
- *     що відрізняються одним словом, — різні товари, і це слово — варіація (контраст);
+ *     де одне слово замінене іншим, — різні товари, і ці слова — варіації (контраст);
  *   - той самий GTIN у різних мережах — той самий товар: слова, якими відрізняються
  *     такі назви, — шум (упаковка, маркетинг), а не варіація.
  * Вага v = контраст / (контраст + збіги за GTIN). Повертає лише слова з
@@ -42,7 +46,7 @@ export const VARIATION_RULES = {
  */
 export function learnVariations(
   samples: VariationSample[],
-  rules = VARIATION_RULES,
+  rules: typeof VARIATION_RULES = VARIATION_RULES,
 ): Variations {
   const contrast = new Map<string, number>();
   const noise = new Map<string, number>();
@@ -64,10 +68,12 @@ export function learnVariations(
       for (let j = i + 1; j < list.length; j++) {
         const left = difference(list[i], list[j]);
         const right = difference(list[j], list[i]);
-        // Чиста пара: одне слово проти одного або проти нічого
-        if (left.length + right.length === 0) continue;
-        if (left.length > 1 || right.length > 1) continue;
-        for (const word of [...left, ...right]) add(contrast, word);
+        // Чиста пара: одне слово замість іншого ("erdbeere" ↔ "vanille").
+        // "Слово проти нічого" не рахується: це здебільшого уточнення
+        // ("Капуста" / "Капуста молода"), а не смак
+        if (left.length !== 1 || right.length !== 1) continue;
+        add(contrast, left[0]);
+        add(contrast, right[0]);
       }
     }
   }

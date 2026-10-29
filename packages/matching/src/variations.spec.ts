@@ -36,7 +36,7 @@ const ALDI = [
 ];
 
 describe('learnVariations', () => {
-  it('слово, що єдине відрізняє дві картки однієї мережі, — варіація', () => {
+  it('слово, замінене іншим у двох картках однієї мережі, — варіація', () => {
     const variations = learnVariations(ALDI);
     expect(variations.get('stracciatella')).toBe(1);
     expect(variations.get('erdbeere')).toBe(1);
@@ -73,13 +73,24 @@ describe('learnVariations', () => {
     expect(variations.size).toBe(0);
   });
 
+  it('"слово проти нічого" — уточнення, а не варіація', () => {
+    // "Капуста" і "Капуста молода" в одній мережі: різні товари, але "молода" — не смак
+    const variations = learnVariations([
+      sample('novus', 'капуста'),
+      sample('novus', 'капуста молода'),
+      sample('varus', 'капуста'),
+      sample('varus', 'капуста молода'),
+    ]);
+    expect(variations.size).toBe(0);
+  });
+
   it('слово, яким відрізняються назви з тим самим GTIN, — шум, а не варіація', () => {
     const noisy = [
-      // "becher" єдине відрізняє дві картки мережі (контраст 2) ...
+      // "becher" замінює "glas" у двох мережах (контраст 2) ...
       sample('aldi-sued', 'erdbeere becher'),
-      sample('aldi-sued', 'erdbeere'),
+      sample('aldi-sued', 'erdbeere glas'),
       sample('lidl', 'vanille becher'),
-      sample('lidl', 'vanille'),
+      sample('lidl', 'vanille glas'),
       // ... але три штрихкоди показують, що це той самий товар
       sample('kaufland', 'kirsche becher', ['1']),
       sample('penny', 'kirsche', ['1']),
@@ -107,7 +118,8 @@ describe('learnVariations', () => {
 });
 
 describe('variationGroup', () => {
-  it('бренд + фасування; без фасування — null', () => {
+  it('бренд + фасування; без фасування або ваговий — null', () => {
+    expect(variationGroup(null, { ...G150, isWeighted: true })).toBeNull();
     expect(variationGroup('almighurt', G150)).toBe('almighurt|MASS:150:1');
     expect(variationGroup(null, G150)).toBe('|MASS:150:1');
     expect(
