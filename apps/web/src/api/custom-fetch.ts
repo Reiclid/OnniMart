@@ -1,4 +1,5 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { clientAddress } from "@/lib/client-address";
 
 /** httpOnly-cookie з токеном сесії покупця (ставлять серверні дії входу) */
 export const SESSION_COOKIE = "onnimart_session";
@@ -24,6 +25,9 @@ export const customFetch = async <T>(
   const token = USER_ROUTE.test(url)
     ? (await cookies()).get(SESSION_COOKIE)?.value
     : process.env.ADMIN_TOKEN;
+  // Ліміти API рахують кожного покупця окремо; ADMIN_TOKEN доводить, що адресу передав веб
+  const client = clientAddress(await headers());
+  const proxy = client && process.env.ADMIN_TOKEN;
   const response = await fetch(
     `${process.env.API_URL ?? "http://localhost:3001"}${url}`,
     {
@@ -31,6 +35,7 @@ export const customFetch = async <T>(
       headers: {
         "Content-Type": "application/json",
         ...(token && { Authorization: `Bearer ${token}` }),
+        ...(proxy && { "x-onnimart-client": client, "x-onnimart-proxy": proxy }),
         ...options.headers,
       },
     },
