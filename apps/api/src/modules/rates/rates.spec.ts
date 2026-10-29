@@ -4,6 +4,7 @@ import {
   parseNbuEur,
   parseStoredRates,
   ratesStale,
+  usableRates,
 } from './rates';
 
 const ECB = `<?xml version="1.0" encoding="UTF-8"?>
@@ -59,6 +60,18 @@ describe('курси валют', () => {
     expect(ratesStale({ fetchedAt: '2026-10-26T07:00:00Z' }, now)).toBe(false);
     expect(ratesStale({ fetchedAt: '2026-10-26T05:00:00Z' }, now)).toBe(true);
     expect(ratesStale({ fetchedAt: 'зіпсовано' }, now)).toBe(true);
+  });
+
+  it('курси старші за тиждень не використовуються', () => {
+    const now = new Date('2026-10-26T12:00:00Z');
+    const rates = (fetchedAt: string) => ({
+      date: '2026-10-24',
+      fetchedAt,
+      perEur: { EUR: 1, UAH: 48 },
+    });
+    expect(usableRates(rates('2026-10-20T12:00:00Z'), now)).not.toBeNull();
+    expect(usableRates(rates('2026-10-19T11:00:00Z'), now)).toBeNull();
+    expect(usableRates(null, now)).toBeNull();
   });
 
   it('довіряє лише цілим курсам з Redis', () => {
