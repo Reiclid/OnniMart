@@ -1,7 +1,13 @@
-import type { NameFeatures } from "./features";
-import type { Measure } from "./normalization/quantity";
-import { buildIdf, Idf, PairScore, scorePair } from "./similarity";
-import type { Variations } from "./variations";
+import type { NameFeatures } from './features';
+import type { Measure } from './normalization/quantity';
+import {
+  buildIdf,
+  differsOnlyByVariation,
+  Idf,
+  PairScore,
+  scorePair,
+} from './similarity';
+import type { Variations } from './variations';
 
 export interface QuantityInfo {
   measure: Measure | null;
@@ -37,8 +43,8 @@ export type Thresholds = typeof THRESHOLDS;
 
 /** "VOLUME:500:1", "MASS:1000:1:w" (ваговий), "none" — фасування невідоме */
 export function quantityKey(q: QuantityInfo): string {
-  if (!q.measure || !q.netQuantity) return "none";
-  return `${q.measure}:${Math.round(q.netQuantity)}:${q.packCount}${q.isWeighted ? ":w" : ""}`;
+  if (!q.measure || !q.netQuantity) return 'none';
+  return `${q.measure}:${Math.round(q.netQuantity)}:${q.packCount}${q.isWeighted ? ':w' : ''}`;
 }
 
 export interface ListingInput {
@@ -64,15 +70,15 @@ export interface CandidateScore extends PairScore {
 
 export type MatchDecision =
   /** Штрихкод уже відомий */
-  | { kind: "barcode"; variantId: string }
+  | { kind: 'barcode'; variantId: string }
   /** Висока схожість з наявним фасуванням */
-  | { kind: "fuzzy"; variantId: string; score: number }
+  | { kind: 'fuzzy'; variantId: string; score: number }
   /** Середня схожість — у чергу модерації */
-  | { kind: "review"; candidates: CandidateScore[] }
+  | { kind: 'review'; candidates: CandidateScore[] }
   /** Той самий товар, але іншого фасування — нове фасування наявного товару */
-  | { kind: "variant"; productId: string; score: number }
+  | { kind: 'variant'; productId: string; score: number }
   /** Схожого немає — новий товар */
-  | { kind: "product" };
+  | { kind: 'product' };
 
 interface VariantEntry {
   id: string;
@@ -205,6 +211,18 @@ export class CatalogIndex {
 
   /** Оцінка схожості картки з кожним допустимим фасуванням того самого розміру */
   scoreCandidates(listing: ListingInput): CandidateScore[] {
+    return this.score(listing).scored;
+  }
+
+  /**
+   * Кандидати і кількість "сусідніх смаків": фасувань цієї країни (будь-якої мережі,
+   * і своєї теж) з тією самою назвою, але іншою вивченою варіацією
+   * ("Knoppers Riegel Nuss" для "Knoppers Riegel Kokos").
+   */
+  private score(listing: ListingInput): {
+    scored: CandidateScore[];
+    siblings: number;
+  } {
     const idf = this.idf(listing.country);
     const key = quantityKey(listing.quantity);
     const ids = new Set<string>();
@@ -212,15 +230,31 @@ export class CatalogIndex {
       for (const id of this.variantBlocks.get(block) ?? []) ids.add(id);
     }
 
+    const tokens = listing.features.tokens.map((t) => t.norm);
     const scored: CandidateScore[] = [];
+    let siblings = 0;
     for (const id of ids) {
       const variant = this.variants.get(id)!;
+      if (
+        variant.countries.has(listing.country) &&
+        variant.names.some((name) =>
+          differsOnlyByVariation(
+            tokens,
+            name.tokens.map((t) => t.norm),
+            this.variations,
+          ),
+        )
+      ) {
+        siblings++;
+      }
+      const scores = variant.names.map((name) =>
+        scorePair(listing.features, name, idf, this.variations),
+      );
       // Інша картка тієї самої мережі — це інший товар цієї мережі
       if (variant.chains.has(listing.chainId)) continue;
       if (this.rejected.has(`${listing.id}|${id}`)) continue;
       let best: PairScore | null = null;
-      for (const name of variant.names) {
-        const score = scorePair(listing.features, name, idf, this.variations);
+      for (const score of scores) {
         if (!best || score.score > best.score) best = score;
       }
       if (!best || best.score <= 0) continue;
@@ -237,30 +271,40 @@ export class CatalogIndex {
         ...(foreign && { foreign }),
       });
     }
-    return scored.sort((a, b) => b.score - a.score);
+    return { scored: scored.sort((a, b) => b.score - a.score), siblings };
   }
 
   decide(listing: ListingInput): MatchDecision {
     for (const gtin of listing.barcodes) {
       const variantId = this.byBarcode.get(gtin);
-      if (variantId) return { kind: "barcode", variantId };
+      if (variantId) return { kind: 'barcode', variantId };
     }
 
-    const scored = this.scoreCandidates(listing);
+    const { scored, siblings } = this.score(listing);
     // Спершу — фасування, що вже продаються в цій країні
-    const domestic = scored.filter((c) => !c.foreign);
+    let domestic = scored.filter((c) => !c.foreign);
+    // Пропозиції на всю лінійку (PRD-30): у блоці ≥ 2 смаки однієї назви, тож
+    // назва без смаку — не конкретний товар:
+    //   картка "Almighurt" проти "Almighurt Erdbeere" і "… Stracciatella";
+    //   картка "Knoppers Riegel Kokos" проти "Knoppers Riegel", коли вже є "… Nuss"
+    if (domestic.filter((c) => c.extraVariation === 'b').length >= 2) {
+      domestic = domestic.filter((c) => c.extraVariation !== 'b');
+    }
+    if (siblings > 0) {
+      domestic = domestic.filter((c) => c.extraVariation !== 'a');
+    }
     const [best, second] = domestic;
     const trusted =
       best &&
       (!best.barcodeMismatch || best.score >= this.thresholds.barcodeOverride);
     if (best && trusted && best.score >= this.thresholds.auto) {
       if (!second || best.score - second.score >= this.thresholds.margin) {
-        return { kind: "fuzzy", variantId: best.variantId, score: best.score };
+        return { kind: 'fuzzy', variantId: best.variantId, score: best.score };
       }
     }
     if (best && best.score >= this.thresholds.review) {
       return {
-        kind: "review",
+        kind: 'review',
         candidates: domestic
           .filter((c) => c.score >= this.thresholds.review)
           .slice(0, 3),
@@ -275,15 +319,15 @@ export class CatalogIndex {
         foreign[0].score - foreign[1].score >= this.thresholds.margin)
     ) {
       return {
-        kind: "fuzzy",
+        kind: 'fuzzy',
         variantId: foreign[0].variantId,
         score: foreign[0].score,
       };
     }
 
     const product = this.bestProduct(listing);
-    if (product) return { kind: "variant", ...product };
-    return { kind: "product" };
+    if (product) return { kind: 'variant', ...product };
+    return { kind: 'product' };
   }
 
   /** Той самий товар (бренд + назва) без такого фасування */
@@ -330,7 +374,7 @@ export class CatalogIndex {
 
 /** Ключі блоків: перші 4 літери кожного слова; назва лише з бренду — "∅" */
 function stems(features: NameFeatures): string[] {
-  if (features.tokens.length === 0) return ["∅"];
+  if (features.tokens.length === 0) return ['∅'];
   return [...new Set(features.tokens.map((t) => t.norm.slice(0, 4)))];
 }
 

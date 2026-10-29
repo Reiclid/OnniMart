@@ -1,4 +1,4 @@
-import { QuantityInfo, quantityKey } from "./catalog-index";
+import { QuantityInfo, quantityKey } from './catalog-index';
 
 /**
  * Варіації, вивчені з даних (PRD-30, docs/08-variations.md): слово → вага 0..1.
@@ -21,7 +21,7 @@ export function variationGroup(
   quantity: QuantityInfo,
 ): string | null {
   const key = quantityKey(quantity);
-  return key === "none" ? null : `${brand ?? ""}|${key}`;
+  return key === 'none' ? null : `${brand ?? ''}|${key}`;
 }
 
 export const VARIATION_RULES = {
@@ -55,11 +55,11 @@ export function learnVariations(
     if (s.group === null) continue;
     const key = `${s.chainId}|${s.group}`;
     const names = groups.get(key) ?? new Set<string>();
-    names.add(unique(s.tokens).sort().join(" "));
+    names.add(unique(s.tokens).sort().join(' '));
     groups.set(key, names);
   }
   for (const names of groups.values()) {
-    const list = [...names].map((n) => (n ? n.split(" ") : []));
+    const list = [...names].map((n) => (n ? n.split(' ') : []));
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         const left = difference(list[i], list[j]);
