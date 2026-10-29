@@ -306,7 +306,7 @@ export async function loadCandidates(
       LEFT JOIN categories c ON c.id = p."categoryId"
       LEFT JOIN product_variants v ON v."productId" = p.id
       LEFT JOIN listings l ON l."variantId" = v.id
-        AND l."delistedAt" IS NULL AND l."currentPrice" IS NOT NULL
+        AND l."delistedAt" IS NULL AND l."inStock" AND l."currentPrice" IS NOT NULL
       LEFT JOIN store_chains sc ON sc.id = l."chainId"
       WHERE p.id IN (${list})
       GROUP BY p.id, c.slug`,
@@ -315,7 +315,7 @@ export async function loadCandidates(
         min(l."currentPrice" / (v."netQuantity" * v."packCount"))::float AS price
       FROM product_variants v
       JOIN listings l ON l."variantId" = v.id
-        AND l."delistedAt" IS NULL AND l."currentPrice" IS NOT NULL
+        AND l."delistedAt" IS NULL AND l."inStock" AND l."currentPrice" IS NOT NULL
       JOIN store_chains sc ON sc.id = l."chainId"
       WHERE v."productId" IN (${list}) AND v."netQuantity" > 0 AND NOT v."isWeighted"
       GROUP BY v."productId", sc.currency`,
