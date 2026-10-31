@@ -18,6 +18,8 @@ export interface ProductDetailsDto {
   variantLabel: string | null;
   /** @nullable */
   imageUrl: string | null;
+  /** Фото всіх мереж без повторів (до 12): спершу фото товару, далі фасувань */
+  images: string[];
   /** @nullable */
   description: string | null;
   /** @nullable */

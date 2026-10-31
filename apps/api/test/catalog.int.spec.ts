@@ -92,6 +92,7 @@ const COLA_EAN = '5449000000996';
         brand: 'Coca-Cola',
         barcodes: [COLA_EAN],
         price: 29.9,
+        image_url: 'https://img.example/novus-cola.jpg',
       }),
     );
     await ingestion.ingest(
@@ -100,6 +101,7 @@ const COLA_EAN = '5449000000996';
         brand: 'Coca-Cola',
         barcodes: [COLA_EAN],
         price: 31.5,
+        image_url: 'https://img.example/silpo-cola.jpg',
       }),
     );
     await ingestion.ingest(
@@ -155,6 +157,52 @@ const COLA_EAN = '5449000000996';
     }
   });
 
+  it('фото за замовчуванням вибирається один раз і змінюється, лише коли зникло', async () => {
+    const urls = [
+      'https://img.example/novus-cola.jpg',
+      'https://img.example/silpo-cola.jpg',
+    ];
+    const { id } = (await catalog.getProducts({ multiChain: true })).items[0];
+    const first = await catalog.getProduct(id);
+    expect(urls).toContain(first.imageUrl);
+    expect(urls).toContain(first.variants[0].imageUrl);
+    expect(first.images[0]).toBe(first.imageUrl);
+    expect([...first.images].sort()).toEqual(urls);
+
+    await matching.run();
+    expect((await catalog.getProduct(id)).imageUrl).toBe(first.imageUrl);
+
+    // Мережа змінила фото, яке було за замовчуванням → нове з живих карток
+    const chosen = await prisma.listing.findFirstOrThrow({
+      where: { imageUrl: first.imageUrl },
+    });
+    await prisma.listing.update({
+      where: { id: chosen.id },
+      data: { imageUrl: 'https://img.example/new.jpg' },
+    });
+    // Фото від модератора не перевибирається
+    await prisma.product.update({
+      where: { id },
+      data: { imageUrl: 'https://img.example/own.jpg', imageLocked: true },
+    });
+    try {
+      await matching.run();
+      const after = await catalog.getProduct(id);
+      expect(after.imageUrl).toBe('https://img.example/own.jpg');
+      expect(after.variants[0].imageUrl).not.toBe(first.imageUrl);
+      expect(after.variants[0].imageUrl).toMatch(/new|novus|silpo/);
+    } finally {
+      await prisma.listing.update({
+        where: { id: chosen.id },
+        data: { imageUrl: chosen.imageUrl },
+      });
+      await prisma.product.update({
+        where: { id },
+        data: { imageUrl: first.imageUrl, imageLocked: false },
+      });
+    }
+  });
+
   it('категорія товару — з категорій і назв карток', async () => {
     const categories = await catalog.getCategories();
     expect(categories.find((c) => c.slug === 'drinks')).toMatchObject({
@@ -176,11 +224,12 @@ const COLA_EAN = '5449000000996';
   });
 
   it('повторний пакет нічого не дублює', async () => {
+    const runs = await prisma.matchRun.count();
     const report = await matching.run();
     expect(report.processed).toBe(0);
     expect(await prisma.product.count()).toBe(2);
     // Кожен пакет — у журналі; після перезапуску воркера статус відновлюється з нього
-    expect(await prisma.matchRun.count()).toBe(2);
+    expect(await prisma.matchRun.count()).toBe(runs + 1);
     const restarted = new MatchingService(prisma);
     Object.assign(restarted, { redis: (matching as any).redis });
     await restarted.onModuleInit();

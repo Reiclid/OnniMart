@@ -120,6 +120,12 @@ export class ProductVariantDto {
   @ApiProperty({ type: String, nullable: true, description: '"ПЕТ", "скло"' })
   packaging!: string | null;
   @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Фото фасування за замовчуванням (з його карток)',
+  })
+  imageUrl!: string | null;
+  @ApiProperty({
     type: [ListingSummaryDto],
     description: 'Пропозиції мереж, від найдешевшої за одиницю',
   })
@@ -157,6 +163,12 @@ export class ProductDetailsDto {
   @ApiProperty({ type: String, nullable: true }) brand!: string | null;
   @ApiProperty({ type: String, nullable: true }) variantLabel!: string | null;
   @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+  @ApiProperty({
+    type: [String],
+    description:
+      'Фото всіх мереж без повторів (до 12): спершу фото товару, далі фасувань',
+  })
+  images!: string[];
   @ApiProperty({ type: String, nullable: true }) description!: string | null;
   @ApiProperty({ type: CategoryRefDto, nullable: true })
   category!: CategoryRefDto | null;

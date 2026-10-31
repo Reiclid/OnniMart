@@ -30,6 +30,7 @@ import {
   type FoodFactsRow,
 } from './food-facts';
 import { saveFoodFacts } from './food-facts.store';
+import { productImages } from './product-images';
 import {
   searchEnabled,
   searchFilter,
@@ -288,6 +289,7 @@ export class CatalogService {
       brand: product.brand?.name ?? null,
       variantLabel: product.variantLabel,
       imageUrl: product.imageUrl,
+      images: productImages(product),
       description: product.description,
       category: product.category,
       categoryLocked: product.categoryLocked,
@@ -305,6 +307,7 @@ export class CatalogService {
           netQuantity: toNumber(variant.netQuantity) ?? 0,
           barcodes: variant.barcodes.map((b) => b.gtin),
           packaging: variant.packaging,
+          imageUrl: variant.imageUrl,
           // Ціни різних країн не порівнюємо напряму: групи за валютою
           // (₴, потім €), усередині — від найдешевшої за одиницю; немає в наявності — в кінці групи
           offers: variant.listings

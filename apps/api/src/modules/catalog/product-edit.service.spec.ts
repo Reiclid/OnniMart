@@ -7,7 +7,9 @@ import { ADMIN_SOURCE, ProductEditService } from './product-edit.service';
 function service(owner: object | null = null) {
   const delegates = {
     product: {
-      findUnique: jest.fn(() => Promise.resolve({ id: 'p1' })),
+      findUnique: jest.fn(() =>
+        Promise.resolve({ imageUrl: 'https://img/auto.jpg' }),
+      ),
       update: jest.fn(),
     },
     productVariant: {
@@ -58,6 +60,21 @@ describe('ProductEditService', () => {
     expect(prisma.product.update.mock.calls[1][0].data).toMatchObject({
       categoryId: null,
       categoryLocked: false,
+    });
+  });
+
+  it('нове фото фіксується, те саме не фіксує, очищене — знову з карток', async () => {
+    const { edits, prisma } = service();
+    await edits.updateProduct('p1', { imageUrl: 'https://img/own.jpg' });
+    expect(prisma.product.update.mock.calls[0][0].data.imageLocked).toBe(true);
+    await edits.updateProduct('p1', { imageUrl: 'https://img/auto.jpg' });
+    expect(prisma.product.update.mock.calls[1][0].data.imageLocked).toBe(
+      undefined,
+    );
+    await edits.updateProduct('p1', { imageUrl: '' });
+    expect(prisma.product.update.mock.calls[2][0].data).toMatchObject({
+      imageUrl: null,
+      imageLocked: false,
     });
   });
 
