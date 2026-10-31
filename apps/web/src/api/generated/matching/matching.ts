@@ -10,11 +10,15 @@ import type {
   DecisionPageDto,
   GetBarcodeReviewQueueParams,
   GetDecisionsParams,
+  GetMatchingRuleHitsParams,
   GetReviewQueueParams,
   GetVariationsParams,
+  MatchingRulesDto,
   MatchingStatusDto,
   ReviewPageDto,
+  RuleHitPageDto,
   RunMatchingResponseDto,
+  SetMatchingRuleDto,
   SetVariationDto,
   UndoDecisionParams,
   VariationPageDto
@@ -624,6 +628,140 @@ export const resetVariation = async (word: string, options?: Parameters<typeof c
     method: 'DELETE'
 
 
+  }
+);}
+
+
+export type getMatchingRulesResponse200 = {
+  data: MatchingRulesDto
+  status: 200
+}
+
+export type getMatchingRulesResponseSuccess = (getMatchingRulesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getMatchingRulesResponse = (getMatchingRulesResponseSuccess)
+
+export const getGetMatchingRulesUrl = () => {
+
+
+
+
+  return `/api/v1/matching/rules`
+}
+
+/**
+ * @summary Правила зіставлення: увімкнені чи ні і скільки карток кожне зачепило за 30 днів
+ */
+export const getMatchingRules = async ( options?: Parameters<typeof customFetch>[1]): Promise<getMatchingRulesResponse> => {
+
+  return customFetch<getMatchingRulesResponse>(getGetMatchingRulesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type getMatchingRuleHitsResponse200 = {
+  data: RuleHitPageDto
+  status: 200
+}
+
+export type getMatchingRuleHitsResponse404 = {
+  data: void
+  status: 404
+}
+
+export type getMatchingRuleHitsResponseSuccess = (getMatchingRuleHitsResponse200) & {
+  headers: Headers;
+};
+export type getMatchingRuleHitsResponseError = (getMatchingRuleHitsResponse404) & {
+  headers: Headers;
+};
+
+export type getMatchingRuleHitsResponse = (getMatchingRuleHitsResponseSuccess | getMatchingRuleHitsResponseError)
+
+export const getGetMatchingRuleHitsUrl = (key: string,
+    params?: GetMatchingRuleHitsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/matching/rules/${key}/hits?${stringifiedParams}` : `/api/v1/matching/rules/${key}/hits`
+}
+
+/**
+ * @summary Картки, на рішення про які вплинуло правило (нові спершу)
+ */
+export const getMatchingRuleHits = async (key: string,
+    params?: GetMatchingRuleHitsParams, options?: Parameters<typeof customFetch>[1]): Promise<getMatchingRuleHitsResponse> => {
+
+  return customFetch<getMatchingRuleHitsResponse>(getGetMatchingRuleHitsUrl(key,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type setMatchingRuleResponse204 = {
+  data: void
+  status: 204
+}
+
+export type setMatchingRuleResponse401 = {
+  data: void
+  status: 401
+}
+
+export type setMatchingRuleResponse404 = {
+  data: void
+  status: 404
+}
+
+export type setMatchingRuleResponseSuccess = (setMatchingRuleResponse204) & {
+  headers: Headers;
+};
+export type setMatchingRuleResponseError = (setMatchingRuleResponse401 | setMatchingRuleResponse404) & {
+  headers: Headers;
+};
+
+export type setMatchingRuleResponse = (setMatchingRuleResponseSuccess | setMatchingRuleResponseError)
+
+export const getSetMatchingRuleUrl = (key: string,) => {
+
+
+
+
+  return `/api/v1/matching/rules/${key}`
+}
+
+/**
+ * @summary Увімкнути або вимкнути правило (діє з наступного пакета)
+ */
+export const setMatchingRule = async (key: string,
+    setMatchingRuleDto: SetMatchingRuleDto, options?: Parameters<typeof customFetch>[1]): Promise<setMatchingRuleResponse> => {
+
+  return customFetch<setMatchingRuleResponse>(getSetMatchingRuleUrl(key),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setMatchingRuleDto)
   }
 );}
 

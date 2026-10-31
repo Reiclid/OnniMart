@@ -9,6 +9,7 @@ const NAV = [
   { href: "/admin/decisions", label: "Рішення" },
   { href: "/admin/brands", label: "Бренди" },
   { href: "/admin/variations", label: "Варіації" },
+  { href: "/admin/rules", label: "Правила" },
   { href: "/admin/quality", label: "Якість даних" },
 ];
 

@@ -10,6 +10,7 @@ import {
   rejectCandidates,
   resetVariation,
   runMatching,
+  setMatchingRule,
   setVariation,
   unlinkListing,
 } from '@/api/generated/matching/matching';
@@ -98,6 +99,10 @@ export async function setVariationAction(word: string, action: 'ADD' | 'REMOVE',
 
 export async function resetVariationAction(word: string) {
   return run(() => resetVariation(word));
+}
+
+export async function setMatchingRuleAction(key: string, enabled: boolean) {
+  return run(() => setMatchingRule(key, { enabled }));
 }
 
 export async function renameBrandAction(id: string, name: string) {
