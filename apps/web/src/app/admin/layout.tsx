@@ -7,6 +7,7 @@ const NAV = [
   { href: "/admin/matching", label: "Зіставлення" },
   { href: "/admin/barcodes", label: "Штрихкоди OFF" },
   { href: "/admin/decisions", label: "Рішення" },
+  { href: "/admin/brands", label: "Бренди" },
   { href: "/admin/variations", label: "Варіації" },
   { href: "/admin/quality", label: "Якість даних" },
 ];
