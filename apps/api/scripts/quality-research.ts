@@ -21,26 +21,21 @@ import {
   median,
   OUTLIER_RULES,
 } from '../src/modules/quality/outliers';
+import {
+  isBadDiscount,
+  isTinyPack,
+  logLogResiduals,
+  logUnit,
+  QualityRow,
+  unitGroup,
+  variantRatios,
+} from '../src/modules/quality/checks';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
-interface Row {
-  id: string;
-  chain: string;
-  country: string;
-  name: string;
-  measure: string | null;
-  qty: number | null;
-  pack: number;
-  weighted: boolean;
-  price: number;
-  regular: number | null;
-  unit: number | null;
-  variantId: string | null;
-  productId: string | null;
-  category: string | null;
+interface Row extends QualityRow {
   concept: string | null;
 }
 
@@ -53,28 +48,6 @@ type Detector = {
 const ln = Math.log;
 const ids = <T extends { item: Row }>(list: T[]) =>
   new Set(list.map((o) => o.item.id));
-const unitGroup = (r: Row) =>
-  r.category && r.measure ? `${r.category}|${r.country}|${r.measure}` : null;
-const logUnit = (r: Row) => (r.unit && r.unit > 0 ? ln(r.unit) : null);
-
-/** Ціна картки ÷ медіана цін інших карток того самого фасування в цій країні */
-function variantRatios(rows: Row[]): Map<string, number> {
-  const byVariant = new Map<string, Row[]>();
-  for (const r of rows) {
-    if (!r.variantId) continue;
-    const key = `${r.variantId}|${r.country}`;
-    byVariant.set(key, [...(byVariant.get(key) ?? []), r]);
-  }
-  const ratios = new Map<string, number>();
-  for (const group of byVariant.values()) {
-    if (group.length < 2) continue;
-    for (const r of group) {
-      const others = group.filter((o) => o.id !== r.id).map((o) => o.price);
-      ratios.set(r.id, r.price / median(others));
-    }
-  }
-  return ratios;
-}
 
 /**
  * Ціна за кг картки ÷ медіана ціни за кг інших фасувань того самого товару в країні
@@ -97,38 +70,6 @@ function productUnitRatios(rows: Row[]): Map<string, number> {
     }
   }
   return ratios;
-}
-
-/** Залишки log(ціна за кг) після прямої від log(розмір) у кожній групі */
-function logLogResiduals(rows: Row[]): Map<string, number> {
-  const groups = new Map<string, Row[]>();
-  for (const r of rows) {
-    const g = unitGroup(r);
-    if (!g || !r.unit || !r.qty || r.weighted) continue;
-    groups.set(g, [...(groups.get(g) ?? []), r]);
-  }
-  const residuals = new Map<string, number>();
-  for (const group of groups.values()) {
-    if (group.length < OUTLIER_RULES.minGroup) continue;
-    const xs = group.map((r) => ln(r.qty! / r.pack));
-    const ys = group.map((r) => ln(r.unit!));
-    // Пряма через медіани половин (стійка до викидів, на відміну від МНК)
-    const order = xs.map((_, i) => i).sort((a, b) => xs[a] - xs[b]);
-    const half = order.length >> 1;
-    const left = order.slice(0, half);
-    const right = order.slice(order.length - half);
-    const mx = (s: number[]) => median(s.map((i) => xs[i]));
-    const my = (s: number[]) => median(s.map((i) => ys[i]));
-    const slope =
-      mx(right) === mx(left)
-        ? 0
-        : (my(right) - my(left)) / (mx(right) - mx(left));
-    const intercept = median(ys.map((y, i) => y - slope * xs[i]));
-    group.forEach((r, i) =>
-      residuals.set(r.id, ys[i] - (intercept + slope * xs[i])),
-    );
-  }
-  return residuals;
 }
 
 const DETECTORS: Detector[] = [
@@ -161,7 +102,7 @@ const DETECTORS: Detector[] = [
     name: 'loglog-residual',
     chart: 'ціна за кг від розміру, log–log, відхилення від прямої групи',
     run: (rows) => {
-      const res = logLogResiduals(rows);
+      const res = logLogResiduals(rows).residuals;
       const items = rows.filter((r) => res.has(r.id));
       return ids(findOutliers(items, unitGroup, (r) => res.get(r.id)!));
     },
@@ -203,32 +144,12 @@ const DETECTORS: Detector[] = [
   {
     name: 'tiny-pack',
     chart: 'розмір упаковки по мережах (лог.): менше 5 г / 5 мл',
-    run: (rows) =>
-      new Set(
-        rows
-          .filter(
-            (r) =>
-              r.qty !== null &&
-              r.measure !== 'COUNT' &&
-              !r.weighted &&
-              r.qty / r.pack < 5,
-          )
-          .map((r) => r.id),
-      ),
+    run: (rows) => new Set(rows.filter(isTinyPack).map((r) => r.id)),
   },
   {
     name: 'discount',
     chart: 'знижка %: закреслена ≤ поточної або знижка > 70 %',
-    run: (rows) =>
-      new Set(
-        rows
-          .filter(
-            (r) =>
-              r.regular !== null &&
-              (r.regular <= r.price || (r.regular - r.price) / r.regular > 0.7),
-          )
-          .map((r) => r.id),
-      ),
+    run: (rows) => new Set(rows.filter(isBadDiscount).map((r) => r.id)),
   },
 ];
 
@@ -353,12 +274,15 @@ async function main() {
     (r) =>
       r.qty !== null && r.measure !== 'COUNT' && !r.weighted && r.qty < 1.5,
   );
-  const byDetector = new Map<string, string>();
-  for (const d of DETECTORS) {
-    const hit = real.filter((r) => clean.get(d.name)!.has(r.id)).length;
-    byDetector.set(d.name, `${Math.round((100 * hit) / real.length)} %`);
+  // Виправлено 31.10 (parseQuantity): рядок лишається для перевірки, що помилки не повернулись
+  if (real.length > 0) {
+    const byDetector = new Map<string, string>();
+    for (const d of DETECTORS) {
+      const hit = real.filter((r) => clean.get(d.name)!.has(r.id)).length;
+      byDetector.set(d.name, `${Math.round((100 * hit) / real.length)} %`);
+    }
+    recall.set(`справжні 1 г/1 мл (${real.length})`, byDetector);
   }
-  recall.set(`справжні 1 г/1 мл (${real.length})`, byDetector);
 
   const plantNames = [...recall.keys()];
   console.log(
@@ -609,7 +533,7 @@ function report(
   // 3. log–log: ціна за кг від розміру для найбільшої групи
   const [g0, list0] = top[0];
   const pts = list0.filter((r) => r.qty && !r.weighted);
-  const res = logLogResiduals(rows);
+  const res = logLogResiduals(rows).residuals;
   const resFlag = clean.get('loglog-residual')!;
   const xs = pts.map((r) => Math.log10(r.qty! / r.pack));
   const ys = pts.map((r) => Math.log10(r.unit!));
