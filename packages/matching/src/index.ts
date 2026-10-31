@@ -9,7 +9,8 @@
  *   naming           назви лінійок і підписи різновидів / фасувань;
  *   off-match        картки без штрихкоду → товари Open Food Facts (PRD-27);
  *   variations       варіації (смаки, сорти), вивчені з карток мереж і штрихкодів (PRD-30);
- *   concepts         поняття товару (хліб = Brot = bread) для мультимовного пошуку (PRD-19).
+ *   concepts         поняття товару (хліб = Brot = bread) для мультимовного пошуку (PRD-19);
+ *   rules            правила, які модератор вмикає й вимикає (/admin/rules).
  */
 export * from './normalization/gtin';
 export * from './normalization/quantity';
@@ -23,3 +24,4 @@ export * from './naming';
 export * from './categories';
 export * from './concepts';
 export * from './off-match';
+export * from './rules';

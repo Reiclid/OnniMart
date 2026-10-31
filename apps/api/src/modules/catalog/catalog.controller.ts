@@ -53,6 +53,12 @@ import {
   RenameBrandDto,
 } from './dto/brands.dto';
 import { SetVariationDto, VariationPageDto } from './dto/variations.dto';
+import { RulesService } from './matching/rules.service';
+import {
+  MatchingRulesDto,
+  RuleHitPageDto,
+  SetMatchingRuleDto,
+} from './dto/rules.dto';
 
 @ApiTags('catalog')
 @Controller('api/v1')
@@ -394,6 +400,64 @@ export class MatchingController {
   @ApiResponse({ status: 204 })
   async unlink(@Param('id') id: string): Promise<void> {
     await this.moderation.unlink(id);
+  }
+}
+
+@ApiTags('matching')
+@Controller('api/v1/matching/rules')
+export class RulesController {
+  constructor(private readonly rules: RulesService) {}
+
+  @Get()
+  @ApiOperation({
+    summary:
+      'Правила зіставлення: увімкнені чи ні і скільки карток кожне зачепило за 30 днів',
+    operationId: 'getMatchingRules',
+  })
+  @ApiResponse({ status: 200, type: MatchingRulesDto })
+  list(): Promise<MatchingRulesDto> {
+    return this.rules.list();
+  }
+
+  @Get(':key/hits')
+  @ApiOperation({
+    summary: 'Картки, на рішення про які вплинуло правило (нові спершу)',
+    operationId: 'getMatchingRuleHits',
+  })
+  @ApiQuery({
+    name: 'decision',
+    required: false,
+    enum: ['barcode', 'fuzzy', 'review', 'variant', 'product'],
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number })
+  @ApiResponse({ status: 200, type: RuleHitPageDto })
+  @ApiResponse({ status: 404, description: 'Невідоме правило' })
+  hits(
+    @Param('key') key: string,
+    @Query('decision') decision?: string,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+  ): Promise<RuleHitPageDto> {
+    return this.rules.hits(key, { decision, page, pageSize });
+  }
+
+  @MutationLimit()
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
+  @Put(':key')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Увімкнути або вимкнути правило (діє з наступного пакета)',
+    operationId: 'setMatchingRule',
+  })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 404, description: 'Невідоме правило' })
+  async set(
+    @Param('key') key: string,
+    @Body() body: SetMatchingRuleDto,
+  ): Promise<void> {
+    await this.rules.set(key, body.enabled);
   }
 }
 

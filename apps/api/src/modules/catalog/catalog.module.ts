@@ -3,6 +3,7 @@ import {
   CatalogController,
   MatchingController,
   VariationsController,
+  RulesController,
   BrandsController,
 } from './catalog.controller';
 import { BrandsService } from './brands.service';
@@ -15,12 +16,14 @@ import { BarcodeReviewService } from './matching/barcode-review.service';
 import { DecisionsService } from './matching/decisions.service';
 import { ModerationService } from './matching/moderation.service';
 import { VariationsService } from './matching/variations.service';
+import { RulesService } from './matching/rules.service';
 
 @Module({
   controllers: [
     CatalogController,
     MatchingController,
     VariationsController,
+    RulesController,
     BrandsController,
   ],
   providers: [
@@ -33,6 +36,7 @@ import { VariationsService } from './matching/variations.service';
     PriceHistoryService,
     ProductEditService,
     VariationsService,
+    RulesService,
     BrandsService,
   ],
   exports: [CatalogService],

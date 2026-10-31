@@ -66,7 +66,7 @@ const COLA_EAN = '5449000000996';
     );
 
     await prisma.$executeRawUnsafe(`
-      TRUNCATE match_runs, match_keys, match_candidates, price_snapshots, scrape_runs, barcodes,
+      TRUNCATE matching_rules, match_runs, match_keys, match_candidates, price_snapshots, scrape_runs, barcodes,
         listings, product_variants, products, product_lines, brands, stores,
         store_chains, countries, subscriptions, users RESTART IDENTITY CASCADE`);
     await prisma.country.create({
@@ -386,5 +386,61 @@ const COLA_EAN = '5449000000996';
       await prisma.product.count({ where: { id: variant.productId } }),
     ).toBe(1);
     expect(await prisma.subscription.count()).toBe(1);
+  });
+
+  it('правила: спрацювання записуються, вимкнене правило не діє з наступного пакета', async () => {
+    // Друга Coca-Cola прийшла з відомим штрихкодом — зіставлена ще під час інжесту
+    expect(
+      await prisma.matchRuleHit.count({
+        where: { rule: 'barcode', decision: 'barcode' },
+      }),
+    ).toBeGreaterThan(0);
+
+    await ingestion.ingest(
+      product('novus', {
+        name: 'Сік Sandora апельсиновий 1л',
+        brand: 'Sandora',
+      }),
+    );
+    await matching.run();
+    await prisma.matchingRule.create({
+      data: { key: 'newVariant', enabled: false },
+    });
+    try {
+      await ingestion.ingest(
+        product('silpo', {
+          name: 'Сік Sandora апельсиновий 0,5л',
+          brand: 'Sandora',
+        }),
+      );
+      await matching.run();
+      // Без правила 0,5 л — окремий товар, а не нове фасування того самого
+      expect(
+        await prisma.product.count({
+          where: { name: { contains: 'Sandora' } },
+        }),
+      ).toBe(2);
+      expect(
+        await prisma.matchRuleHit.count({ where: { rule: 'newVariant' } }),
+      ).toBe(0);
+    } finally {
+      await prisma.matchingRule.deleteMany();
+    }
+
+    await ingestion.ingest(
+      product('silpo', {
+        name: 'Сік Sandora апельсиновий 2л',
+        brand: 'Sandora',
+      }),
+    );
+    await matching.run();
+    const hit = await prisma.matchRuleHit.findFirstOrThrow({
+      where: { rule: 'newVariant' },
+      select: { decision: true, listing: { select: { rawName: true } } },
+    });
+    expect(hit).toEqual({
+      decision: 'variant',
+      listing: { rawName: 'Сік Sandora апельсиновий 2л' },
+    });
   });
 });

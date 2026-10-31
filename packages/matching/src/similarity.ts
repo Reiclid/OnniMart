@@ -1,5 +1,6 @@
 import type { NameFeatures } from './features';
 import type { Variations } from './variations';
+import { isRuleOn, RuleSwitches } from './rules';
 
 /** Вага слова — IDF: рідкісні слова ("слива", "Карпатський") важать більше за часті ("молоко") */
 export type Idf = (token: string) => number;
@@ -209,11 +210,14 @@ export function scorePair(
   b: NameFeatures,
   idf: Idf,
   variations?: Variations,
+  rules?: RuleSwitches,
 ): PairScore {
-  const conflict = attributeConflict(a.attributes, b.attributes);
+  const conflict =
+    isRuleOn(rules, 'attributes') &&
+    attributeConflict(a.attributes, b.attributes);
   if (conflict) return { score: 0, name: 0, brand: 0, conflict };
   // "Grill- oder Ofenkäse" — не той самий товар, що "Grillkäse"
-  if (!a.choice !== !b.choice) {
+  if (isRuleOn(rules, 'choice') && !a.choice !== !b.choice) {
     return { score: 0, name: 0, brand: 0, conflict: 'choice' };
   }
   const brand = brandSimilarity(a.brand, b.brand);

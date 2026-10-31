@@ -28,6 +28,12 @@ function createPrismaMock() {
       updateMany: jest.fn((_args: Args) => Promise.resolve({ count: 1 })),
     },
     priceSnapshot: { create: jest.fn((_args: Args) => Promise.resolve({})) },
+    matchingRule: {
+      findUnique: jest.fn((_args: Args): Promise<unknown> =>
+        Promise.resolve(null),
+      ),
+    },
+    matchRuleHit: { create: jest.fn((_args: Args) => Promise.resolve({})) },
     barcode: {
       findMany: jest.fn((_args: Args): Promise<unknown[]> =>
         Promise.resolve([]),
@@ -302,6 +308,21 @@ describe('IngestionService', () => {
         matchScore: 1,
       }),
     });
+    expect(prisma.matchRuleHit.create).toHaveBeenCalledWith({
+      data: { rule: 'barcode', listingId: 'listing-1', decision: 'barcode' },
+    });
+  });
+
+  it('правило «Збіг штрихкоду» вимкнене — картку лишає пакету', async () => {
+    prisma.barcode.findMany.mockResolvedValue([
+      { gtin: '05449000132499', variantId: 'variant-fanta' },
+    ]);
+    prisma.matchingRule.findUnique.mockResolvedValue({ enabled: false });
+
+    await service.ingest(product({ barcodes: ['5449000132499'] }));
+
+    expect(prisma.listing.updateMany).not.toHaveBeenCalled();
+    expect(prisma.matchRuleHit.create).not.toHaveBeenCalled();
   });
 
   it('не шукає штрихкод, якщо картка вже зіставлена', async () => {
