@@ -90,6 +90,41 @@ describe('parseQuantity', () => {
     expect(parseQuantity('Coca-Cola Zero')).toBeNull();
   });
 
+  it('читає німецький роздільник тисяч у г / мл (ALDI Nord, PENNY)', () => {
+    expect(parseQuantity('1.000-g-Packung')).toMatchObject({
+      measure: 'MASS',
+      netQuantity: 1000,
+    });
+    expect(parseQuantity('1.000 ml')).toMatchObject({
+      measure: 'VOLUME',
+      netQuantity: 1000,
+    });
+    expect(parseQuantity('1.240-g-Dose')).toMatchObject({ netQuantity: 1240 });
+    expect(parseQuantity('Ketchup 1.170 ml')).toMatchObject({
+      netQuantity: 1170,
+    });
+    // У літрах і кілограмах крапка — десяткова (VARUS)
+    expect(parseQuantity('Напій енергетичний Red Bull 0.473 л')).toMatchObject({
+      netQuantity: 473,
+    });
+    expect(parseQuantity('Гель для прання 1.575 л')).toMatchObject({
+      netQuantity: 1575,
+    });
+    expect(parseQuantity('Regenbogenforellen 1,035 kg')).toMatchObject({
+      netQuantity: 1035,
+    });
+  });
+
+  it('не бере дозу в мг за фасування (Сільпо)', () => {
+    expect(
+      parseQuantity('Solgar L-Carnitine (Л-Карнітин) 500 мг таблетки №30'),
+    ).toBeNull();
+    expect(parseQuantity('Вітамін C 500 мг 30 г')).toMatchObject({
+      measure: 'MASS',
+      netQuantity: 30,
+    });
+  });
+
   it('віддає перевагу вазі над штуками', () => {
     expect(parseQuantity('Сосиски Алан 6 шт 300 г')).toMatchObject({
       measure: 'MASS',

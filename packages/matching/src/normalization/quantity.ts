@@ -10,9 +10,8 @@ export interface ParsedQuantity {
   isWeighted: boolean;
 }
 
+// Без мг: у назвах це доза БАДу чи нікотину («Solgar 500 мг капсули №200»), не фасування
 const UNITS: Record<string, { measure: Measure; factor: number }> = {
-  мг: { measure: 'MASS', factor: 0.001 },
-  mg: { measure: 'MASS', factor: 0.001 },
   г: { measure: 'MASS', factor: 1 },
   гр: { measure: 'MASS', factor: 1 },
   g: { measure: 'MASS', factor: 1 },
@@ -67,7 +66,14 @@ const SINGLE = new RegExp(
 const WEIGHTED =
   /(вагов|ваг\.|на\s+вагу|\/\s*кг|за\s+1?\s*кг|\/\s*kg|je\s+kg|per\s+kg)/iu;
 
-function toNumber(raw: string): number {
+// Німецький роздільник тисяч: "1.000-g-Packung", "1.170 ml" (ALDI, PENNY). Лише для г / мл / шт:
+// "0.473 л", "1.702 л" (VARUS) — десяткові
+const THOUSANDS = /^[1-9]\d{0,2}\.\d{3}$/;
+
+function amount(raw: string, unit: { factor: number }): number {
+  if (unit.factor === 1 && THOUSANDS.test(raw)) {
+    return Number(raw.replace('.', ''));
+  }
   return Number(raw.replace(',', '.'));
 }
 
@@ -92,7 +98,7 @@ export function parseQuantity(name: string): ParsedQuantity | null {
     const packCount = Number(multi[1]);
     return {
       measure: unit.measure,
-      netQuantity: round3(packCount * toNumber(multi[2]) * unit.factor),
+      netQuantity: round3(packCount * amount(multi[2], unit) * unit.factor),
       packCount,
       isWeighted: false,
     };
@@ -104,7 +110,7 @@ export function parseQuantity(name: string): ParsedQuantity | null {
     const packCount = Number(reversed[3]);
     return {
       measure: unit.measure,
-      netQuantity: round3(packCount * toNumber(reversed[1]) * unit.factor),
+      netQuantity: round3(packCount * amount(reversed[1], unit) * unit.factor),
       packCount,
       isWeighted: false,
     };
@@ -114,22 +120,24 @@ export function parseQuantity(name: string): ParsedQuantity | null {
   if (volumePack && unitOf(volumePack[2]).measure === 'VOLUME') {
     const unit = unitOf(volumePack[2]);
     const packCount = Number(volumePack[3]);
-    const bottle = toNumber(volumePack[1]) * unit.factor;
+    const bottle = amount(volumePack[1], unit) * unit.factor;
     // Пляшки й банки до 3 л; "Пакети для сміття 60л 40шт" — це не упаковка напоїв
     if (packCount > 1 && packCount <= 48 && bottle <= 3000) {
       return {
         measure: 'VOLUME',
-        netQuantity: round3(packCount * toNumber(volumePack[1]) * unit.factor),
+        netQuantity: round3(
+          packCount * amount(volumePack[1], unit) * unit.factor,
+        ),
         packCount,
         isWeighted: false,
       };
     }
   }
 
-  const matches = [...name.matchAll(SINGLE)].map((m) => ({
-    value: toNumber(m[1]),
-    unit: unitOf(m[2]),
-  }));
+  const matches = [...name.matchAll(SINGLE)].map((m) => {
+    const unit = unitOf(m[2]);
+    return { value: amount(m[1], unit), unit };
+  });
   // Вага/об'єм важливіші за штуки: "Сосиски 6 шт 300 г" → 300 г
   const best =
     matches.find((m) => m.unit.measure !== 'COUNT') ?? matches[0] ?? null;
