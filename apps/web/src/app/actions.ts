@@ -1,4 +1,4 @@
-"use server";
+'use server';
 
 // Зміни через API потребують токена адміністратора (ADMIN_TOKEN). Він лишається на
 // сервері Next.js: кнопки викликають ці серверні дії, а не API напряму з браузера.
@@ -12,34 +12,32 @@ import {
   runMatching,
   setVariation,
   unlinkListing,
-} from "@/api/generated/matching/matching";
+} from '@/api/generated/matching/matching';
 import {
   addVariantBarcode,
   removeVariantBarcode,
   updateProduct,
   updateVariant,
-} from "@/api/generated/catalog/catalog";
-import type { UpdateProductDto, UpdateVariantDto } from "@/api/generated/model";
-import { triggerScrape } from "@/api/generated/scraper/scraper";
-import { adminAccess } from "@/lib/admin-access";
-import { headers } from "next/headers";
+} from '@/api/generated/catalog/catalog';
+import type { UpdateProductDto, UpdateVariantDto } from '@/api/generated/model';
+import { triggerScrape } from '@/api/generated/scraper/scraper';
+import { adminAccess } from '@/lib/admin-access';
+import { headers } from 'next/headers';
 
 export type ActionResult = { error: string | null };
 
 async function run(call: () => Promise<unknown>): Promise<ActionResult> {
   // Серверну дію можна викликати POST-ом на будь-яку адресу, не лише з /admin, тож proxy.ts
   // її не захищає — перевіряємо доступ тут так само
-  if (adminAccess(await headers(), process.env.ADMIN_WEB_PASSWORD) !== "ok") {
-    return { error: "Немає доступу до адмінки" };
+  if (adminAccess(await headers(), process.env.ADMIN_WEB_PASSWORD) !== 'ok') {
+    return { error: 'Немає доступу до адмінки' };
   }
   try {
     await call();
     return { error: null };
   } catch (e) {
     // У продакшні Next.js ховає текст помилок серверних дій — повертаємо його явно
-    return {
-      error: e instanceof Error ? e.message : "Не вдалося виконати дію",
-    };
+    return { error: e instanceof Error ? e.message : 'Не вдалося виконати дію' };
   }
 }
 
@@ -71,24 +69,15 @@ export async function rejectBarcodesAction(variantId: string) {
   return run(() => rejectBarcodeCandidates(variantId));
 }
 
-export async function undoDecisionAction(
-  id: string,
-  kind: "match" | "barcode",
-) {
+export async function undoDecisionAction(id: string, kind: 'match' | 'barcode') {
   return run(() => undoDecision(id, { kind }));
 }
 
-export async function updateProductAction(
-  productId: string,
-  patch: UpdateProductDto,
-) {
+export async function updateProductAction(productId: string, patch: UpdateProductDto) {
   return run(() => updateProduct(productId, patch));
 }
 
-export async function updateVariantAction(
-  variantId: string,
-  patch: UpdateVariantDto,
-) {
+export async function updateVariantAction(variantId: string, patch: UpdateVariantDto) {
   return run(() => updateVariant(variantId, patch));
 }
 
@@ -100,11 +89,7 @@ export async function removeBarcodeAction(variantId: string, gtin: string) {
   return run(() => removeVariantBarcode(variantId, gtin));
 }
 
-export async function setVariationAction(
-  word: string,
-  action: "ADD" | "REMOVE",
-  note?: string,
-) {
+export async function setVariationAction(word: string, action: 'ADD' | 'REMOVE', note?: string) {
   return run(() => setVariation(word, { action, note: note || undefined }));
 }
 

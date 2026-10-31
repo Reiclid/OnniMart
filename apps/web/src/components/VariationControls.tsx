@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { resetVariationAction, setVariationAction } from "@/app/actions";
-import type { ActionResult } from "@/app/actions";
+import { useRouter } from 'next/navigation';
+import { useState, useTransition } from 'react';
+import { resetVariationAction, setVariationAction } from '@/app/actions';
+import type { ActionResult } from '@/app/actions';
 
 /** Виконати дію, показати помилку, оновити сторінку */
 function useAction() {
@@ -26,43 +26,33 @@ function useAction() {
   return { busy, error, run };
 }
 
-const BUTTON =
-  "whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium disabled:opacity-50";
+const BUTTON = 'whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium disabled:opacity-50';
 
 /** Кнопки рядка: вимкнути / увімкнути слово або повернути рішення даним */
-export function VariationRowActions({
-  word,
-  status,
-}: {
-  word: string;
-  status: string;
-}) {
+export function VariationRowActions({ word, status }: { word: string; status: string }) {
   const { busy, error, run } = useAction();
-  const manual = status === "added" || status === "removed";
+  const manual = status === 'added' || status === 'removed';
   return (
     <span className="inline-flex flex-col items-end gap-1">
       <span className="inline-flex gap-1">
-        {status !== "removed" && (
+        {status !== 'removed' && (
           <button
             type="button"
             disabled={busy}
             onClick={() => {
-              const note = window.prompt(
-                `Чому «${word}» не варіація? (необовʼязково)`,
-              );
-              if (note !== null)
-                void run(() => setVariationAction(word, "REMOVE", note));
+              const note = window.prompt(`Чому «${word}» не варіація? (необовʼязково)`);
+              if (note !== null) void run(() => setVariationAction(word, 'REMOVE', note));
             }}
             className={`${BUTTON} border border-red-200 text-red-700 hover:bg-red-50`}
           >
             Вимкнути
           </button>
         )}
-        {status !== "added" && status !== "learned" && (
+        {status !== 'added' && status !== 'learned' && (
           <button
             type="button"
             disabled={busy}
-            onClick={() => void run(() => setVariationAction(word, "ADD"))}
+            onClick={() => void run(() => setVariationAction(word, 'ADD'))}
             className={`${BUTTON} border border-green-200 text-green-700 hover:bg-green-50`}
           >
             Увімкнути
@@ -88,16 +78,16 @@ export function VariationRowActions({
 /** Додати слово вручну: завжди варіація (вага 1) */
 export function AddVariationForm() {
   const { busy, error, run } = useAction();
-  const [word, setWord] = useState("");
-  const [note, setNote] = useState("");
+  const [word, setWord] = useState('');
+  const [note, setNote] = useState('');
   return (
     <form
       className="flex flex-wrap items-end gap-2 text-sm"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (await run(() => setVariationAction(word, "ADD", note))) {
-          setWord("");
-          setNote("");
+        if (await run(() => setVariationAction(word, 'ADD', note))) {
+          setWord('');
+          setNote('');
         }
       }}
     >
