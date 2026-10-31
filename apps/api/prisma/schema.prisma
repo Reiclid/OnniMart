@@ -133,9 +133,25 @@ model Brand {
 
   lines    ProductLine[]
   products Product[]
+  aliases  BrandAlias[]
 
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "brands_name_trgm_idx")
   @@map("brands")
+}
+
+/// Бренд, обʼєднаний модератором з іншим (/admin/brands): ключ дубліката → основний бренд.
+/// Воркер підставляє основний бренд у ознаки карток з таким ключем ("sanpellegrino" →
+/// San Pellegrino), бо різні ключі брендів — гарантовано різні товари.
+model BrandAlias {
+  /// Ключ бренду-дубліката (brandKey), як Brand.slug до злиття
+  alias     String   @id
+  brandId   String
+  createdAt DateTime @default(now())
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+  @@map("brand_aliases")
 }
 
 /// Канонічне дерево категорій (у кожної мережі своє дерево — воно зберігається
