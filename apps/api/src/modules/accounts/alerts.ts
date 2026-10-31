@@ -1,4 +1,5 @@
 /** Рішення про сповіщення за підпискою — без БД, щоб перевірити тестами */
+import { QUALITY_LIMITS } from '../quality/checks';
 import { convert } from '../rates/rates';
 
 export interface AlertOffer {
@@ -13,6 +14,8 @@ export interface AlertOffer {
   isOnPromo: boolean;
   /** Коли картка отримала поточну ціну: та сама ціна в нову акцію — нове сповіщення */
   priceSince?: Date;
+  /** Ціна попереднього знімка картки */
+  previousPrice?: number;
 }
 
 /** Як порівнювати ціни підписки: її валюта, країна покупця й курси за 1 EUR */
@@ -113,13 +116,31 @@ export const discountOf = (o: AlertOffer) =>
     ? Math.round((1 - o.price / o.regularPrice) * 100)
     : 0;
 
+/**
+ * Ціна схожа на помилку даних (PRD-32): знижка понад 70 % або падіння більш ніж
+ * утричі від попереднього знімка. Такі ціни видно на /admin/quality, а сповіщення
+ * про них не надсилаємо: «99 € → 0,79 €» у NORMA — зламана закреслена ціна, не акція.
+ */
+export function isSuspicious(o: AlertOffer): boolean {
+  if (discountOf(o) > QUALITY_LIMITS.maxDiscount * 100) return true;
+  return (
+    o.previousPrice !== undefined &&
+    o.price > 0 &&
+    o.previousPrice / o.price > QUALITY_LIMITS.jump
+  );
+}
+
 export function decideAlert(
   subscription: AlertSubscription,
   offers: AlertOffer[],
   minDiscount: number,
   ctx?: PriceContext,
 ): Alert | null {
-  const relevant = relevantOffers(offers, subscription.chainIds, ctx);
+  const relevant = relevantOffers(
+    offers.filter((o) => !isSuspicious(o)),
+    subscription.chainIds,
+    ctx,
+  );
   const cheapest = relevant[0];
   if (!cheapest) return null;
   const key = (o: AlertOffer) =>

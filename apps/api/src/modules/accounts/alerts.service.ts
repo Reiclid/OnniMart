@@ -29,11 +29,12 @@ const LISTINGS = {
     regularPrice: true,
     isOnPromo: true,
     chain: { select: { name: true, currency: true, countryCode: true } },
-    // Історія змінна лише при зміні ціни: останній знімок — початок поточної ціни
+    // Історія пишеться лише при зміні ціни: останній знімок — початок поточної ціни,
+    // передостанній — попередня ціна (стрибок утричі — підозра на помилку, isSuspicious)
     priceSnapshots: {
       orderBy: { capturedAt: 'desc' },
-      take: 1,
-      select: { capturedAt: true },
+      take: 2,
+      select: { capturedAt: true, price: true },
     },
   },
 } satisfies Prisma.ListingFindManyArgs;
@@ -76,6 +77,9 @@ export function offersOf(sub: SubscriptionWithOffers): AlertOffer[] {
     regularPrice: l.regularPrice === null ? null : Number(l.regularPrice),
     isOnPromo: l.isOnPromo,
     priceSince: l.priceSnapshots[0]?.capturedAt,
+    ...(l.priceSnapshots[1] && {
+      previousPrice: Number(l.priceSnapshots[1].price),
+    }),
   }));
 }
 
