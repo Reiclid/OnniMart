@@ -8,6 +8,7 @@ import {
 import { SCRAPER_HEARTBEAT_KEY } from '@repo/contracts';
 import { AlertsChecker } from '../../accounts/alerts.checker';
 import { retentionCutoff } from '../../activity/activity';
+import { ruleHitsCutoff } from '../../catalog/matching/rule-hits';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { createRedis } from '../../../redis';
 import { IngestionService } from './ingestion.service';
@@ -132,6 +133,11 @@ export class ScrapeScheduler
       .deleteMany({ where: { expiresAt: { lte: now } } })
       .catch((error) =>
         this.logger.error(`Видалення сесій: ${errorText(error)}`),
+      );
+    await this.prisma.matchRuleHit
+      .deleteMany({ where: { createdAt: { lt: ruleHitsCutoff(now) } } })
+      .catch((error) =>
+        this.logger.error(`Видалення спрацювань правил: ${errorText(error)}`),
       );
     if (this.enabled) await this.tick(now);
   }

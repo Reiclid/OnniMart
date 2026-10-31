@@ -415,6 +415,7 @@ model Listing {
   variant         ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: SetNull)
   priceSnapshots  PriceSnapshot[]
   matchCandidates MatchCandidate[]
+  ruleHits        MatchRuleHit[]
   matchKeys       MatchKey[]
 
   @@unique([chainId, externalId])
@@ -597,6 +598,32 @@ model MatchRun {
 
   @@index([startedAt(sort: Desc)])
   @@map("match_runs")
+}
+
+/// Перемикач правила зіставлення (/admin/rules; ключі — MATCH_RULES у packages/matching).
+/// Рядка немає — правило увімкнене. Воркер читає таблицю на початку кожного пакета.
+model MatchingRule {
+  key       String   @id
+  enabled   Boolean
+  updatedAt DateTime @updatedAt
+
+  @@map("matching_rules")
+}
+
+/// Правило, що вплинуло на рішення про картку в пакеті зіставлення (/admin/rules).
+/// Записи старші за 30 днів видаляє ScrapeScheduler.maintain.
+model MatchRuleHit {
+  id        String   @id @default(uuid())
+  rule      String
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  /// Рішення пакета: barcode / fuzzy / review / variant / product
+  decision  String
+  createdAt DateTime @default(now())
+
+  @@index([rule, createdAt(sort: Desc)])
+  @@index([listingId])
+  @@map("match_rule_hits")
 }
 
 // ============================================================

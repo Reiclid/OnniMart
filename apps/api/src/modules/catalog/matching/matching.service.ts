@@ -19,6 +19,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { SearchIndexer } from '../search/search.indexer';
 import { withFields } from '../../../logger';
 import { createRedis } from '../../../redis';
+import { hitsOf, ruleSwitches } from './rule-hits';
 import {
   CATEGORIES,
   productCategory,
@@ -226,10 +227,17 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     for (const [country, idf] of vocabulary.idfs) index.setIdf(country, idf);
     // Ручні рішення читаються щоразу: зміна в /admin/variations діє з наступного пакета,
     // а не через годину, коли оновиться вивчений словник
-    const overrides = await this.prisma.variationOverride.findMany({
-      select: { word: true, action: true },
-    });
+    const [overrides, switches] = await Promise.all([
+      this.prisma.variationOverride.findMany({
+        select: { word: true, action: true },
+      }),
+      // Вимкнені на /admin/rules правила — теж з наступного пакета
+      this.prisma.matchingRule.findMany({
+        select: { key: true, enabled: true },
+      }),
+    ]);
     index.setVariations(applyOverrides(vocabulary.variations, overrides));
+    index.setRules(ruleSwitches(switches));
     await this.loadCandidates(index, [...inputs.values()], vocabulary);
 
     const report: MatchReport = {
@@ -253,6 +261,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
         a.rawName.localeCompare(b.rawName),
     );
 
+    const hits: ReturnType<typeof hitsOf> = [];
     for (const row of pending) {
       const listing = inputs.get(row.id)!;
       const decision = index.decide(listing);
@@ -270,6 +279,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       report.processed++;
+      hits.push(...hitsOf(row.id, decision));
       if (decision.kind === 'barcode') report.byBarcode++;
       else if (decision.kind === 'fuzzy') report.fuzzy++;
       else if (decision.kind === 'review') report.review++;
@@ -277,6 +287,12 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       else report.newProducts++;
     }
 
+    // Статистика для /admin/rules: збій запису не скасовує рішень пакета
+    await this.prisma.matchRuleHit
+      .createMany({ data: hits })
+      .catch((error: unknown) =>
+        this.logger.warn(`Спрацювання правил не записано: ${errorText(error)}`),
+      );
     await this.refreshProductStats();
     await this.assignCategories().catch((error: unknown) =>
       this.logger.error(`Категорії: ${errorText(error)}`),
