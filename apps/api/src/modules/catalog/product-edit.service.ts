@@ -25,7 +25,7 @@ export class ProductEditService {
 
   async updateProduct(id: string, body: Record<string, unknown>) {
     const patch = productPatch(body);
-    await this.ensureProduct(id);
+    const current = await this.ensureProduct(id);
     await this.prisma.$transaction(async (tx) => {
       const data: Prisma.ProductUncheckedUpdateInput = {
         name: patch.name,
@@ -33,6 +33,10 @@ export class ProductEditService {
         description: patch.description,
         imageUrl: patch.imageUrl,
       };
+      // Змінене модератором фото зіставлення не перевибирає; очищене — знову з карток мереж
+      if (patch.imageUrl !== undefined && patch.imageUrl !== current.imageUrl) {
+        data.imageLocked = Boolean(patch.imageUrl);
+      }
       if (patch.brand !== undefined) {
         // Назва обʼєднаного дубліката веде до основного бренду, а не створює дубліката знову
         const alias =
@@ -165,9 +169,10 @@ export class ProductEditService {
   private async ensureProduct(id: string) {
     const found = await this.prisma.product.findUnique({
       where: { id },
-      select: { id: true },
+      select: { imageUrl: true },
     });
     if (!found) throw new NotFoundException(`Товар ${id} не знайдено`);
+    return found;
   }
 
   private async ensureVariant(id: string) {

@@ -196,7 +196,11 @@ model Product {
   /// Що відрізняє продукт у межах лінійки: "Zero", "Cherry", "Класична"
   variantLabel   String?
   description    String?
+  /// Фото за замовчуванням (PRD-35): випадкове з карток мереж, вибране один раз;
+  /// воркер (assignImages) міняє його, лише коли такого фото вже немає серед живих карток
   imageUrl       String?
+  /// Фото задав модератор в адмінці — assignImages його не змінює
+  imageLocked    Boolean @default(false)
   /// Склад, КБЖВ на 100 г, алергени, харчові добавки тощо (напр. з Open Food Facts)
   attributes     Json?
   lineId         String?
@@ -241,6 +245,8 @@ model ProductVariant {
   packaging   String?
   /// Підпис для інтерфейсу: "0,5 л", "6 × 0,33 л"
   label       String
+  /// Фото фасування за замовчуванням (PRD-35), як products.imageUrl, але з карток цього фасування
+  imageUrl    String?
 
   createdAt DateTime @default(now())
 

@@ -281,6 +281,9 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     await this.assignCategories().catch((error: unknown) =>
       this.logger.error(`Категорії: ${errorText(error)}`),
     );
+    await this.assignImages().catch((error: unknown) =>
+      this.logger.error(`Фото: ${errorText(error)}`),
+    );
     // Пошук без Meilisearch працює через SQL, тож збій індексу — лише попередження
     await this.search
       ?.reindex()
@@ -579,6 +582,37 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
         data: { categoryId },
       });
     }
+  }
+
+  /**
+   * PRD-35: фото за замовчуванням — випадкове з живих карток, вибране один раз, щоб не мінялось
+   * між запитами. Нове — лише коли старого вже немає серед живих карток (картку відвʼязали,
+   * мережа змінила фото); немає жодного фото — лишаємо старе. Фото від модератора не чіпаємо.
+   * shortcut: як assignCategories, проходить усі картки після кожного пакета.
+   */
+  private async assignImages(): Promise<void> {
+    await this.prisma.$executeRaw`
+      UPDATE product_variants v SET "imageUrl" = pick.url
+      FROM (
+        SELECT DISTINCT ON (l."variantId") l."variantId", l."imageUrl" AS url
+        FROM listings l
+        WHERE l."variantId" IS NOT NULL AND l."delistedAt" IS NULL AND l."imageUrl" IS NOT NULL
+        ORDER BY l."variantId", random()
+      ) pick
+      WHERE v.id = pick."variantId" AND NOT EXISTS (
+        SELECT 1 FROM listings l
+        WHERE l."variantId" = v.id AND l."delistedAt" IS NULL AND l."imageUrl" = v."imageUrl")`;
+    await this.prisma.$executeRaw`
+      UPDATE products p SET "imageUrl" = pick.url
+      FROM (
+        SELECT DISTINCT ON (v."productId") v."productId", l."imageUrl" AS url
+        FROM listings l JOIN product_variants v ON v.id = l."variantId"
+        WHERE l."delistedAt" IS NULL AND l."imageUrl" IS NOT NULL
+        ORDER BY v."productId", random()
+      ) pick
+      WHERE p.id = pick."productId" AND NOT p."imageLocked" AND NOT EXISTS (
+        SELECT 1 FROM listings l JOIN product_variants v ON v.id = l."variantId"
+        WHERE v."productId" = p.id AND l."delistedAt" IS NULL AND l."imageUrl" = p."imageUrl")`;
   }
 
   private async refreshProductStats(): Promise<void> {
