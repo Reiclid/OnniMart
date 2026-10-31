@@ -64,6 +64,26 @@ describe('decideAlert', () => {
     );
   });
 
+  it('ціна схожа на помилку даних — сповіщення немає, береться наступна пропозиція', () => {
+    // NORMA: закреслена 99,00 замість 0,99 — «знижка 99 %»
+    const broken = offer('norma', 0.79, { isOnPromo: true, regularPrice: 99 });
+    expect(decideAlert(sub(), [broken], 0)).toBeNull();
+    // Падіння вчетверо від попереднього знімка
+    const drop = offer('aldi', 0.99, { previousPrice: 3.99 });
+    expect(
+      decideAlert(sub({ targetPrice: 2 }), [drop, offer('lidl', 1.89)], 0),
+    ).toMatchObject({ offer: { chainId: 'lidl' } });
+    // Звичайна акція −50 % і падіння вдвічі — сповіщення є
+    const promo = offer('eko', 1, {
+      isOnPromo: true,
+      regularPrice: 2,
+      previousPrice: 2,
+    });
+    expect(decideAlert(sub({ targetPrice: 1 }), [promo], 0)).toMatchObject({
+      type: 'TARGET_PRICE_REACHED',
+    });
+  });
+
   it('ціль не досягнута й акцій немає — нічого', () => {
     expect(
       decideAlert(sub({ targetPrice: 40 }), [offer('eko', 49.9)], 0),
