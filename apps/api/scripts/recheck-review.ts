@@ -20,6 +20,7 @@ import {
   brandKey,
   buildIdf,
   extractFeatures,
+  applyOverrides,
   learnVariations,
   NameFeatures,
   prepareListings,
@@ -59,18 +60,21 @@ async function main() {
       netQuantity: r.netQuantity === null ? null : Number(r.netQuantity),
     })),
   );
-  const variations = learnVariations(
-    rows
-      .filter((r) => r.delistedAt === null)
-      .map((r) => {
-        const l = inputs.get(r.id)!;
-        return {
-          chainId: l.chainId,
-          group: variationGroup(brandKey(r.rawBrand), l.quantity),
-          tokens: l.features.tokens.map((t) => t.norm),
-          barcodes: l.barcodes,
-        };
-      }),
+  const variations = applyOverrides(
+    learnVariations(
+      rows
+        .filter((r) => r.delistedAt === null)
+        .map((r) => {
+          const l = inputs.get(r.id)!;
+          return {
+            chainId: l.chainId,
+            group: variationGroup(brandKey(r.rawBrand), l.quantity),
+            tokens: l.features.tokens.map((t) => t.norm),
+            barcodes: l.barcodes,
+          };
+        }),
+    ),
+    await prisma.variationOverride.findMany(),
   );
   const idfs = new Map(
     [...vocabulary].map(([country, docs]) => [country, buildIdf(docs)]),

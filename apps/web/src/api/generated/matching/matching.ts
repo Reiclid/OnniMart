@@ -11,10 +11,13 @@ import type {
   GetBarcodeReviewQueueParams,
   GetDecisionsParams,
   GetReviewQueueParams,
+  GetVariationsParams,
   MatchingStatusDto,
   ReviewPageDto,
   RunMatchingResponseDto,
-  UndoDecisionParams
+  SetVariationDto,
+  UndoDecisionParams,
+  VariationPageDto
 } from '../model';
 
 import { customFetch } from '../../custom-fetch';
@@ -482,6 +485,143 @@ export const unlinkListing = async (id: string, options?: Parameters<typeof cust
   {
     ...options,
     method: 'POST'
+
+
+  }
+);}
+
+
+export type getVariationsResponse200 = {
+  data: VariationPageDto
+  status: 200
+}
+
+export type getVariationsResponseSuccess = (getVariationsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getVariationsResponse = (getVariationsResponseSuccess)
+
+export const getGetVariationsUrl = (params?: GetVariationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/variations?${stringifiedParams}` : `/api/v1/variations`
+}
+
+/**
+ * @summary Слова варіацій (PRD-30): вивчені, кандидати й ручні рішення, зі статистикою карток і товарів
+ */
+export const getVariations = async (params?: GetVariationsParams, options?: Parameters<typeof customFetch>[1]): Promise<getVariationsResponse> => {
+
+  return customFetch<getVariationsResponse>(getGetVariationsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type setVariationResponse204 = {
+  data: void
+  status: 204
+}
+
+export type setVariationResponse400 = {
+  data: void
+  status: 400
+}
+
+export type setVariationResponse401 = {
+  data: void
+  status: 401
+}
+
+export type setVariationResponseSuccess = (setVariationResponse204) & {
+  headers: Headers;
+};
+export type setVariationResponseError = (setVariationResponse400 | setVariationResponse401) & {
+  headers: Headers;
+};
+
+export type setVariationResponse = (setVariationResponseSuccess | setVariationResponseError)
+
+export const getSetVariationUrl = (word: string,) => {
+
+
+
+
+  return `/api/v1/variations/${word}`
+}
+
+/**
+ * @summary Ручне рішення про слово: ADD — завжди варіація, REMOVE — ніколи (діє з наступного пакета)
+ */
+export const setVariation = async (word: string,
+    setVariationDto: SetVariationDto, options?: Parameters<typeof customFetch>[1]): Promise<setVariationResponse> => {
+
+  return customFetch<setVariationResponse>(getSetVariationUrl(word),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setVariationDto)
+  }
+);}
+
+
+export type resetVariationResponse204 = {
+  data: void
+  status: 204
+}
+
+export type resetVariationResponse401 = {
+  data: void
+  status: 401
+}
+
+export type resetVariationResponse404 = {
+  data: void
+  status: 404
+}
+
+export type resetVariationResponseSuccess = (resetVariationResponse204) & {
+  headers: Headers;
+};
+export type resetVariationResponseError = (resetVariationResponse401 | resetVariationResponse404) & {
+  headers: Headers;
+};
+
+export type resetVariationResponse = (resetVariationResponseSuccess | resetVariationResponseError)
+
+export const getResetVariationUrl = (word: string,) => {
+
+
+
+
+  return `/api/v1/variations/${word}`
+}
+
+/**
+ * @summary Скасувати ручне рішення: слово знову вирішують дані
+ */
+export const resetVariation = async (word: string, options?: Parameters<typeof customFetch>[1]): Promise<resetVariationResponse> => {
+
+  return customFetch<resetVariationResponse>(getResetVariationUrl(word),
+  {
+    ...options,
+    method: 'DELETE'
 
 
   }

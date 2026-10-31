@@ -2,7 +2,9 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import {
   MATCHING_REQUESTS_QUEUE,
   MATCHING_STATE_KEY,
+  MATCHING_VARIATIONS_KEY,
   MatchingState,
+  VariationsSnapshot,
 } from '@repo/contracts';
 import { createRedis } from '../../../redis';
 
@@ -25,5 +27,11 @@ export class MatchingClient implements OnModuleDestroy {
     return raw
       ? (JSON.parse(raw) as MatchingState)
       : { running: false, lastReport: null, updatedAt: '' };
+  }
+
+  /** Докази для слів варіацій з останнього навчання воркера; null — ще не вчився */
+  async variations(): Promise<VariationsSnapshot | null> {
+    const raw = await this.redis.get(MATCHING_VARIATIONS_KEY);
+    return raw ? (JSON.parse(raw) as VariationsSnapshot) : null;
   }
 }

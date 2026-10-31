@@ -20,6 +20,7 @@ import { PrismaClient } from '../src/generated/prisma/client';
 import {
   brandKey,
   CatalogIndex,
+  applyOverrides,
   learnVariations,
   ListingInput,
   quantityKey,
@@ -69,16 +70,20 @@ async function main() {
   );
   const variations: Variations = process.argv.includes('--no-variations')
     ? new Map<string, number>()
-    : learnVariations(
-        [...inputs.values()]
-          .filter((l) => active.has(l.id))
-          .map((l) => ({
-            chainId: l.chainId,
-            // Як у воркері: бренд мережі (rawBrand), бо знайдений у назві не зберігається
-            group: variationGroup(brandKey(rawBrand.get(l.id)), l.quantity),
-            tokens: l.features.tokens.map((t) => t.norm),
-            barcodes: l.barcodes,
-          })),
+    : applyOverrides(
+        learnVariations(
+          [...inputs.values()]
+            .filter((l) => active.has(l.id))
+            .map((l) => ({
+              chainId: l.chainId,
+              // Як у воркері: бренд мережі (rawBrand), бо знайдений у назві не зберігається
+              group: variationGroup(brandKey(rawBrand.get(l.id)), l.quantity),
+              tokens: l.features.tokens.map((t) => t.norm),
+              barcodes: l.barcodes,
+            })),
+        ),
+        // Як у воркері: ручні рішення з /admin/variations поверх вивчених
+        await prisma.variationOverride.findMany(),
       );
   console.log(`Вивчених варіацій: ${variations.size}`);
   // Експеримент — лише на картках зі штрихкодом: для них відома правильна відповідь

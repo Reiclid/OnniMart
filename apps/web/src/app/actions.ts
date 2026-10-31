@@ -8,7 +8,9 @@ import {
   rejectBarcodeCandidates,
   undoDecision,
   rejectCandidates,
+  resetVariation,
   runMatching,
+  setVariation,
   unlinkListing,
 } from '@/api/generated/matching/matching';
 import {
@@ -85,4 +87,12 @@ export async function addBarcodeAction(variantId: string, gtin: string) {
 
 export async function removeBarcodeAction(variantId: string, gtin: string) {
   return run(() => removeVariantBarcode(variantId, gtin));
+}
+
+export async function setVariationAction(word: string, action: 'ADD' | 'REMOVE', note?: string) {
+  return run(() => setVariation(word, { action, note: note || undefined }));
+}
+
+export async function resetVariationAction(word: string) {
+  return run(() => resetVariation(word));
 }

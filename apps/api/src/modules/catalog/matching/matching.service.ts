@@ -9,8 +9,10 @@ import {
 } from '@nestjs/common';
 import {
   MATCHING_STATE_KEY,
+  MATCHING_VARIATIONS_KEY,
   MatchingState,
   MatchReport,
+  VariationsSnapshot,
 } from '@repo/contracts';
 import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -28,7 +30,10 @@ import {
   extractFeatures,
   Idf,
   idfFromCounts,
-  learnVariations,
+  applyOverrides,
+  isLearned,
+  VARIATION_RULES,
+  variationEvidence,
   lineOf,
   ListingInput,
   listingInput,
@@ -73,7 +78,7 @@ interface Vocabulary {
   builtAt: number;
   dictionaries: BrandDictionaries;
   idfs: Map<string, Idf>;
-  /** Варіації (смаки, сорти), вивчені з активних карток і штрихкодів (PRD-30) */
+  /** Варіації (смаки, сорти), вивчені з активних карток і штрихкодів (PRD-30), без ручних рішень */
   variations: Variations;
   /** Як бренд записаний у мережах: ключ → перша назва ("coca-cola" → "Coca-Cola") */
   brandNames: Map<string, string>;
@@ -208,7 +213,12 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     );
     const index = new CatalogIndex();
     for (const [country, idf] of vocabulary.idfs) index.setIdf(country, idf);
-    index.setVariations(vocabulary.variations);
+    // Ручні рішення читаються щоразу: зміна в /admin/variations діє з наступного пакета,
+    // а не через годину, коли оновиться вивчений словник
+    const overrides = await this.prisma.variationOverride.findMany({
+      select: { word: true, action: true },
+    });
+    index.setVariations(applyOverrides(vocabulary.variations, overrides));
     await this.loadCandidates(index, [...inputs.values()], vocabulary);
 
     const report: MatchReport = {
@@ -373,20 +383,41 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
           idfFromCounts(total, df.get(country) ?? new Map<string, number>()),
         ]),
       ),
-      variations: learnVariations(
-        samples.map((row) => ({
-          chainId: row.chainId,
-          group: variationGroup(brandKey(row.rawBrand), toQuantity(row)),
-          tokens: row.nameTokens,
-          barcodes: row.barcodes,
-        })),
-      ),
+      variations: new Map(),
       brandNames,
     };
+    const evidence = variationEvidence(
+      samples.map((row) => ({
+        chainId: row.chainId,
+        group: variationGroup(brandKey(row.rawBrand), toQuantity(row)),
+        tokens: row.nameTokens,
+        barcodes: row.barcodes,
+      })),
+    );
+    for (const [word, e] of evidence) {
+      if (isLearned(e)) this.vocabulary.variations.set(word, e.weight);
+    }
+    await this.publishVariations(evidence);
     this.logger.log(
       `Словник оновлено: ${this.vocabulary.variations.size} вивчених варіацій`,
     );
     return this.vocabulary;
+  }
+
+  /** Докази для всіх слів з контрастом — API показує їх у /admin/variations */
+  private async publishVariations(
+    evidence: ReturnType<typeof variationEvidence>,
+  ): Promise<void> {
+    const snapshot: VariationsSnapshot = {
+      builtAt: new Date().toISOString(),
+      ...VARIATION_RULES,
+      words: [...evidence].map(([word, e]) => ({ word, ...e })),
+    };
+    try {
+      await this.redis.set(MATCHING_VARIATIONS_KEY, JSON.stringify(snapshot));
+    } catch (error) {
+      this.logger.warn(`Не вдалося опублікувати варіації: ${errorText(error)}`);
+    }
   }
 
   /** Значущі слова назв карток, для яких їх ще не пораховано (listings.nameTokens) */

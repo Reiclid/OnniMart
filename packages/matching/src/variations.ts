@@ -35,19 +35,28 @@ export const VARIATION_RULES = {
   minWeight: 0.75,
 };
 
+/** Докази для одного слова: скільки разів воно варіація і скільки — шум */
+export interface VariationEvidence {
+  /** Скільки разів слово — єдина відмінність двох карток однієї мережі (слово ↔ слово) */
+  contrast: number;
+  /** У скількох GTIN слово відрізняє назви того самого товару в різних мережах */
+  noise: number;
+  /** contrast / (contrast + noise) */
+  weight: number;
+}
+
 /**
- * Вчить варіації за двома властивостями предметної області:
+ * Рахує докази за двома властивостями предметної області:
  *   - мережа не продає той самий товар двічі: дві її картки одного бренду й фасування,
  *     де одне слово замінене іншим, — різні товари, і ці слова — варіації (контраст);
  *   - той самий GTIN у різних мережах — той самий товар: слова, якими відрізняються
  *     такі назви, — шум (упаковка, маркетинг), а не варіація.
- * Вага v = контраст / (контраст + збіги за GTIN). Повертає лише слова з
- * контрастом ≥ minContrast і вагою ≥ minWeight.
+ * Повертає всі слова з контрастом (без чисел), зокрема ті, що не пройдуть пороги, —
+ * для перегляду в адмінці.
  */
-export function learnVariations(
+export function variationEvidence(
   samples: VariationSample[],
-  rules: typeof VARIATION_RULES = VARIATION_RULES,
-): Variations {
+): Map<string, VariationEvidence> {
   const contrast = new Map<string, number>();
   const noise = new Map<string, number>();
   const add = (counts: Map<string, number>, word: string) =>
@@ -103,11 +112,55 @@ export function learnVariations(
     for (const word of seen) add(noise, word);
   }
 
-  const variations: Variations = new Map();
+  const evidence = new Map<string, VariationEvidence>();
   for (const [word, c] of contrast) {
-    if (c < rules.minContrast || /\d/.test(word)) continue;
-    const weight = c / (c + (noise.get(word) ?? 0));
-    if (weight >= rules.minWeight) variations.set(word, weight);
+    if (/\d/.test(word)) continue;
+    const n = noise.get(word) ?? 0;
+    evidence.set(word, { contrast: c, noise: n, weight: c / (c + n) });
+  }
+  return evidence;
+}
+
+/** Чи проходить слово пороги навчання */
+export function isLearned(
+  e: VariationEvidence,
+  rules: typeof VARIATION_RULES = VARIATION_RULES,
+): boolean {
+  return e.contrast >= rules.minContrast && e.weight >= rules.minWeight;
+}
+
+/**
+ * Вчить варіації (див. variationEvidence): лише слова з контрастом ≥ minContrast
+ * і вагою ≥ minWeight.
+ */
+export function learnVariations(
+  samples: VariationSample[],
+  rules: typeof VARIATION_RULES = VARIATION_RULES,
+): Variations {
+  const variations: Variations = new Map();
+  for (const [word, e] of variationEvidence(samples)) {
+    if (isLearned(e, rules)) variations.set(word, e.weight);
+  }
+  return variations;
+}
+
+/** Ручне рішення модератора про слово (таблиця variation_overrides) */
+export interface VariationOverride {
+  word: string;
+  /** ADD — варіація завжди (вага 1), REMOVE — ніколи */
+  action: 'ADD' | 'REMOVE';
+}
+
+/** Вивчені варіації з ручними рішеннями поверх: рішення модератора важливіше за дані */
+export function applyOverrides(
+  learned: Variations,
+  overrides: VariationOverride[],
+): Variations {
+  if (overrides.length === 0) return learned;
+  const variations: Variations = new Map(learned);
+  for (const { word, action } of overrides) {
+    if (action === 'ADD') variations.set(word, 1);
+    else variations.delete(word);
   }
   return variations;
 }
