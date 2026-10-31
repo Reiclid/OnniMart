@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
@@ -43,6 +44,8 @@ import { MatchingClient } from './matching/matching.client';
 import { BarcodeReviewService } from './matching/barcode-review.service';
 import { DecisionsService } from './matching/decisions.service';
 import { ModerationService } from './matching/moderation.service';
+import { VariationsService } from './matching/variations.service';
+import { SetVariationDto, VariationPageDto } from './dto/variations.dto';
 
 @ApiTags('catalog')
 @Controller('api/v1')
@@ -384,5 +387,75 @@ export class MatchingController {
   @ApiResponse({ status: 204 })
   async unlink(@Param('id') id: string): Promise<void> {
     await this.moderation.unlink(id);
+  }
+}
+
+@ApiTags('matching')
+@Controller('api/v1/variations')
+export class VariationsController {
+  constructor(private readonly variations: VariationsService) {}
+
+  @Get()
+  @ApiOperation({
+    summary:
+      'Слова варіацій (PRD-30): вивчені, кандидати й ручні рішення, зі статистикою карток і товарів',
+    operationId: 'getVariations',
+  })
+  @ApiQuery({
+    name: 'filter',
+    required: false,
+    enum: ['active', 'all', 'learned', 'added', 'removed', 'candidate'],
+  })
+  @ApiQuery({
+    name: 'sort',
+    required: false,
+    enum: ['products', 'contrast', 'weight', 'word'],
+  })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number })
+  @ApiResponse({ status: 200, type: VariationPageDto })
+  list(
+    @Query('filter') filter?: string,
+    @Query('sort') sort?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+  ): Promise<VariationPageDto> {
+    return this.variations.list({ filter, sort, search, page, pageSize });
+  }
+
+  @MutationLimit()
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
+  @Put(':word')
+  @HttpCode(204)
+  @ApiOperation({
+    summary:
+      'Ручне рішення про слово: ADD — завжди варіація, REMOVE — ніколи (діє з наступного пакета)',
+    operationId: 'setVariation',
+  })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 400, description: 'Не одне слово або число' })
+  async set(
+    @Param('word') word: string,
+    @Body() body: SetVariationDto,
+  ): Promise<void> {
+    await this.variations.set(word, body);
+  }
+
+  @MutationLimit()
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
+  @Delete(':word')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Скасувати ручне рішення: слово знову вирішують дані',
+    operationId: 'resetVariation',
+  })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 404, description: 'Ручного рішення немає' })
+  async reset(@Param('word') word: string): Promise<void> {
+    await this.variations.remove(word);
   }
 }

@@ -442,6 +442,27 @@ model MatchCandidate {
   @@map("match_candidates")
 }
 
+enum VariationAction {
+  /// Слово — варіація завжди (вага 1), навіть якщо дані його не вивчили
+  ADD
+  /// Слово ніколи не варіація: шум, уточнення ("міні", "milch")
+  REMOVE
+}
+
+/// Ручні рішення модераторів про слова варіацій (PRD-30, /admin/variations).
+/// Воркер накладає їх на вивчений словник на початку кожного пакета зіставлення.
+model VariationOverride {
+  /// Нормалізоване слово, як у listings.nameTokens ("stracciatella", "куркою")
+  word      String          @id
+  action    VariationAction
+  /// Чому: "смак Almighurt", "уточнення, не смак"
+  note      String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@map("variation_overrides")
+}
+
 /// Ключі пошуку кандидатів для інкрементального зіставлення — ті самі блоки, що будує
 /// CatalogIndex (packages/matching): "VOLUME:500:1|морш" (фасування + перші 4 літери слова)
 /// і "b:morshynska" (бренд). Новий пакет читає лише фасування зі спільними ключами,
