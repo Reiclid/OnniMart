@@ -34,15 +34,24 @@ export class ProductEditService {
         imageUrl: patch.imageUrl,
       };
       if (patch.brand !== undefined) {
-        data.brandId = patch.brand
-          ? (
-              await tx.brand.upsert({
-                where: { slug: patch.brand.slug },
-                create: patch.brand,
-                update: {},
-              })
-            ).id
-          : null;
+        // Назва обʼєднаного дубліката веде до основного бренду, а не створює дубліката знову
+        const alias =
+          patch.brand &&
+          (await tx.brandAlias.findUnique({
+            where: { alias: patch.brand.slug },
+            select: { brandId: true },
+          }));
+        data.brandId = alias
+          ? alias.brandId
+          : patch.brand
+            ? (
+                await tx.brand.upsert({
+                  where: { slug: patch.brand.slug },
+                  create: patch.brand,
+                  update: {},
+                })
+              ).id
+            : null;
       }
       if (patch.category !== undefined) {
         const category = CATEGORIES.find((c) => c.slug === patch.category);

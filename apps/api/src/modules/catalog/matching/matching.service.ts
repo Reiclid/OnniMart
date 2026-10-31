@@ -22,12 +22,14 @@ import { createRedis } from '../../../redis';
 import {
   CATEGORIES,
   productCategory,
+  BrandAliases,
   BrandDictionaries,
   brandKey,
   buildDictionaries,
   CatalogIndex,
   detectBrand,
   extractFeatures,
+  productFeatures,
   Idf,
   idfFromCounts,
   applyOverrides,
@@ -82,6 +84,8 @@ interface Vocabulary {
   variations: Variations;
   /** Як бренд записаний у мережах: ключ → перша назва ("coca-cola" → "Coca-Cola") */
   brandNames: Map<string, string>;
+  /** Обʼєднані модератором бренди; читаються на початку кожного пакета */
+  brandAliases: BrandAliases;
 }
 
 /**
@@ -198,6 +202,13 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
   private async execute(): Promise<MatchReport> {
     const startedAt = new Date();
     const vocabulary = await this.loadVocabulary();
+    // Злиття брендів у /admin/brands діє з наступного пакета, а не через годину
+    const aliases = await this.prisma.brandAlias.findMany({
+      select: { alias: true, brand: { select: { slug: true } } },
+    });
+    vocabulary.brandAliases = new Map(
+      aliases.map((a) => [a.alias, a.brand.slug]),
+    );
     await this.syncKeys(vocabulary);
 
     const rows = await this.prisma.listing.findMany({
@@ -209,7 +220,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       select: rowSelect,
     });
     const inputs = new Map(
-      rows.map((row) => [row.id, toInput(row, vocabulary.dictionaries)]),
+      rows.map((row) => [row.id, toInput(row, vocabulary)]),
     );
     const index = new CatalogIndex();
     for (const [country, idf] of vocabulary.idfs) index.setIdf(country, idf);
@@ -385,6 +396,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       ),
       variations: new Map(),
       brandNames,
+      brandAliases: new Map(),
     };
     const evidence = variationEvidence(
       samples.map((row) => ({
@@ -470,14 +482,17 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
           id: true,
           ...quantitySelect,
           product: {
-            select: { name: true, brand: { select: { name: true } } },
+            select: {
+              name: true,
+              brand: { select: { name: true, slug: true } },
+            },
           },
         },
         take: KEYS_CHUNK,
       });
       if (variants.length === 0) break;
       const data = variants.flatMap((v) =>
-        productKeys(v.id, toQuantity(v), v.product.name, v.product.brand?.name),
+        productKeys(v.id, toQuantity(v), v.product.name, v.product.brand),
       );
       await this.prisma.matchKey.createMany({ data });
       added += data.length;
@@ -497,7 +512,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
           row.variant!.id,
           toQuantity(row.variant!),
           row.id,
-          toInput(row, vocabulary.dictionaries),
+          toInput(row, vocabulary),
         ),
       );
       await this.prisma.matchKey.createMany({ data });
@@ -631,7 +646,10 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
           ...quantitySelect,
           barcodes: { select: { gtin: true } },
           product: {
-            select: { name: true, brand: { select: { name: true } } },
+            select: {
+              name: true,
+              brand: { select: { name: true, slug: true } },
+            },
           },
           listings: { select: rowSelect },
         },
@@ -639,16 +657,14 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     );
 
     for (const variant of variants) {
-      const productFeatures = extractFeatures(
+      const features = productFeatures(
         variant.product.name,
-        variant.product.brand?.name,
+        variant.product.brand,
       );
-      const linked = variant.listings.map((row) =>
-        toInput(row, vocabulary.dictionaries),
-      );
+      const linked = variant.listings.map((row) => toInput(row, vocabulary));
       const countries = new Set(linked.map((l) => l.country));
       for (const country of countries) {
-        index.addProduct(variant.productId, productFeatures, country);
+        index.addProduct(variant.productId, features, country);
       }
       index.addVariant(
         variant.id,
@@ -658,7 +674,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       for (const { gtin } of variant.barcodes)
         index.addBarcode(variant.id, gtin);
       for (const country of countries) {
-        index.addName(variant.id, productFeatures, country);
+        index.addName(variant.id, features, country);
       }
       variant.listings.forEach((row, i) => {
         const listing = linked[i];
@@ -754,7 +770,10 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
             await this.barcodesFor(created.id, row, index, tx);
             const product = await tx.product.findUniqueOrThrow({
               where: { id: decision.productId },
-              select: { name: true, brand: { select: { name: true } } },
+              select: {
+                name: true,
+                brand: { select: { name: true, slug: true } },
+              },
             });
             await tx.matchKey.createMany({
               data: [
@@ -762,7 +781,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
                   created.id,
                   listing.quantity,
                   product.name,
-                  product.brand?.name,
+                  product.brand,
                 ),
                 ...listingKeys(created.id, listing.quantity, row.id, listing),
               ],
@@ -806,19 +825,19 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     const variantLabel = variantLabelOf(features);
 
     const result = await this.prisma.$transaction(async (tx) => {
-      let brandId: string | null = null;
+      let brand: { id: string; name: string; slug: string } | null = null;
       let lineId: string | null = null;
       if (features.brand && brandName) {
-        const brand = await tx.brand.upsert({
+        brand = await tx.brand.upsert({
           where: { slug: features.brand },
           create: { slug: features.brand, name: brandName },
           update: {},
         });
-        brandId = brand.id;
-        const line = lineOf(features, brandName);
+        // Назва з БД: модератор міг перейменувати бренд (/admin/brands)
+        const line = lineOf(features, brand.name);
         const created = await tx.productLine.upsert({
           where: { slug: line.slug },
-          create: { slug: line.slug, name: line.name, brandId },
+          create: { slug: line.slug, name: line.name, brandId: brand.id },
           update: {},
         });
         lineId = created.id;
@@ -830,7 +849,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
           slug: `${slugify(`${brandName ?? ''} ${name}`).slice(0, 80)}-${randomUUID().slice(0, 6)}`,
           variantLabel,
           imageUrl: row.imageUrl,
-          brandId,
+          brandId: brand?.id ?? null,
           lineId,
           variants: { create: variantData(listing) },
         },
@@ -847,7 +866,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       await this.barcodesFor(created.id, row, index, tx);
       await tx.matchKey.createMany({
         data: [
-          ...productKeys(created.id, listing.quantity, name, brandName),
+          ...productKeys(created.id, listing.quantity, name, brand),
           ...listingKeys(created.id, listing.quantity, row.id, listing),
         ],
       });
@@ -926,21 +945,25 @@ function toQuantity(v: {
   };
 }
 
-function toInput(row: Row, dictionaries: BrandDictionaries): ListingInput {
+function toInput(
+  row: Row,
+  vocabulary: Pick<Vocabulary, 'dictionaries' | 'brandAliases'>,
+): ListingInput {
   return listingInput(
     { ...row, country: row.chain.countryCode, ...toQuantity(row) },
-    dictionaries,
+    vocabulary.dictionaries,
+    vocabulary.brandAliases,
   );
 }
 
-/** Ключі з назви товару — так, як її бачить CatalogIndex (extractFeatures(name, brand)) */
+/** Ключі з назви товару — так, як її бачить CatalogIndex (productFeatures(name, brand)) */
 function productKeys(
   variantId: string,
   quantity: QuantityInfo,
   name: string,
-  brand?: string | null,
+  brand?: { name: string; slug: string } | null,
 ) {
-  return matchKeys(quantityKey(quantity), extractFeatures(name, brand)).map(
+  return matchKeys(quantityKey(quantity), productFeatures(name, brand)).map(
     (key) => ({ key, variantId, listingId: null }),
   );
 }

@@ -45,6 +45,13 @@ import { BarcodeReviewService } from './matching/barcode-review.service';
 import { DecisionsService } from './matching/decisions.service';
 import { ModerationService } from './matching/moderation.service';
 import { VariationsService } from './matching/variations.service';
+import { BrandsService } from './brands.service';
+import {
+  BrandDuplicateDto,
+  BrandPageDto,
+  MergeBrandDto,
+  RenameBrandDto,
+} from './dto/brands.dto';
 import { SetVariationDto, VariationPageDto } from './dto/variations.dto';
 
 @ApiTags('catalog')
@@ -457,5 +464,79 @@ export class VariationsController {
   @ApiResponse({ status: 404, description: 'Ручного рішення немає' })
   async reset(@Param('word') word: string): Promise<void> {
     await this.variations.remove(word);
+  }
+}
+
+@ApiTags('catalog')
+@Controller('api/v1/brands')
+export class BrandsController {
+  constructor(private readonly brands: BrandsService) {}
+
+  @Get()
+  @ApiOperation({
+    summary:
+      'Словник брендів: товари, картки, мережі й обʼєднані дублікати кожного бренду',
+    operationId: 'getBrands',
+  })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'sort', required: false, enum: ['products', 'name'] })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number })
+  @ApiResponse({ status: 200, type: BrandPageDto })
+  list(
+    @Query('search') search?: string,
+    @Query('sort') sort?: string,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+  ): Promise<BrandPageDto> {
+    return this.brands.list({ search, sort, page, pageSize });
+  }
+
+  @Get('duplicates')
+  @ApiOperation({
+    summary:
+      'Можливі дублікати брендів (схожі назви); злиття вирішує модератор',
+    operationId: 'getBrandDuplicates',
+  })
+  @ApiResponse({ status: 200, type: [BrandDuplicateDto] })
+  duplicates(): Promise<BrandDuplicateDto[]> {
+    return this.brands.duplicates();
+  }
+
+  @MutationLimit()
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
+  @Patch(':id')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Перейменувати бренд (назва для показу; ключ не змінюється)',
+    operationId: 'renameBrand',
+  })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 404, description: 'Бренд не знайдено' })
+  async rename(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: RenameBrandDto,
+  ): Promise<void> {
+    await this.brands.rename(id, body.name);
+  }
+
+  @MutationLimit()
+  @ApiBearerAuth()
+  @ApiResponse({ status: 401, description: 'Потрібен токен адміністратора' })
+  @Post(':id/merge')
+  @HttpCode(204)
+  @ApiOperation({
+    summary:
+      'Злити бренд-дублікат в основний: товари й лінійки переходять, ключ дубліката стає аліасом (не скасовується)',
+    operationId: 'mergeBrand',
+  })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 404, description: 'Бренд не знайдено' })
+  async merge(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: MergeBrandDto,
+  ): Promise<void> {
+    await this.brands.merge(id, body.into);
   }
 }

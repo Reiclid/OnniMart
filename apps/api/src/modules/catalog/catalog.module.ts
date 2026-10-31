@@ -3,7 +3,9 @@ import {
   CatalogController,
   MatchingController,
   VariationsController,
+  BrandsController,
 } from './catalog.controller';
+import { BrandsService } from './brands.service';
 import { CatalogService } from './catalog.service';
 import { PriceHistoryService } from './price-history.service';
 import { ProductEditService } from './product-edit.service';
@@ -15,7 +17,12 @@ import { ModerationService } from './matching/moderation.service';
 import { VariationsService } from './matching/variations.service';
 
 @Module({
-  controllers: [CatalogController, MatchingController, VariationsController],
+  controllers: [
+    CatalogController,
+    MatchingController,
+    VariationsController,
+    BrandsController,
+  ],
   providers: [
     CatalogService,
     MatchingClient,
@@ -26,6 +33,7 @@ import { VariationsService } from './matching/variations.service';
     PriceHistoryService,
     ProductEditService,
     VariationsService,
+    BrandsService,
   ],
   exports: [CatalogService],
 })

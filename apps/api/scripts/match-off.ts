@@ -70,6 +70,14 @@ async function main() {
       country: r.chain.countryCode,
       netQuantity: r.netQuantity === null ? null : Number(r.netQuantity),
     })),
+    // Обʼєднані бренди (/admin/brands), як у воркері
+    new Map(
+      (
+        await prisma.brandAlias.findMany({
+          select: { alias: true, brand: { select: { slug: true } } },
+        })
+      ).map((a) => [a.alias, a.brand.slug]),
+    ),
   );
 
   // countries_tags OFF: "en:germany" → DE, лише країни наших карток

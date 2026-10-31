@@ -15,7 +15,10 @@ import {
 } from '@/api/generated/matching/matching';
 import {
   addVariantBarcode,
+  getBrands,
+  mergeBrand,
   removeVariantBarcode,
+  renameBrand,
   updateProduct,
   updateVariant,
 } from '@/api/generated/catalog/catalog';
@@ -95,4 +98,22 @@ export async function setVariationAction(word: string, action: 'ADD' | 'REMOVE',
 
 export async function resetVariationAction(word: string) {
   return run(() => resetVariation(word));
+}
+
+export async function renameBrandAction(id: string, name: string) {
+  return run(() => renameBrand(id, { name }));
+}
+
+/** Злити бренд в інший; основний задається id або ключем (slug), як у таблиці брендів */
+export async function mergeBrandAction(id: string, into: string) {
+  return run(async () => {
+    let target = into.trim();
+    if (!/^[0-9a-f-]{36}$/.test(target)) {
+      const { data } = await getBrands({ search: target, pageSize: 50 });
+      const found = data.items.find((b) => b.slug === target.toLowerCase());
+      if (!found) throw new Error(`Бренд з ключем «${target}» не знайдено`);
+      target = found.id;
+    }
+    await mergeBrand(id, { into: target });
+  });
 }

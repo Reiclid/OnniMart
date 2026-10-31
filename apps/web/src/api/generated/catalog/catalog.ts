@@ -8,14 +8,19 @@
 import type {
   AddBarcodeDto,
   BarcodeLookupDto,
+  BrandDuplicateDto,
+  BrandPageDto,
   CategoryDto,
+  GetBrandsParams,
   GetPriceHistoryParams,
   GetProductsByIdsParams,
   GetProductsParams,
+  MergeBrandDto,
   PriceHistoryDto,
   ProductDetailsDto,
   ProductPageDto,
   ProductSummaryDto,
+  RenameBrandDto,
   UpdateProductDto,
   UpdateVariantDto
 } from '../model';
@@ -475,6 +480,179 @@ export const lookupBarcode = async (gtin: string, options?: Parameters<typeof cu
     method: 'GET'
 
 
+  }
+);}
+
+
+export type getBrandsResponse200 = {
+  data: BrandPageDto
+  status: 200
+}
+
+export type getBrandsResponseSuccess = (getBrandsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getBrandsResponse = (getBrandsResponseSuccess)
+
+export const getGetBrandsUrl = (params?: GetBrandsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/brands?${stringifiedParams}` : `/api/v1/brands`
+}
+
+/**
+ * @summary Словник брендів: товари, картки, мережі й обʼєднані дублікати кожного бренду
+ */
+export const getBrands = async (params?: GetBrandsParams, options?: Parameters<typeof customFetch>[1]): Promise<getBrandsResponse> => {
+
+  return customFetch<getBrandsResponse>(getGetBrandsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type getBrandDuplicatesResponse200 = {
+  data: BrandDuplicateDto[]
+  status: 200
+}
+
+export type getBrandDuplicatesResponseSuccess = (getBrandDuplicatesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getBrandDuplicatesResponse = (getBrandDuplicatesResponseSuccess)
+
+export const getGetBrandDuplicatesUrl = () => {
+
+
+
+
+  return `/api/v1/brands/duplicates`
+}
+
+/**
+ * @summary Можливі дублікати брендів (схожі назви); злиття вирішує модератор
+ */
+export const getBrandDuplicates = async ( options?: Parameters<typeof customFetch>[1]): Promise<getBrandDuplicatesResponse> => {
+
+  return customFetch<getBrandDuplicatesResponse>(getGetBrandDuplicatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type renameBrandResponse204 = {
+  data: void
+  status: 204
+}
+
+export type renameBrandResponse401 = {
+  data: void
+  status: 401
+}
+
+export type renameBrandResponse404 = {
+  data: void
+  status: 404
+}
+
+export type renameBrandResponseSuccess = (renameBrandResponse204) & {
+  headers: Headers;
+};
+export type renameBrandResponseError = (renameBrandResponse401 | renameBrandResponse404) & {
+  headers: Headers;
+};
+
+export type renameBrandResponse = (renameBrandResponseSuccess | renameBrandResponseError)
+
+export const getRenameBrandUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/brands/${id}`
+}
+
+/**
+ * @summary Перейменувати бренд (назва для показу; ключ не змінюється)
+ */
+export const renameBrand = async (id: string,
+    renameBrandDto: RenameBrandDto, options?: Parameters<typeof customFetch>[1]): Promise<renameBrandResponse> => {
+
+  return customFetch<renameBrandResponse>(getRenameBrandUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(renameBrandDto)
+  }
+);}
+
+
+export type mergeBrandResponse204 = {
+  data: void
+  status: 204
+}
+
+export type mergeBrandResponse401 = {
+  data: void
+  status: 401
+}
+
+export type mergeBrandResponse404 = {
+  data: void
+  status: 404
+}
+
+export type mergeBrandResponseSuccess = (mergeBrandResponse204) & {
+  headers: Headers;
+};
+export type mergeBrandResponseError = (mergeBrandResponse401 | mergeBrandResponse404) & {
+  headers: Headers;
+};
+
+export type mergeBrandResponse = (mergeBrandResponseSuccess | mergeBrandResponseError)
+
+export const getMergeBrandUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/brands/${id}/merge`
+}
+
+/**
+ * @summary Злити бренд-дублікат в основний: товари й лінійки переходять, ключ дубліката стає аліасом (не скасовується)
+ */
+export const mergeBrand = async (id: string,
+    mergeBrandDto: MergeBrandDto, options?: Parameters<typeof customFetch>[1]): Promise<mergeBrandResponse> => {
+
+  return customFetch<mergeBrandResponse>(getMergeBrandUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mergeBrandDto)
   }
 );}
 

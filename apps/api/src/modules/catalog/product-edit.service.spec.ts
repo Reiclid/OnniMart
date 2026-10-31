@@ -15,6 +15,11 @@ function service(owner: object | null = null) {
       update: jest.fn(),
     },
     brand: { upsert: jest.fn(() => Promise.resolve({ id: 'b1' })) },
+    brandAlias: {
+      findUnique: jest.fn(({ where }: { where: { alias: string } }) =>
+        Promise.resolve(where.alias === 'cocacola' ? { brandId: 'b0' } : null),
+      ),
+    },
     category: { upsert: jest.fn(() => Promise.resolve({ id: 'c1' })) },
     matchKey: { deleteMany: jest.fn() },
     barcode: {
@@ -64,6 +69,13 @@ describe('ProductEditService', () => {
       where: { listingId: null, variant: { productId: 'p1' } },
     });
     expect(matching.request).toHaveBeenCalled();
+  });
+
+  it('назва обʼєднаного дубліката веде до основного бренду', async () => {
+    const { edits, prisma } = service();
+    await edits.updateProduct('p1', { brand: 'COCACOLA' });
+    expect(prisma.product.update.mock.calls[0][0].data.brandId).toBe('b0');
+    expect(prisma.brand.upsert).not.toHaveBeenCalled();
   });
 
   it('нове фасування — автоматичний підпис і всі ключі фасування заново', async () => {

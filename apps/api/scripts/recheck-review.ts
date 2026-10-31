@@ -19,11 +19,11 @@ import { MATCHING_REQUESTS_QUEUE } from '@repo/contracts';
 import {
   brandKey,
   buildIdf,
-  extractFeatures,
   applyOverrides,
   learnVariations,
   NameFeatures,
   prepareListings,
+  productFeatures,
   scorePair,
   THRESHOLDS,
   variationGroup,
@@ -59,6 +59,14 @@ async function main() {
       country: r.chain.countryCode,
       netQuantity: r.netQuantity === null ? null : Number(r.netQuantity),
     })),
+    // Обʼєднані бренди (/admin/brands), як у воркері
+    new Map(
+      (
+        await prisma.brandAlias.findMany({
+          select: { alias: true, brand: { select: { slug: true } } },
+        })
+      ).map((a) => [a.alias, a.brand.slug]),
+    ),
   );
   const variations = applyOverrides(
     learnVariations(
@@ -101,7 +109,10 @@ async function main() {
       variant: {
         select: {
           product: {
-            select: { name: true, brand: { select: { name: true } } },
+            select: {
+              name: true,
+              brand: { select: { name: true, slug: true } },
+            },
           },
         },
       },
@@ -118,7 +129,7 @@ async function main() {
     if (!listing || !c.variant) continue;
     const product = c.variant.product;
     const variantNames = [
-      extractFeatures(product.name, product.brand?.name),
+      productFeatures(product.name, product.brand),
       ...(linked.get(c.variantId!) ?? []),
     ];
     const idf = idfs.get(listing.country)!;
