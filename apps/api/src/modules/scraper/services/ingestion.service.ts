@@ -51,6 +51,8 @@ export class IngestionService {
    */
   private readonly progress = new Map<string, number>();
   private progressFlushedAt = 0;
+  /** Перемикач правила «Збіг штрихкоду» (/admin/rules), кеш на хвилину */
+  private barcodeRule = { on: true, at: 0 };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -425,9 +427,11 @@ export class IngestionService {
       );
       return;
     }
+    // Правило вимкнене на /admin/rules — картку зіставить пакет за назвою
+    if (!(await this.barcodeRuleOn())) return;
 
     // Лише якщо картку тим часом не зіставили (пакет зіставлення, модератор)
-    await this.prisma.listing.updateMany({
+    const { count } = await this.prisma.listing.updateMany({
       where: { id: listingId, variantId: null },
       data: {
         variantId: variants[0],
@@ -437,6 +441,22 @@ export class IngestionService {
         matchedAt: new Date(),
       },
     });
+    if (count > 0) {
+      await this.prisma.matchRuleHit.create({
+        data: { rule: 'barcode', listingId, decision: 'barcode' },
+      });
+    }
+  }
+
+  private async barcodeRuleOn(): Promise<boolean> {
+    if (Date.now() - this.barcodeRule.at > 60_000) {
+      const row = await this.prisma.matchingRule.findUnique({
+        where: { key: 'barcode' },
+        select: { enabled: true },
+      });
+      this.barcodeRule = { on: row?.enabled ?? true, at: Date.now() };
+    }
+    return this.barcodeRule.on;
   }
 }
 
