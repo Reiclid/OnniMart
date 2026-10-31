@@ -7,7 +7,13 @@ import {
 } from './catalog-index';
 import { extractFeatures } from './features';
 import { scorePair, variationMismatch } from './similarity';
-import { learnVariations, VariationSample, variationGroup } from './variations';
+import {
+  applyOverrides,
+  learnVariations,
+  VariationSample,
+  variationEvidence,
+  variationGroup,
+} from './variations';
 
 const G150: QuantityInfo = {
   measure: 'MASS',
@@ -114,6 +120,47 @@ describe('learnVariations', () => {
     ]);
     expect(variations.has('1664')).toBe(false);
     expect(variations.has('blanc')).toBe(true);
+  });
+});
+
+describe('variationEvidence', () => {
+  it('показує й слова, що не пройшли пороги, з контрастом і шумом', () => {
+    const evidence = variationEvidence([
+      sample('aldi-sued', 'erdbeere'),
+      sample('aldi-sued', 'vanille'),
+      sample('lidl', 'erdbeere', ['1']),
+      sample('penny', 'vanille', ['1']),
+    ]);
+    // Контраст 1 — замало для навчання, але слово видно в адмінці
+    expect(evidence.get('erdbeere')).toEqual({
+      contrast: 1,
+      noise: 1,
+      weight: 0.5,
+    });
+    expect(learnVariations([sample('aldi-sued', 'erdbeere')]).size).toBe(0);
+  });
+});
+
+describe('applyOverrides', () => {
+  const learned = new Map([
+    ['erdbeere', 1],
+    ['becher', 0.8],
+  ]);
+
+  it('ADD додає слово з вагою 1, REMOVE прибирає вивчене', () => {
+    const result = applyOverrides(learned, [
+      { word: 'stracciatella', action: 'ADD' },
+      { word: 'becher', action: 'REMOVE' },
+    ]);
+    expect([...result]).toEqual([
+      ['erdbeere', 1],
+      ['stracciatella', 1],
+    ]);
+  });
+
+  it('не змінює вивчений словник', () => {
+    applyOverrides(learned, [{ word: 'erdbeere', action: 'REMOVE' }]);
+    expect(learned.has('erdbeere')).toBe(true);
   });
 });
 

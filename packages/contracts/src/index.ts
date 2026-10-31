@@ -27,6 +27,8 @@ export const WORKER_HEARTBEAT_KEY = 'worker:heartbeat';
 export const MATCHING_REQUESTS_QUEUE = 'matching:requests';
 /** Стан зіставлення, який воркер публікує для API (JSON MatchingState) */
 export const MATCHING_STATE_KEY = 'matching:state';
+/** Докази для слів варіацій, які воркер вивчив останнім (JSON VariationsSnapshot) — для /admin/variations */
+export const MATCHING_VARIATIONS_KEY = 'matching:variations';
 
 export interface ScraperTask {
   /** ScrapeRun.id */
@@ -86,13 +88,14 @@ export interface RunEventMessage {
 
 export type ScraperMessage = ScrapedProductMessage | RunEventMessage;
 
-export function isRunEvent(message: ScraperMessage): message is RunEventMessage {
+export function isRunEvent(
+  message: ScraperMessage,
+): message is RunEventMessage {
   return typeof message.kind === 'string' && message.kind.startsWith('run_');
 }
 
 export type ParseResult =
-  | { ok: true; message: ScraperMessage }
-  | { ok: false; error: string };
+  { ok: true; message: ScraperMessage } | { ok: false; error: string };
 
 const RUN_KINDS = new Set(['run_started', 'run_finished', 'run_failed']);
 
@@ -115,26 +118,43 @@ export function parseScraperMessage(raw: string): ParseResult {
 }
 
 function runEventError(v: Record<string, unknown>): string | null {
-  if (!RUN_KINDS.has(v.kind as string)) return `невідомий kind ${String(v.kind)}`;
+  if (!RUN_KINDS.has(v.kind as string))
+    return `невідомий kind ${String(v.kind)}`;
   if (!isText(v.store)) return 'store';
   if (!isCount(v.pages_fetched) || !isCount(v.items_seen)) return 'лічильники';
-  if (!isOptional(v.run_id, isText) || !isOptional(v.error, isString)) return 'run_id/error';
+  if (!isOptional(v.run_id, isText) || !isOptional(v.error, isString))
+    return 'run_id/error';
   if (!isString(v.at)) return 'at';
   return null;
 }
 
 function productError(v: Record<string, unknown>): string | null {
-  if (v.kind !== undefined && v.kind !== 'product') return `невідомий kind ${String(v.kind)}`;
+  if (v.kind !== undefined && v.kind !== 'product')
+    return `невідомий kind ${String(v.kind)}`;
   if (!isText(v.store)) return 'store';
   if (!isText(v.external)) return 'external';
   if (!isText(v.name)) return 'name';
   if (!isPrice(v.price)) return 'price';
   if (!isOptional(v.old_price, isPrice)) return 'old_price';
   if (!isString(v.scraper_at)) return 'scraper_at';
-  if (v.barcodes !== undefined && !(Array.isArray(v.barcodes) && v.barcodes.every(isString)))
+  if (
+    v.barcodes !== undefined &&
+    !(Array.isArray(v.barcodes) && v.barcodes.every(isString))
+  )
     return 'barcodes';
-  if (v.in_stock !== undefined && typeof v.in_stock !== 'boolean') return 'in_stock';
-  for (const key of ['run_id', 'image_url', 'url', 'brand', 'category', 'price_unit', 'size', 'promo_label', 'promo_ends_at']) {
+  if (v.in_stock !== undefined && typeof v.in_stock !== 'boolean')
+    return 'in_stock';
+  for (const key of [
+    'run_id',
+    'image_url',
+    'url',
+    'brand',
+    'category',
+    'price_unit',
+    'size',
+    'promo_label',
+    'promo_ends_at',
+  ]) {
     if (!isOptional(v[key], isString)) return key;
   }
   return null;
@@ -176,6 +196,15 @@ export interface MatchReport {
   skipped: number;
   /** Помилки окремих карток (деталі — у лозі воркера) */
   failed: number;
+}
+
+/** Те, що воркер кладе в MATCHING_VARIATIONS_KEY: усі слова з контрастом, вивчені й ні */
+export interface VariationsSnapshot {
+  builtAt: string;
+  /** Пороги навчання на момент підрахунку */
+  minContrast: number;
+  minWeight: number;
+  words: { word: string; contrast: number; noise: number; weight: number }[];
 }
 
 /** Те, що воркер кладе в MATCHING_STATE_KEY */
