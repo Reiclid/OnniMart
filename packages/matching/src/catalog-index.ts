@@ -8,6 +8,7 @@ import {
   scorePair,
 } from './similarity';
 import type { Variations } from './variations';
+import { isRuleOn, MatchRule, RuleSwitches } from './rules';
 
 export interface QuantityInfo {
   measure: Measure | null;
@@ -68,8 +69,8 @@ export interface CandidateScore extends PairScore {
   foreign?: boolean;
 }
 
-export type MatchDecision =
-  /** Штрихкод уже відомий */
+export type MatchDecision = /** Штрихкод уже відомий */
+(
   | { kind: 'barcode'; variantId: string }
   /** Висока схожість з наявним фасуванням */
   | { kind: 'fuzzy'; variantId: string; score: number }
@@ -78,7 +79,11 @@ export type MatchDecision =
   /** Той самий товар, але іншого фасування — нове фасування наявного товару */
   | { kind: 'variant'; productId: string; score: number }
   /** Схожого немає — новий товар */
-  | { kind: 'product' };
+  | { kind: 'product' }
+) & {
+  /** Правила, що вплинули на рішення (/admin/rules) */
+  rules?: MatchRule[];
+};
 
 interface VariantEntry {
   id: string;
@@ -113,6 +118,7 @@ export class CatalogIndex {
   private readonly rejected = new Set<string>();
   private readonly idfs = new Map<string, Idf>();
   private variations: Variations | undefined;
+  private rules: RuleSwitches = {};
 
   constructor(private readonly thresholds: Thresholds = THRESHOLDS) {}
 
@@ -129,6 +135,20 @@ export class CatalogIndex {
   /** Вивчені варіації (learnVariations): різні варіації — різні товари, незалежно від мови */
   setVariations(variations: Variations): void {
     this.variations = variations;
+  }
+
+  /** Вимкнені модератором правила (таблиця matching_rules) */
+  setRules(rules: RuleSwitches): void {
+    this.rules = rules;
+  }
+
+  private on(rule: MatchRule): boolean {
+    return isRuleOn(this.rules, rule);
+  }
+
+  /** Варіації, якщо правило увімкнене */
+  private get activeVariations(): Variations | undefined {
+    return this.on('variations') ? this.variations : undefined;
   }
 
   idf(country: string): Idf {
@@ -222,7 +242,11 @@ export class CatalogIndex {
   private score(listing: ListingInput): {
     scored: CandidateScore[];
     siblings: number;
+    /** Правила, що відкинули кандидата або знизили йому оцінку */
+    fired: Set<MatchRule>;
   } {
+    const variations = this.activeVariations;
+    const fired = new Set<MatchRule>();
     const idf = this.idf(listing.country);
     const key = quantityKey(listing.quantity);
     const ids = new Set<string>();
@@ -241,18 +265,22 @@ export class CatalogIndex {
           differsOnlyByVariation(
             tokens,
             name.tokens.map((t) => t.norm),
-            this.variations,
+            variations,
           ),
         )
       ) {
         siblings++;
       }
       const scores = variant.names.map((name) =>
-        scorePair(listing.features, name, idf, this.variations),
+        scorePair(listing.features, name, idf, variations, this.rules),
       );
       // Інша картка тієї самої мережі — це інший товар цієї мережі
       if (variant.chains.has(listing.chainId)) continue;
       if (this.rejected.has(`${listing.id}|${id}`)) continue;
+      for (const score of scores) {
+        const rule = firedBy(score);
+        if (rule) fired.add(rule);
+      }
       let best: PairScore | null = null;
       for (const score of scores) {
         if (!best || score.score > best.score) best = score;
@@ -271,63 +299,92 @@ export class CatalogIndex {
         ...(foreign && { foreign }),
       });
     }
-    return { scored: scored.sort((a, b) => b.score - a.score), siblings };
+    return {
+      scored: scored.sort((a, b) => b.score - a.score),
+      siblings,
+      fired,
+    };
   }
 
   decide(listing: ListingInput): MatchDecision {
-    for (const gtin of listing.barcodes) {
-      const variantId = this.byBarcode.get(gtin);
-      if (variantId) return { kind: 'barcode', variantId };
+    if (this.on('barcode')) {
+      for (const gtin of listing.barcodes) {
+        const variantId = this.byBarcode.get(gtin);
+        if (variantId) {
+          return { kind: 'barcode', variantId, rules: ['barcode'] };
+        }
+      }
     }
 
-    const { scored, siblings } = this.score(listing);
+    const { scored, siblings, fired } = this.score(listing);
+    const decided = (decision: MatchDecision): MatchDecision =>
+      fired.size ? { ...decision, rules: [...fired] } : decision;
     // Спершу — фасування, що вже продаються в цій країні
     let domestic = scored.filter((c) => !c.foreign);
     // Пропозиції на всю лінійку (PRD-30): у блоці ≥ 2 смаки однієї назви, тож
     // назва без смаку — не конкретний товар:
     //   картка "Almighurt" проти "Almighurt Erdbeere" і "… Stracciatella";
     //   картка "Knoppers Riegel Kokos" проти "Knoppers Riegel", коли вже є "… Nuss"
-    if (domestic.filter((c) => c.extraVariation === 'b').length >= 2) {
-      domestic = domestic.filter((c) => c.extraVariation !== 'b');
-    }
-    if (siblings > 0) {
-      domestic = domestic.filter((c) => c.extraVariation !== 'a');
+    if (this.on('rangeOffers')) {
+      const before = domestic.length;
+      if (domestic.filter((c) => c.extraVariation === 'b').length >= 2) {
+        domestic = domestic.filter((c) => c.extraVariation !== 'b');
+      }
+      if (siblings > 0) {
+        domestic = domestic.filter((c) => c.extraVariation !== 'a');
+      }
+      if (domestic.length < before) fired.add('rangeOffers');
     }
     const [best, second] = domestic;
     const trusted =
       best &&
-      (!best.barcodeMismatch || best.score >= this.thresholds.barcodeOverride);
+      (!this.on('barcodeMismatch') ||
+        !best.barcodeMismatch ||
+        best.score >= this.thresholds.barcodeOverride);
+    if (best && !trusted && best.score >= this.thresholds.auto) {
+      fired.add('barcodeMismatch');
+    }
     if (best && trusted && best.score >= this.thresholds.auto) {
       if (!second || best.score - second.score >= this.thresholds.margin) {
-        return { kind: 'fuzzy', variantId: best.variantId, score: best.score };
+        return decided({
+          kind: 'fuzzy',
+          variantId: best.variantId,
+          score: best.score,
+        });
       }
     }
     if (best && best.score >= this.thresholds.review) {
-      return {
+      return decided({
         kind: 'review',
         candidates: domestic
           .filter((c) => c.score >= this.thresholds.review)
           .slice(0, 3),
-      };
+      });
     }
 
     // Той самий товар з іншої країни — лише однозначний повний збіг
-    const foreign = scored.filter((c) => c.foreign && !c.barcodeMismatch);
+    const foreign = this.on('crossCountry')
+      ? scored.filter((c) => c.foreign && !c.barcodeMismatch)
+      : [];
     if (
       foreign.length === 1 ||
       (foreign.length > 1 &&
         foreign[0].score - foreign[1].score >= this.thresholds.margin)
     ) {
-      return {
+      fired.add('crossCountry');
+      return decided({
         kind: 'fuzzy',
         variantId: foreign[0].variantId,
         score: foreign[0].score,
-      };
+      });
     }
 
-    const product = this.bestProduct(listing);
-    if (product) return { kind: 'variant', ...product };
-    return { kind: 'product' };
+    const product = this.on('newVariant') ? this.bestProduct(listing) : null;
+    if (product) {
+      fired.add('newVariant');
+      return decided({ kind: 'variant', ...product });
+    }
+    return decided({ kind: 'product' });
   }
 
   /** Той самий товар (бренд + назва) без такого фасування */
@@ -346,9 +403,12 @@ export class CatalogIndex {
         listing.features,
         product.features,
         idf,
-        this.variations,
+        this.activeVariations,
+        this.rules,
       );
-      const threshold = product.countries.has(listing.country)
+      const domestic = product.countries.has(listing.country);
+      if (!domestic && !this.on('crossCountry')) continue;
+      const threshold = domestic
         ? this.thresholds.product
         : this.thresholds.crossCountry;
       if (score >= threshold && (!best || score > best.score)) {
@@ -370,6 +430,22 @@ export class CatalogIndex {
     }
     set.add(id);
   }
+}
+
+/** Правило, через яке пару відкинуто або знижено оцінку; null — правило не з /admin/rules */
+function firedBy(score: PairScore): MatchRule | null {
+  if (score.conflict === 'choice') return 'choice';
+  if (score.conflict === 'variation' || score.extraVariation) {
+    return 'variations';
+  }
+  if (
+    score.conflict &&
+    score.conflict !== 'brand' &&
+    score.conflict !== 'empty'
+  ) {
+    return 'attributes';
+  }
+  return null;
 }
 
 /** Ключі блоків: перші 4 літери кожного слова; назва лише з бренду — "∅" */
