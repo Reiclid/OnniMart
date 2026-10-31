@@ -17,6 +17,11 @@ export interface ProductVariantDto {
      * @nullable
      */
   packaging: string | null;
+  /**
+     * Фото фасування за замовчуванням (з його карток)
+     * @nullable
+     */
+  imageUrl: string | null;
   /** Пропозиції мереж, від найдешевшої за одиницю */
   offers: ListingSummaryDto[];
 }
