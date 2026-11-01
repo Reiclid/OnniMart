@@ -52,7 +52,7 @@ describe('translate', () => {
     expect(translate('uk', 'profile.active', { count: 3 })).toBe('3 активні');
     expect(translate('uk', 'profile.active', { count: 5 })).toBe('5 активних');
     expect(translate('uk', 'profile.active', { count: 21 })).toBe('21 активне');
-    expect(translate('de', 'alerts.triggeredNew', { count: 2 })).toBe('Ausgelöst · 2 neu');
+    expect(translate('uk', 'alerts.newCount', { count: 2 })).toBe('2 нові');
   });
 
   it('rich: плейсхолдер замінюється елементом, решта — рядки', () => {

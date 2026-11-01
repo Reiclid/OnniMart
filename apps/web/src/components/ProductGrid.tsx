@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ProductSummaryDto } from '@/api/generated/model';
 import { moreProducts } from '@/app/(shop)/actions';
 import { useT } from '@/i18n/client';
+import type { CatalogFilters } from '@/lib/catalog-filters';
 import type { Money } from '@/lib/country';
 import { cascade, productCard } from './ProductCard';
 import { ProductMasonry } from './ProductMasonry';
@@ -17,7 +18,7 @@ export function ProductGrid({
 }: {
   first: ProductSummaryDto[];
   total: number;
-  filters: { q?: string; chain?: string; category?: string };
+  filters: CatalogFilters;
   money: Money;
 }) {
   const t = useT();

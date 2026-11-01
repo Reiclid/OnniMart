@@ -120,3 +120,17 @@ export function formatCountdown(ms: number): string {
     .join(':');
   return days ? `${days} д ${clock}` : clock;
 }
+
+/** "12 хв тому": найбільша одиниця, якої вже набралось (для Intl.RelativeTimeFormat) */
+export function relativeTime(iso: string, now: number): [number, Intl.RelativeTimeFormatUnit] {
+  const seconds = Math.round((Date.parse(iso) - now) / 1000);
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [['day', 86_400], ['hour', 3600], ['minute', 60]];
+  for (const [unit, size] of units) if (Math.abs(seconds) >= size) return [Math.round(seconds / size), unit];
+  return [0, 'minute'];
+}
+
+/** Частка шляху до цільової ціни (0–1) і скільки ще лишилось; ціль досягнута — 1 і 0 */
+export function targetProgress(target: number, now: number): { progress: number; left: number } {
+  if (now <= target) return { progress: 1, left: 0 };
+  return { progress: target / now, left: Math.round((now - target) * 100) / 100 };
+}
