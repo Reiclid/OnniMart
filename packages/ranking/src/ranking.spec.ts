@@ -101,6 +101,19 @@ describe('rankSearch', () => {
     expect(ids).toEqual(['liked', 'first', 'second', 'far']);
   });
 
+  it('товари вибраних мереж — першими, далі за оцінкою', () => {
+    const ids = rankSearch(
+      [
+        item('best', { relevance: 1, chains: ['silpo'] }),
+        item('mine', { relevance: 0.5, chains: ['novus', 'auchan'] }),
+        item('mine-too', { relevance: 0.6, chains: ['auchan'] }),
+      ],
+      emptyProfile(),
+      ['auchan'],
+    );
+    expect(ids).toEqual(['mine-too', 'mine', 'best']);
+  });
+
   it('без профілю й ознак — порядок базового пошуку', () => {
     const ids = rankSearch(
       [item('a', { relevance: 1 }), item('b', { relevance: 1 })],

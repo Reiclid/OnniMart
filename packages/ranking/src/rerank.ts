@@ -9,15 +9,25 @@ export const CATEGORY_PENALTY = 0.15;
 /** Частка випадкових слотів: вони збирають незміщені дані для навчання v1 */
 export const EXPLORE_SHARE = 0.1;
 
-/** Пошук: за оцінкою, рівні лишаються в порядку базового пошуку */
+/**
+ * Пошук: спершу товари, що є у вибраних у налаштуваннях мережах (`preferredChains`), далі —
+ * за оцінкою; рівні лишаються в порядку базового пошуку.
+ */
 export function rankSearch(
   candidates: Candidate[],
   profile: Profile,
+  preferredChains: string[] = [],
 ): string[] {
   const scores = scoreAll(candidates, profile, WEIGHTS.search);
+  const preferred = new Set(preferredChains);
   return candidates
-    .map((c, i) => ({ id: c.id, i, s: scores.get(c.id)! }))
-    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .map((c, i) => ({
+      id: c.id,
+      i,
+      s: scores.get(c.id)!,
+      p: c.chains.some((chain) => preferred.has(chain)) ? 1 : 0,
+    }))
+    .sort((a, b) => b.p - a.p || b.s - a.s || a.i - b.i)
     .map((c) => c.id);
 }
 

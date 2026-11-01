@@ -218,8 +218,11 @@ export async function meili<T>(
 type Strategy = 'all' | 'last';
 
 /**
- * id товарів за запитом (у порядку релевантності) і оцінка кількості. Спершу всі слова запиту
- * ("молоко галичина" — лише молоко Галичини); нічого не знайшлось — м'якше, без останніх слів.
+ * id товарів за запитом (у порядку релевантності), оцінка релевантності Meilisearch (0..1) і
+ * оцінка кількості. Спершу всі слова запиту ("молоко галичина" — лише молоко Галичини);
+ * нічого не знайшлось — м'якше, без останніх слів. Запит, що називає поняття (`concept`:
+ * "молоко", "Milch"), спершу шукає лише серед товарів цього поняття всіма мовами — без
+ * солодощів "Milch-Mäuse" і без спорідненого кефіру; порожньо — так само без фільтра поняття.
  */
 export async function searchProductIds(
   q: string,
@@ -227,25 +230,40 @@ export async function searchProductIds(
   offset: number,
   limit: number,
   strategies: Strategy[] = ['all', 'last'],
-): Promise<{ ids: string[]; total: number }> {
-  let found = { ids: [] as string[], total: 0 };
-  for (const matchingStrategy of strategies) {
+  concept: string | null = null,
+): Promise<{ ids: string[]; scores: number[]; total: number }> {
+  const conceptFilter = concept && [
+    ...filter,
+    `concepts = ${JSON.stringify(concept)}`,
+  ];
+  const attempts = strategies.flatMap((strategy) =>
+    conceptFilter
+      ? [
+          { strategy, filter: conceptFilter },
+          { strategy, filter },
+        ]
+      : [{ strategy, filter }],
+  );
+  let found = { ids: [] as string[], scores: [] as number[], total: 0 };
+  for (const attempt of attempts) {
     const result = await meili<{
-      hits: { id: string }[];
+      hits: { id: string; _rankingScore?: number }[];
       estimatedTotalHits: number;
     }>(`/indexes/${PRODUCTS_INDEX}/search`, {
       method: 'POST',
       body: JSON.stringify({
         q,
-        filter,
+        filter: attempt.filter,
         offset,
         limit,
-        matchingStrategy,
+        matchingStrategy: attempt.strategy,
         attributesToRetrieve: ['id'],
+        showRankingScore: true,
       }),
     });
     found = {
       ids: result.hits.map((h) => h.id),
+      scores: result.hits.map((h) => h._rankingScore ?? 0),
       total: result.estimatedTotalHits,
     };
     if (found.total > 0) break;

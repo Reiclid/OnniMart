@@ -27,6 +27,7 @@
     "listings:reparse": "bun scripts/reparse-listings.ts",
     "catalog:reset": "bun scripts/reset-catalog.ts",
     "search:reindex": "bun scripts/reindex-search.ts",
+    "search:evaluate": "bun scripts/evaluate-search.ts",
     "lint": "eslint \"{src,test,scripts,prisma}/**/*.ts\" --fix",
     "test": "bun test src prisma",
     "test:int": "bun test test",

@@ -46,6 +46,11 @@ describe('toCandidates', () => {
     });
   });
 
+  it('оцінка Meilisearch замість позиції', () => {
+    const [a, b] = toCandidates(['a', 'b'], [], [], null, [0.9, 0.85]);
+    expect([a.relevance, b.relevance]).toEqual([0.9, 0.85]);
+  });
+
   it('країна невідома — підходить усе', () => {
     const [b] = toCandidates(
       ['b'],
