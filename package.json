@@ -18,6 +18,7 @@
     "dev:web": "bun --filter web dev",
     "share": "bun apps/web/scripts/share.ts",
     "perf": "bun --filter web perf",
+    "images:warm": "bun --filter web images:warm",
     "dev:scraper": "cd apps/scraper && cargo run",
     "dev:orval": "cd apps/web && OPENAPI_SPEC=../api/openapi.json bun x orval",
     "dev:migrate": "cd apps/api && bun x prisma migrate dev",
