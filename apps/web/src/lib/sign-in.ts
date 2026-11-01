@@ -58,3 +58,6 @@ export async function finishSignIn(session: SessionDto, isNew: boolean): Promise
   }
   jar.set(ONBOARDED_COOKIE, '1', onboardingCookie);
 }
+
+/** Куди після входу: новий акаунт спершу пропонує сповіщення на телефон (Figma 25) */
+export const afterSignIn = (next: string, isNew: boolean) => (isNew ? `/push?${new URLSearchParams({ next })}` : next);

@@ -1,7 +1,7 @@
 'use server';
 
 // Дії покупця. Токен сесії живе лише в httpOnly-cookie на сервері Next.js
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { ApiError, SESSION_COOKIE } from '@/api/custom-fetch';
@@ -11,6 +11,7 @@ import { forgetGuest } from '@/api/generated/events/events';
 import type { MessageKey } from '@/i18n';
 import { getT } from '@/i18n/server';
 import { PRODUCTS_PAGE_SIZE } from '@/lib/offers';
+import { deviceLabel } from '@/lib/push';
 import {
   COUNTRY_COOKIE,
   CURRENCY_COOKIE,
@@ -20,16 +21,19 @@ import {
   parseInterests,
 } from '@/lib/country';
 import { currentCountry, findProducts, guestConsent, localized } from '@/lib/session';
-import { finishSignIn, onboardingCookie, safeNext } from '@/lib/sign-in';
+import { afterSignIn, finishSignIn, onboardingCookie, safeNext } from '@/lib/sign-in';
 import { CONSENT_COOKIE, GUEST_COOKIE_MAX_AGE, VIEWS_COOKIE } from '@/lib/views';
 import {
   addFavourite,
   clearViews,
+  deleteDevice,
   createSubscription,
   deleteMe,
   deleteSubscription,
   markNotificationsRead,
   removeFavourite,
+  saveDevice,
+  testPush,
   updateMe,
   updateSubscription,
 } from '@/api/generated/me/me';
@@ -55,7 +59,7 @@ export async function authenticate(_prev: FormState, form: FormData): Promise<Fo
     throw error;
   }
   await finishSignIn(session, isNew);
-  redirect(safeNext(form.get('next')));
+  redirect(afterSignIn(safeNext(form.get('next')), isNew));
 }
 
 /** Перший запуск (Figma 14–16): країна й категорії — у cookie, а в акаунт, якщо покупець увійшов. Skip — лише позначка */
@@ -87,11 +91,6 @@ export async function deleteAccount() {
 }
 
 // Налаштування (Figma 08, 17–19): кожна зміна зберігається одразу, без кнопки «Save»
-export async function saveNotifications(form: FormData) {
-  await updateMe({ notifyPush: form.get('notifyPush') === 'on', notifyEmail: form.get('notifyEmail') === 'on' });
-  revalidatePath('/settings');
-}
-
 export async function saveDiscount(form: FormData) {
   await updateMe({ minDiscount: Number(form.get('minDiscount')) || 0 });
   revalidatePath('/settings');
@@ -213,4 +212,23 @@ export async function findBarcode(code: string) {
 /** Наступна сторінка каталогу для нескінченної прокрутки */
 export async function moreProducts(query: { q?: string; chain?: string; category?: string; page: number }) {
   return (await findProducts({ ...query, pageSize: PRODUCTS_PAGE_SIZE })).items;
+}
+
+/** Push у цьому браузері (Figma 25–26): PushSubscription → API; назва пристрою — з User-Agent */
+export async function savePushDevice(subscription: { endpoint: string; p256dh: string; auth: string }) {
+  const label = deviceLabel((await headers()).get('user-agent'));
+  await saveDevice({ endpoint: String(subscription.endpoint), p256dh: String(subscription.p256dh), auth: String(subscription.auth), ...(label && { label }) });
+  revalidatePath('/settings/notifications');
+}
+
+export async function removePushDevice(id: string) {
+  await deleteDevice(String(id));
+  revalidatePath('/settings/notifications');
+}
+
+/** Тестове сповіщення мовою покупця; повертає, чи push-сервіс його прийняв */
+export async function sendTestPush(endpoint: string): Promise<boolean> {
+  const t = await getT();
+  const { data } = await testPush({ title: t('notificationSettings.testTitle'), body: t('notificationSettings.testBody'), endpoint: String(endpoint) });
+  return data.sent > 0;
 }

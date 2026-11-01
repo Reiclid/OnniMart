@@ -8,6 +8,7 @@ import { MATCHING_REQUESTS_QUEUE } from '@repo/contracts';
 import type Redis from 'ioredis';
 import { AppModule } from '../src/app.module';
 import { AlertsChecker } from '../src/modules/accounts/alerts.checker';
+import { PushService } from '../src/modules/push/push.service';
 import { RatesService } from '../src/modules/rates/rates.service';
 import { MatchingService } from '../src/modules/catalog/matching/matching.service';
 import { IngestionService } from '../src/modules/scraper/services/ingestion.service';
@@ -248,7 +249,8 @@ const ORIGIN = 'http://localhost:3000';
     const noRates = {
       current: () => Promise.resolve(null),
     } as unknown as RatesService;
-    const checker = new AlertsChecker(prisma, noRates);
+    // Без VAPID-ключів push вимкнено — лише сповіщення в застосунку
+    const checker = new AlertsChecker(prisma, noRates, new PushService(prisma));
     expect(await checker.check()).toBe(1);
     expect(await checker.check()).toBe(0);
     await prisma.$disconnect();

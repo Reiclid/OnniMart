@@ -12,6 +12,18 @@ const nextConfig: NextConfig = {
     // застаріла копія віддається одразу й оновлюється у фоні
     minimumCacheTTL: 31 * 24 * 60 * 60,
   },
+  // Service worker push-сповіщень: браузер має бачити нову версію одразу
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
