@@ -12,67 +12,25 @@ import { ruleHitsCutoff } from '../../catalog/matching/rule-hits';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { createRedis } from '../../../redis';
 import { IngestionService } from './ingestion.service';
+import { dueChains } from './schedule';
+import { ScheduleService } from './schedule.service';
 import { ScraperService } from './scraper.service';
 
-/** Як часто перевіряти, чи не настав час для наступного обходу */
-const CHECK_EVERY_MS = 10 * 60 * 1000;
-/**
- * Запуск, що "висить" довше, вважаємо втраченим (воркер падав посеред обходу).
- * Повний обхід усіх мереж одним воркером триває години, тож поріг великий.
- */
-const MIN_STALE_RUN_MS = 48 * 60 * 60 * 1000;
+/** Як часто перевіряти, чи не настав час для наступного обходу (таймер в адмінці — з точністю до хвилини) */
+const TICK_EVERY_MS = 60 * 1000;
+/** Як часто прибирати: втрачені запуски, акції, сповіщення, старі події й сесії */
+const MAINTAIN_EVERY_MS = 10 * 60 * 1000;
 /**
  * RUNNING-запуск без heartbeat довше за це вважаємо втраченим (воркер парсера зник).
  * Більше за TTL heartbeat (900 с), який парсер оновлює з кожним товаром.
  */
 export const LOST_RUN_MS = 20 * 60 * 1000;
 
-export interface ChainSchedule {
-  slug: string;
-  lastRun: { startedAt: Date; status: string } | null;
-  /** Щоденний обхід після цієї години UTC (мережі лише з акціями); null — лише інтервал */
-  scrapeHourUtc?: number | null;
-}
-
-/** Остання щоденна межа `hour`:00 UTC, що вже настала */
-export function lastDailyBoundary(now: Date, hour: number): Date {
-  const boundary = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour),
-  );
-  if (boundary > now) boundary.setUTCDate(boundary.getUTCDate() - 1);
-  return boundary;
-}
-
 /**
- * Мережі, яким пора на повний обхід: останній запуск був давніше за інтервал (або до
- * останньої щоденної межі для мереж з scrapeHourUtc) і жоден запуск цієї мережі зараз
- * не чекає в черзі й не виконується.
- */
-export function dueChains(
-  chains: ChainSchedule[],
-  now: Date,
-  intervalMs: number,
-): string[] {
-  return chains
-    .filter(({ lastRun, scrapeHourUtc }) => {
-      if (!lastRun) return true;
-      const age = now.getTime() - lastRun.startedAt.getTime();
-      const active =
-        lastRun.status === 'QUEUED' || lastRun.status === 'RUNNING';
-      if (active) return age > Math.max(2 * intervalMs, MIN_STALE_RUN_MS);
-      const daily =
-        scrapeHourUtc != null &&
-        lastRun.startedAt < lastDailyBoundary(now, scrapeHourUtc);
-      return daily || age >= intervalMs;
-    })
-    .map((chain) => chain.slug);
-}
-
-/**
- * Планувальник збору: раз на SCRAPE_INTERVAL_HOURS (за замовчуванням 24 год) ставить
- * повний обхід кожної увімкненої мережі в чергу парсера; мережі з scrapeHourUtc (лише
- * акції: Kaufland, PENNY, NORMA) — ще й щодня одразу після цієї години. Вмикається SCRAPE_SCHEDULE=true,
- * щоб під час розробки сайти мереж не обходилися без потреби.
+ * Планувальник збору: раз на intervalHours ставить повний обхід кожної увімкненої мережі
+ * в чергу парсера; мережі з scrapeHourUtc (лише акції: Kaufland, PENNY, NORMA) — ще й
+ * щодня одразу після цієї години. Увімкнення й інтервал змінює адмінка (ScheduleService,
+ * Redis `scraper:schedule`); без збережених налаштувань — SCRAPE_SCHEDULE / SCRAPE_INTERVAL_HOURS.
  */
 @Injectable()
 export class ScrapeScheduler
@@ -80,37 +38,39 @@ export class ScrapeScheduler
 {
   private readonly logger = new Logger(ScrapeScheduler.name);
   private readonly redis = createRedis();
-  private timer?: NodeJS.Timeout;
-  private enabled = false;
-  private intervalMs = 24 * 60 * 60 * 1000;
+  private timers: NodeJS.Timeout[] = [];
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly scraper: ScraperService,
     private readonly ingestion: IngestionService,
     private readonly alerts: AlertsChecker,
+    private readonly schedule: ScheduleService,
   ) {}
 
   onApplicationBootstrap() {
-    this.enabled = process.env.SCRAPE_SCHEDULE === 'true';
-    const hours = Number(process.env.SCRAPE_INTERVAL_HOURS);
-    if (Number.isFinite(hours) && hours > 0)
-      this.intervalMs = hours * 60 * 60 * 1000;
-    this.logger.log(
-      this.enabled
-        ? `Планувальник: повний обхід кожні ${this.intervalMs / 3_600_000} год`
-        : 'Планувальник вимкнено (SCRAPE_SCHEDULE=true, щоб увімкнути); завислі запуски все одно знімаються',
+    void this.schedule.settings().then(
+      (settings) =>
+        this.logger.log(
+          settings.enabled
+            ? `Планувальник: повний обхід кожні ${settings.intervalHours} год`
+            : 'Планувальник вимкнено (увімкніть в адмінці); завислі запуски все одно знімаються',
+        ),
+      (error) => this.logger.error(`Розклад: ${errorText(error)}`),
     );
-    this.timer = setInterval(() => void this.maintain(), CHECK_EVERY_MS);
-    void this.maintain();
+    this.timers = [
+      setInterval(() => void this.maintain(), MAINTAIN_EVERY_MS),
+      setInterval(() => void this.tick(), TICK_EVERY_MS),
+    ];
+    void this.maintain().then(() => this.tick());
   }
 
   onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+    this.timers.forEach(clearInterval);
     this.redis.disconnect();
   }
 
-  /** Кожні 10 хв: зняти втрачені запуски й акції, що закінчились, сповіщення за підписками, події старші за 180 днів і прострочені сесії, далі — заплановані обходи */
+  /** Кожні 10 хв: зняти втрачені запуски й акції, що закінчились, сповіщення за підписками, події старші за 180 днів і прострочені сесії */
   async maintain(now = new Date()): Promise<void> {
     await this.reapLostRuns(now);
     await this.ingestion
@@ -139,7 +99,6 @@ export class ScrapeScheduler
       .catch((error) =>
         this.logger.error(`Видалення спрацювань правил: ${errorText(error)}`),
       );
-    if (this.enabled) await this.tick(now);
   }
 
   /** RUNNING-запуски без heartbeat парсера → FAILED, щоб не висіли й не блокували мережу */
@@ -172,28 +131,15 @@ export class ScrapeScheduler
     }
   }
 
+  /** Щохвилини: поставити в чергу мережі, яким за розкладом пора */
   async tick(now = new Date()): Promise<string[]> {
     try {
-      const chains = await this.prisma.storeChain.findMany({
-        where: { scrapeEnabled: true },
-        select: {
-          slug: true,
-          scrapeHourUtc: true,
-          scrapeRuns: {
-            orderBy: { startedAt: 'desc' },
-            take: 1,
-            select: { startedAt: true, status: true },
-          },
-        },
-      });
+      const settings = await this.schedule.settings();
+      if (!settings.enabled) return [];
       const due = dueChains(
-        chains.map((c) => ({
-          slug: c.slug,
-          scrapeHourUtc: c.scrapeHourUtc,
-          lastRun: c.scrapeRuns[0] ?? null,
-        })),
+        await this.schedule.chains(settings),
         now,
-        this.intervalMs,
+        settings.intervalHours * 60 * 60 * 1000,
       );
       for (const slug of due) {
         await this.scraper.triggerScrape(slug, undefined, 'cron');

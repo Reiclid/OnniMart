@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -13,6 +14,7 @@ import {
   sessionTokenHash,
   verifyPassword,
 } from '../../auth/password';
+import { isAdminEmail, isAdminUser } from '../../auth/admin.guard';
 import { exchangeGoogleCode, googleIdentity } from '../../auth/google';
 import type {
   GoogleLoginDto,
@@ -39,6 +41,7 @@ export function toUserDto(user: User): UserDto {
     chainIds: user.chainIds,
     interests: user.interests ?? [],
     telemetryConsent: user.telemetryConsentAt !== null,
+    admin: isAdminUser(user),
     createdAt: user.createdAt.toISOString(),
   };
 }
@@ -53,6 +56,9 @@ export class AccountsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async register(dto: RegisterDto): Promise<SessionDto> {
+    if (isAdminEmail(normalizeEmail(dto.email))) {
+      throw new ForbiddenException('Цей email входить лише через Google');
+    }
     try {
       const user = await this.prisma.user.create({
         data: {

@@ -47,3 +47,28 @@ export function isAdminToken(token: string): boolean {
   const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);
 }
+
+/**
+ * Адмінку відкриває лише один акаунт: ADMIN_EMAIL, який входить тільки через Google.
+ * Акаунт з паролем не підходить — пароль до чужого email міг задати будь-хто ще до
+ * власника, і він лишився б дійсним після прив'язки Google.
+ */
+export function isAdminUser(user: {
+  email: string;
+  googleSub: string | null;
+  passwordHash: string | null;
+}): boolean {
+  const admin = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  return (
+    !!admin &&
+    user.email === admin &&
+    user.googleSub !== null &&
+    user.passwordHash === null
+  );
+}
+
+/** Email адміністратора не можна зайняти паролем: лише вхід через Google */
+export function isAdminEmail(email: string): boolean {
+  const admin = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  return !!admin && email === admin;
+}

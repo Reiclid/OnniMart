@@ -93,6 +93,10 @@ export class UserDto {
   interests!: string[];
   @ApiProperty({ description: 'Згода на збір подій для рекомендацій' })
   telemetryConsent!: boolean;
+  @ApiProperty({
+    description: 'Адміністратор (ADMIN_EMAIL, вхід лише через Google)',
+  })
+  admin!: boolean;
   @ApiProperty() createdAt!: string;
 }
 
