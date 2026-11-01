@@ -51,6 +51,11 @@ export function checkEnv(
       'GOOGLE_CLIENT_ID і GOOGLE_CLIENT_SECRET задаються разом — вхід через Google вимкнено',
     );
   }
+  if (!env.VAPID_PUBLIC_KEY !== !env.VAPID_PRIVATE_KEY) {
+    warnings.push(
+      'VAPID_PUBLIC_KEY і VAPID_PRIVATE_KEY задаються разом — push вимкнено',
+    );
+  }
   if (process === 'api' && !env.ADMIN_TOKEN) {
     warnings.push('ADMIN_TOKEN не задано — зміни через API вимкнено');
   }

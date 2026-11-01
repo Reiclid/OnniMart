@@ -7,15 +7,19 @@
  */
 import type {
   CreateSubscriptionDto,
+  DeviceDto,
   EventBatchDto,
   FavouriteIdsDto,
   GetMyProductsParams,
   NotificationDto,
   ProductPageDto,
   ProductSummaryDto,
+  PushSentDto,
   RecordViewsDto,
   RecordedDto,
+  SaveDeviceDto,
   SubscriptionDto,
+  TestPushDto,
   UpdateMeDto,
   UpdateSubscriptionDto,
   UserDto
@@ -333,6 +337,147 @@ export const markNotificationsRead = async ( options?: Parameters<typeof customF
   {
     ...options,
     method: 'POST'
+
+
+  }
+);}
+
+
+export type getDevicesResponse200 = {
+  data: DeviceDto[]
+  status: 200
+}
+
+export type getDevicesResponseSuccess = (getDevicesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getDevicesResponse = (getDevicesResponseSuccess)
+
+export const getGetDevicesUrl = () => {
+
+
+
+
+  return `/api/v1/me/devices`
+}
+
+/**
+ * @summary Браузери з увімкненим push
+ */
+export const getDevices = async ( options?: Parameters<typeof customFetch>[1]): Promise<getDevicesResponse> => {
+
+  return customFetch<getDevicesResponse>(getGetDevicesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type saveDeviceResponse201 = {
+  data: DeviceDto
+  status: 201
+}
+
+export type saveDeviceResponseSuccess = (saveDeviceResponse201) & {
+  headers: Headers;
+};
+;
+
+export type saveDeviceResponse = (saveDeviceResponseSuccess)
+
+export const getSaveDeviceUrl = () => {
+
+
+
+
+  return `/api/v1/me/devices`
+}
+
+/**
+ * 400 — адреса не належить відомому push-сервісу
+ * @summary Увімкнути push у цьому браузері (PushSubscription)
+ */
+export const saveDevice = async (saveDeviceDto: SaveDeviceDto, options?: Parameters<typeof customFetch>[1]): Promise<saveDeviceResponse> => {
+
+  return customFetch<saveDeviceResponse>(getSaveDeviceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveDeviceDto)
+  }
+);}
+
+
+export type testPushResponse200 = {
+  data: PushSentDto
+  status: 200
+}
+
+export type testPushResponseSuccess = (testPushResponse200) & {
+  headers: Headers;
+};
+;
+
+export type testPushResponse = (testPushResponseSuccess)
+
+export const getTestPushUrl = () => {
+
+
+
+
+  return `/api/v1/me/devices/test`
+}
+
+/**
+ * @summary Тестове сповіщення на свої пристрої
+ */
+export const testPush = async (testPushDto: TestPushDto, options?: Parameters<typeof customFetch>[1]): Promise<testPushResponse> => {
+
+  return customFetch<testPushResponse>(getTestPushUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(testPushDto)
+  }
+);}
+
+
+export type deleteDeviceResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteDeviceResponseSuccess = (deleteDeviceResponse204) & {
+  headers: Headers;
+};
+;
+
+export type deleteDeviceResponse = (deleteDeviceResponseSuccess)
+
+export const getDeleteDeviceUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/me/devices/${id}`
+}
+
+/**
+ * @summary Вимкнути push на пристрої
+ */
+export const deleteDevice = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<deleteDeviceResponse> => {
+
+  return customFetch<deleteDeviceResponse>(getDeleteDeviceUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
 
 
   }

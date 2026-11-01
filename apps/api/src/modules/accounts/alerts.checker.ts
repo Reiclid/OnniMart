@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { withFields } from '../../logger';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { RatesService } from '../rates/rates.service';
 import { decideAlert, discountOf } from './alerts';
 import {
@@ -11,8 +12,8 @@ import {
 } from './alerts.service';
 
 /**
- * Воркер: порівнює поточні ціни з підписками й записує сповіщення в застосунок.
- * Push і email — коли підключимо провайдерів; канал зараз IN_APP.
+ * Воркер: порівнює поточні ціни з підписками, записує сповіщення в застосунок
+ * і шле нові на телефони покупця (Web Push, якщо notifyPush). Email — пізніше.
  */
 @Injectable()
 export class AlertsChecker {
@@ -21,6 +22,7 @@ export class AlertsChecker {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rates: RatesService,
+    private readonly push: PushService,
   ) {}
 
   async check(): Promise<number> {
@@ -30,7 +32,9 @@ export class AlertsChecker {
         where: { isActive: true },
         include: {
           ...SUBSCRIPTION_INCLUDE,
-          user: { select: { minDiscount: true, countryCode: true } },
+          user: {
+            select: { minDiscount: true, countryCode: true, notifyPush: true },
+          },
         },
       }),
       this.rates.current(),
@@ -78,13 +82,46 @@ export class AlertsChecker {
         },
       ];
     });
-    const { count } = await this.prisma.notification.createMany({
+    // Повертаються лише нові: дублікати (той самий dedupeKey) пропущено
+    const created = await this.prisma.notification.createManyAndReturn({
       data,
       skipDuplicates: true,
+      select: {
+        id: true,
+        userId: true,
+        title: true,
+        body: true,
+        payload: true,
+      },
     });
+    const count = created.length;
+    const pushTo = new Set(
+      subs.filter((s) => s.user.notifyPush).map((s) => s.userId),
+    );
+    const sent: string[] = [];
+    for (const n of created.filter((n) => pushTo.has(n.userId))) {
+      const productId = (n.payload as { productId?: string } | null)?.productId;
+      const delivered = await this.push.send(n.userId, {
+        title: n.title,
+        body: n.body,
+        url: productId ? `/products/${productId}` : '/alerts',
+        tag: n.id,
+      });
+      if (delivered > 0) sent.push(n.id);
+    }
+    if (sent.length > 0) {
+      await this.prisma.notification.updateMany({
+        where: { id: { in: sent } },
+        data: { sentAt: new Date() },
+      });
+    }
     if (count > 0)
       this.logger.log(
-        withFields('Нові сповіщення', { count, subscriptions: subs.length }),
+        withFields('Нові сповіщення', {
+          count,
+          pushed: sent.length,
+          subscriptions: subs.length,
+        }),
       );
     return count;
   }

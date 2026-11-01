@@ -3,6 +3,7 @@ import { AlertsChecker } from './modules/accounts/alerts.checker';
 import { MatchingRequestsWorker } from './modules/catalog/matching/matching-requests.worker';
 import { MatchingService } from './modules/catalog/matching/matching.service';
 import { SearchIndexer } from './modules/catalog/search/search.indexer';
+import { PushService } from './modules/push/push.service';
 import { RatesService } from './modules/rates/rates.service';
 import { RatesUpdater } from './modules/rates/rates.updater';
 import { ScraperModule } from './modules/scraper/scraper.module';
@@ -26,6 +27,7 @@ import { WorkerLock } from './worker-lock';
     MatchingService,
     MatchingRequestsWorker,
     AlertsChecker,
+    PushService,
     SearchIndexer,
     RatesUpdater,
     RatesService,

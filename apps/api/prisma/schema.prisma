@@ -744,11 +744,18 @@ model Notification {
   @@map("notifications")
 }
 
-/// Expo push-токен мобільного застосунку
+/// Пристрій для push: браузер (Web Push, PWA) або, згодом, мобільний застосунок (Expo)
 model PushDevice {
   id            String   @id @default(uuid())
   userId        String
-  expoPushToken String   @unique
+  /// Expo push-токен мобільного застосунку; null — браузер
+  expoPushToken String?  @unique
+  /// Web Push: адреса push-сервісу браузера і ключі шифрування з PushSubscription
+  endpoint      String?  @unique
+  p256dh        String?
+  auth          String?
+  /// "Chrome · Android" — щоб покупець упізнав пристрій у Settings
+  label         String?
   /// "ios" | "android" | "web"
   platform      String
   createdAt     DateTime @default(now())
