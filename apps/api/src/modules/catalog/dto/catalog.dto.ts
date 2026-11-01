@@ -91,6 +91,12 @@ export class ProductSummaryDto {
   @ApiProperty({
     type: String,
     nullable: true,
+    description: 'Category.slug (підказки пошуку: «milk in Dairy & eggs»)',
+  })
+  category!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
     description: '"Zero", "банан · 3,9%"',
   })
   variantLabel!: string | null;

@@ -13,6 +13,11 @@ export interface ProductSummaryDto {
   /** @nullable */
   brand: string | null;
   /**
+     * Category.slug (підказки пошуку: «milk in Dairy & eggs»)
+     * @nullable
+     */
+  category: string | null;
+  /**
      * "Zero", "банан · 3,9%"
      * @nullable
      */

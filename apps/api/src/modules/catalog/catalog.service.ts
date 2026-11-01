@@ -172,6 +172,7 @@ export class CatalogService {
       where: { id: { in: ids } },
       include: {
         brand: { select: { name: true } },
+        category: { select: { slug: true } },
         variants: {
           select: {
             id: true,
@@ -202,6 +203,7 @@ export class CatalogService {
           id: product.id,
           name: product.name,
           brand: product.brand?.name ?? null,
+          category: product.category?.slug ?? null,
           variantLabel: product.variantLabel,
           imageUrl: product.imageUrl,
           variantsCount: product.variants.length,
