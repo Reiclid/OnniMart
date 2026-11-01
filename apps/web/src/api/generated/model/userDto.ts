@@ -28,5 +28,7 @@ export interface UserDto {
   interests: string[];
   /** Згода на збір подій для рекомендацій */
   telemetryConsent: boolean;
+  /** Адміністратор (ADMIN_EMAIL, вхід лише через Google) */
+  admin: boolean;
   createdAt: string;
 }

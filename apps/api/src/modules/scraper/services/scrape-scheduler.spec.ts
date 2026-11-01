@@ -1,11 +1,15 @@
 import type { AlertsChecker } from '../../accounts/alerts.checker';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { ScrapeScheduler } from './scrape-scheduler';
 import {
+  defaultSettings,
   dueChains,
   lastDailyBoundary,
-  ScrapeScheduler,
-} from './scrape-scheduler';
+  nextDueAt,
+  parseSettings,
+} from './schedule';
+import { ScheduleService } from './schedule.service';
 import { IngestionService } from './ingestion.service';
 import { ScraperService } from './scraper.service';
 
@@ -104,37 +108,109 @@ describe('щоденний обхід мереж з акціями (scrapeHourUt
   });
 });
 
+describe('ручний запуск і таймер (basis)', () => {
+  const manual = { startedAt: ago(DAY / 2), status: 'SUCCESS' };
+
+  it('manualResetsTimer: таймер від ручного запуску', () => {
+    expect(
+      nextDueAt({ slug: 'silpo', lastRun: manual }, DAY).toISOString(),
+    ).toBe('2026-10-12T15:00:00.000Z');
+  });
+
+  it('інакше — від останнього планового; без планових — одразу', () => {
+    const chains = [
+      { slug: 'cron-old', lastRun: manual, basis: { startedAt: ago(DAY) } },
+      { slug: 'never-cron', lastRun: manual, basis: null },
+      {
+        slug: 'cron-fresh',
+        lastRun: manual,
+        basis: { startedAt: ago(DAY / 3) },
+      },
+    ];
+    expect(dueChains(chains, NOW, DAY)).toEqual(['cron-old', 'never-cron']);
+  });
+});
+
+describe('налаштування розкладу', () => {
+  const defaults = defaultSettings({
+    SCRAPE_SCHEDULE: 'true',
+    SCRAPE_INTERVAL_HOURS: '12',
+  });
+
+  it('без збережених — з оточення', () => {
+    expect(defaults).toEqual({
+      enabled: true,
+      intervalHours: 12,
+      manualResetsTimer: true,
+    });
+    expect(parseSettings(null, defaults)).toEqual(defaults);
+    expect(parseSettings('{битий', defaults)).toEqual(defaults);
+  });
+
+  it('збережені поля поверх типових, неправильні ігноруємо', () => {
+    expect(
+      parseSettings(
+        JSON.stringify({
+          enabled: false,
+          intervalHours: 0,
+          manualResetsTimer: 'так',
+        }),
+        defaults,
+      ),
+    ).toEqual({ enabled: false, intervalHours: 12, manualResetsTimer: true });
+    expect(parseSettings('{"intervalHours":6}', defaults).intervalHours).toBe(
+      6,
+    );
+  });
+});
+
 describe('ScrapeScheduler.tick', () => {
   beforeAll(() => Logger.overrideLogger(false));
 
-  it('ставить у чергу лише мережі, яким пора', async () => {
-    const prisma = {
-      storeChain: {
-        findMany: jest.fn(() =>
-          Promise.resolve([
-            { slug: 'silpo', scrapeRuns: [] },
-            {
-              slug: 'novus',
-              scrapeRuns: [{ startedAt: ago(DAY / 2), status: 'SUCCESS' }],
-            },
-          ]),
-        ),
-      },
+  function setup(enabled: boolean) {
+    const schedule = {
+      settings: jest.fn(() =>
+        Promise.resolve({
+          enabled,
+          intervalHours: 24,
+          manualResetsTimer: true,
+        }),
+      ),
+      chains: jest.fn(() =>
+        Promise.resolve([
+          { slug: 'silpo', lastRun: null },
+          {
+            slug: 'novus',
+            lastRun: { startedAt: ago(DAY / 2), status: 'SUCCESS' },
+          },
+        ]),
+      ),
     };
     const scraper = { triggerScrape: jest.fn(() => Promise.resolve({})) };
     const scheduler = new ScrapeScheduler(
-      prisma as unknown as PrismaService,
+      {} as PrismaService,
       scraper as unknown as ScraperService,
       {} as IngestionService,
       {} as AlertsChecker,
+      schedule as unknown as ScheduleService,
     );
+    return { scheduler, scraper };
+  }
 
+  it('ставить у чергу лише мережі, яким пора', async () => {
+    const { scheduler, scraper } = setup(true);
     await expect(scheduler.tick(NOW)).resolves.toEqual(['silpo']);
     expect(scraper.triggerScrape).toHaveBeenCalledWith(
       'silpo',
       undefined,
       'cron',
     );
+  });
+
+  it('розклад вимкнено в адмінці — нічого не ставить', async () => {
+    const { scheduler, scraper } = setup(false);
+    await expect(scheduler.tick(NOW)).resolves.toEqual([]);
+    expect(scraper.triggerScrape).not.toHaveBeenCalled();
   });
 });
 
@@ -155,6 +231,7 @@ describe('ScrapeScheduler.reapLostRuns', () => {
       {} as ScraperService,
       {} as IngestionService,
       {} as AlertsChecker,
+      {} as ScheduleService,
     );
     Object.assign(scheduler, {
       redis: { get: jest.fn(() => Promise.resolve(heartbeat)) },

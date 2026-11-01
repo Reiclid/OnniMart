@@ -69,6 +69,10 @@
 
 :root {
   color-scheme: light;
+  /* Тонкий скролбар у кольорах сторінки; місце під нього зарезервоване — поява не зсуває верстку */
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
 
 body {

@@ -2,11 +2,12 @@
 
 // Дії покупця. Токен сесії живе лише в httpOnly-cookie на сервері Next.js
 import { cookies, headers } from 'next/headers';
+import type { CatalogFilters } from '@/lib/catalog-filters';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { ApiError, SESSION_COOKIE } from '@/api/custom-fetch';
 import { login, logout, register } from '@/api/generated/auth/auth';
-import { lookupBarcode } from '@/api/generated/catalog/catalog';
+import { getCategories, lookupBarcode } from '@/api/generated/catalog/catalog';
 import { forgetGuest } from '@/api/generated/events/events';
 import type { MessageKey } from '@/i18n';
 import { getT } from '@/i18n/server';
@@ -20,7 +21,9 @@ import {
   ONBOARDED_COOKIE,
   parseInterests,
 } from '@/lib/country';
-import { currentCountry, findProducts, guestConsent, localized } from '@/lib/session';
+import { formatShown } from '@/lib/format';
+import { currentCountry, currentMoney, findProducts, guestConsent, localized } from '@/lib/session';
+import { querySuggestions, topCategory } from '@/lib/suggestions';
 import { afterSignIn, finishSignIn, onboardingCookie, safeNext } from '@/lib/sign-in';
 import { CONSENT_COOKIE, GUEST_COOKIE_MAX_AGE, VIEWS_COOKIE } from '@/lib/views';
 import {
@@ -184,7 +187,8 @@ export async function toggleFavourite(form: FormData) {
 }
 
 export async function setSubscriptionActive(form: FormData) {
-  await updateSubscription(String(form.get('id')), { isActive: form.get('active') === 'true' });
+  // Перемикач: увімкнений надсилає поле active, вимкнений — нічого
+  await updateSubscription(String(form.get('id')), { isActive: form.has('active') });
   revalidatePath('/alerts');
 }
 
@@ -210,7 +214,37 @@ export async function findBarcode(code: string) {
 }
 
 /** Наступна сторінка каталогу для нескінченної прокрутки */
-export async function moreProducts(query: { q?: string; chain?: string; category?: string; page: number }) {
+export type SearchSuggestions = {
+  queries: string[];
+  category: { slug: string; name: string } | null;
+  products: { id: string; name: string; imageUrl: string | null; price: string | null; chains: number }[];
+};
+
+/** Підказки під полем пошуку (від 2-ї літери): доповнення запиту, категорія, до 3 товарів */
+export async function searchSuggestions(query: string): Promise<SearchSuggestions> {
+  const q = String(query).trim().slice(0, 100);
+  if (q.length < 2) return { queries: [], category: null, products: [] };
+  const [page, { data: categories }, money] = await Promise.all([
+    findProducts({ q, page: 1, pageSize: 20 }),
+    getCategories(),
+    currentMoney(),
+  ]);
+  const slug = topCategory(page.items);
+  const category = categories.find((c) => c.slug === slug);
+  return {
+    queries: querySuggestions(q, page.items.map((p) => p.name)),
+    category: category ? { slug: category.slug, name: category.name } : null,
+    products: page.items.slice(0, 3).map((p) => ({
+      id: p.id,
+      name: p.name,
+      imageUrl: p.imageUrl,
+      price: p.prices[0] ? formatShown(p.prices[0].min, p.prices[0].currency, money).text : null,
+      chains: p.chainsCount,
+    })),
+  };
+}
+
+export async function moreProducts(query: CatalogFilters & { page: number }) {
   return (await findProducts({ ...query, pageSize: PRODUCTS_PAGE_SIZE })).items;
 }
 

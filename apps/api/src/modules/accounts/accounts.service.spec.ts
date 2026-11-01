@@ -1,5 +1,6 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
+import { isAdminUser } from '../../auth/admin.guard';
 
 const idToken = (claims: object) =>
   `h.${Buffer.from(
@@ -109,5 +110,23 @@ describe('AccountsService.google', () => {
       UnauthorizedException,
     );
     expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('isAdminUser', () => {
+  const owner = {
+    email: 'owner@example.com',
+    googleSub: 'g-1',
+    passwordHash: null,
+  };
+  afterEach(() => delete process.env.ADMIN_EMAIL);
+
+  it('лише ADMIN_EMAIL з Google і без пароля', () => {
+    expect(isAdminUser(owner)).toBe(false); // ADMIN_EMAIL не задано
+    process.env.ADMIN_EMAIL = ' Owner@Example.com ';
+    expect(isAdminUser(owner)).toBe(true);
+    expect(isAdminUser({ ...owner, googleSub: null })).toBe(false);
+    expect(isAdminUser({ ...owner, passwordHash: 'scrypt$…' })).toBe(false);
+    expect(isAdminUser({ ...owner, email: 'other@example.com' })).toBe(false);
   });
 });

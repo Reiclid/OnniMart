@@ -23,17 +23,25 @@ import {
   updateProduct,
   updateVariant,
 } from '@/api/generated/catalog/catalog';
-import type { UpdateProductDto, UpdateVariantDto } from '@/api/generated/model';
-import { triggerScrape } from '@/api/generated/scraper/scraper';
-import { adminAccess } from '@/lib/admin-access';
-import { headers } from 'next/headers';
+import type { ScheduleDto, UpdateProductDto, UpdateScheduleDto, UpdateVariantDto } from '@/api/generated/model';
+import { runAllScrapes, triggerScrape, updateSchedule } from '@/api/generated/scraper/scraper';
+import { SESSION_COOKIE } from '@/api/custom-fetch';
+import { adminGate, sessionIsAdmin } from '@/lib/admin-access';
+import { revalidatePath } from 'next/cache';
+import { cookies, headers } from 'next/headers';
 
 export type ActionResult = { error: string | null };
 
 async function run(call: () => Promise<unknown>): Promise<ActionResult> {
   // Серверну дію можна викликати POST-ом на будь-яку адресу, не лише з /admin, тож proxy.ts
   // її не захищає — перевіряємо доступ тут так само
-  if (adminAccess(await headers(), process.env.ADMIN_WEB_PASSWORD) !== 'ok') {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const access = await adminGate(
+    await headers(),
+    { password: process.env.ADMIN_WEB_PASSWORD, adminEmail: process.env.ADMIN_EMAIL },
+    () => sessionIsAdmin(token),
+  );
+  if (access !== 'ok') {
     return { error: 'Немає доступу до адмінки' };
   }
   try {
@@ -47,6 +55,23 @@ async function run(call: () => Promise<unknown>): Promise<ActionResult> {
 
 export async function triggerScrapeAction(store: string, maxPages?: number) {
   return run(() => triggerScrape({ store, maxPages }));
+}
+
+// revalidatePath — щоб Огляд одразу показав новий розклад і запуски у відповіді дії
+export async function updateScheduleAction(patch: UpdateScheduleDto): Promise<ActionResult & { schedule?: ScheduleDto }> {
+  let schedule: ScheduleDto | undefined;
+  const result = await run(async () => {
+    const response = await updateSchedule(patch);
+    if (response.status === 200) schedule = response.data;
+  });
+  revalidatePath('/admin');
+  return { ...result, schedule };
+}
+
+export async function runAllScrapesAction() {
+  const result = await run(() => runAllScrapes());
+  revalidatePath('/admin');
+  return result;
 }
 
 export async function runMatchingAction() {

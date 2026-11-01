@@ -8,6 +8,8 @@ import {
 } from '@/api/generated/monitoring/monitoring';
 import { AutoRefresh } from '@/components/AutoRefresh';
 import { RunProgress } from '@/components/RunProgress';
+import { ScheduleCard } from '@/components/ScheduleCard';
+import { getSchedule } from '@/api/generated/scraper/scraper';
 import { StatusBadge } from '@/components/StatusBadge';
 import { TriggerButton } from '@/components/TriggerButton';
 import {
@@ -19,7 +21,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const [{ data: stats }, { data: chains }, { data: runs }, { data: matching }, health] =
+  const [{ data: stats }, { data: chains }, { data: runs }, { data: matching }, health, { data: schedule }] =
     await Promise.all([
       getStats(),
       // Реєстр містить сотні кандидатів — на огляді лише мережі з парсером
@@ -28,7 +30,9 @@ export default async function DashboardPage() {
       getMatchingStatus(),
       // /health відповідає 503, коли щось лежить, — тіло все одно потрібне
       getHealth().then((r) => r.data, () => null),
+      getSchedule(),
     ]);
+  const nextRun = new Map(schedule.chains.map((chain) => [chain.slug, chain.nextRunAt]));
   const queues = health?.queues;
   // Оновлюємо, поки щось триває: запуск, черга завдань або непрочитані результати
   const active =
@@ -73,6 +77,8 @@ export default async function DashboardPage() {
         </p>
       )}
 
+      <ScheduleCard schedule={schedule} />
+
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {cards.map((card) => {
           const body = (
@@ -105,6 +111,7 @@ export default async function DashboardPage() {
                 <th className="px-4 py-2 text-right">Товарів</th>
                 <th className="px-4 py-2 text-right">Акцій</th>
                 <th className="px-4 py-2">Останній запуск</th>
+                <th className="px-4 py-2">Наступний</th>
                 <th className="px-4 py-2 text-right">Парсинг</th>
               </tr>
             </thead>
@@ -143,6 +150,9 @@ export default async function DashboardPage() {
                     ) : (
                       <span className="text-xs text-slate-400">ще не запускався</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-500 tabular-nums">
+                    {schedule.enabled && nextRun.has(chain.slug) ? formatDateTime(nextRun.get(chain.slug)) : '—'}
                   </td>
                   <td className="px-4 py-3">
                     {chain.scrapeEnabled ? (

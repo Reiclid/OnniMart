@@ -65,6 +65,10 @@ export const EyeIcon = (props: IconProps) => icon(props, <><path d="M2 12s3.6-7 
 export const EyeOffIcon = (props: IconProps) =>
   icon(props, <><path d="M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3 3.9M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" /></>);
 export const ChevronLeftIcon = (props: IconProps) => icon(props, <path d="m15 18-6-6 6-6" />);
+export const ChevronDownIcon = (props: IconProps) => icon(props, <path d="m6 9 6 6 6-6" />);
+export const ClockIcon = (props: IconProps) => icon(props, <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>);
+export const ArrowUpLeftIcon = (props: IconProps) => icon(props, <path d="M17 17 7 7m0 0v7m0-7h7" />);
+export const CloseIcon = (props: IconProps) => icon(props, <path d="M6 6l12 12M18 6 6 18" />);
 
 /** Верхній рядок вкладеної сторінки (Figma: Top bar): «Назад», заголовок, дія праворуч */
 export function PageHeader({ back, backLabel, title, action }: { back: string; backLabel: string; title: string; action?: ReactNode }) {
