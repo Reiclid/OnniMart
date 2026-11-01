@@ -23,6 +23,7 @@
     "openapi": "bun scripts/generate-openapi.ts",
     "match:evaluate": "bun scripts/evaluate-matching.ts",
     "match:recheck": "bun scripts/recheck-review.ts",
+    "catalog:duplicates": "bun scripts/find-duplicates.ts",
     "quality:research": "bun scripts/quality-research.ts",
     "listings:reparse": "bun scripts/reparse-listings.ts",
     "catalog:reset": "bun scripts/reset-catalog.ts",
