@@ -11,7 +11,8 @@ export const EXPLORE_SHARE = 0.1;
 
 /**
  * Пошук: спершу товари, що є у вибраних у налаштуваннях мережах (`preferredChains`), далі —
- * за оцінкою; рівні лишаються в порядку базового пошуку.
+ * товари країни користувача, потім решта; усередині — за оцінкою, рівні лишаються в порядку
+ * базового пошуку.
  */
 export function rankSearch(
   candidates: Candidate[],
@@ -26,8 +27,9 @@ export function rankSearch(
       i,
       s: scores.get(c.id)!,
       p: c.chains.some((chain) => preferred.has(chain)) ? 1 : 0,
+      c: c.inCountry ? 1 : 0,
     }))
-    .sort((a, b) => b.p - a.p || b.s - a.s || a.i - b.i)
+    .sort((a, b) => b.p - a.p || b.c - a.c || b.s - a.s || a.i - b.i)
     .map((c) => c.id);
 }
 
