@@ -10,7 +10,8 @@
     "generate:api": "orval",
     "test": "bun test src",
     "tokens": "bun scripts/tokens.ts",
-    "perf": "bun scripts/perf.ts"
+    "perf": "bun scripts/perf.ts",
+    "images:warm": "bun scripts/warm-images.ts"
   },
   "dependencies": {
     "barcode-detector": "^3.2.3",

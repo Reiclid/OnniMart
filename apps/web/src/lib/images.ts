@@ -27,3 +27,15 @@ export function optimizable(src: string): boolean {
     return false;
   }
 }
+
+/**
+ * Ширина копії фото з оптимізатора. Одна на всі екрани (оригінали мереж — 280–400 px), а не
+ * окрема під кожну ширину й щільність екрана: так кожне фото має в кеші одну копію, яку можна
+ * прогріти заздалегідь (scripts/warm-images.ts), і телефон та ноутбук беруть ту саму.
+ * Головне фото сторінки товару — більша копія.
+ */
+export const PHOTO_WIDTH = 640;
+export const HERO_WIDTH = 1080;
+
+/** Адреса копії в оптимізаторі Next; той самий рядок — ключ кешу, тож прогрів має збігатися з ним */
+export const photoUrl = (src: string, width: number = PHOTO_WIDTH) => `/_next/image?url=${encodeURIComponent(src)}&w=${width}&q=75`;

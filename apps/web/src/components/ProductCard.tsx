@@ -39,7 +39,7 @@ export function ProductCard({ card, motion }: { card: ProductCardData; motion?: 
       className={`press-card flex flex-col gap-2 rounded-lg border border-line bg-surface p-3 hover:border-line-strong ${motion?.className ?? ''}`}
     >
       <div className="relative">
-        <ProductImage src={card.imageUrl} sizes="(min-width: 768px) 240px, 50vw" className="h-28 w-full" />
+        <ProductImage src={card.imageUrl} className="h-28 w-full" />
         {discount > 0 && (
           <span className="absolute left-0 top-0 rounded-sm bg-danger px-1.5 py-0.5 text-caption font-semibold text-white tabular-nums">
             −{discount}%
