@@ -13,7 +13,10 @@
 // Варіації (PRD-30) вчаться з активних карток усіх мереж, як у воркері;
 // --no-variations — порівняння без них.
 //
-// Запуск: bun scripts/evaluate-matching.ts [--errors] [--no-variations]
+// --rules (AUD-01) — внесок кожного правила (/admin/rules): при робочому порозі
+// вимикає правила по одному й друкує P / R / F1 і чергу модерації поруч з базою.
+//
+// Запуск: bun scripts/evaluate-matching.ts [--errors] [--no-variations] [--rules]
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
@@ -21,6 +24,9 @@ import {
   brandKey,
   CatalogIndex,
   applyOverrides,
+  MATCH_RULES,
+  MatchRule,
+  RuleSwitches,
   learnVariations,
   ListingInput,
   quantityKey,
@@ -31,6 +37,9 @@ import {
 } from '@repo/matching';
 
 const AUTO_LEVELS = [0.8, 0.85, 0.9, 0.95];
+
+/** Правила, що спираються на штрихкоди: симуляція їх приховує, тож вимикати нічого */
+const BARCODE_RULES: MatchRule[] = ['barcode', 'barcodeMismatch'];
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -119,15 +128,8 @@ async function main() {
       ...THRESHOLDS,
       auto,
     });
-    const predicted = predictedPairs(result.cluster, inputs);
-    const correct = [...predicted].filter((p) => truth.has(p)).length;
-    const precision = predicted.size ? correct / predicted.size : 0;
-    const recall = correct / truth.size;
-    const f1 =
-      precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
-    const reviewCorrect = result.reviews.filter((r) =>
-      sharesBarcode(r.listing, r.top),
-    ).length;
+    const { predicted, correct, precision, recall, f1, reviewCorrect } =
+      measure(result, inputs, truth);
     console.log(
       `| ${auto.toFixed(2)} | ${predicted.size} | ${correct} | ${pct(precision)} | ${pct(recall)} | ${f1.toFixed(3)} | ${result.reviews.length} | ${reviewCorrect} |`,
     );
@@ -156,6 +158,54 @@ async function main() {
     for (const e of errorsAtDefault.filter((x) => !x.sameName))
       console.log(e.text);
   }
+
+  if (process.argv.includes('--rules')) {
+    console.log(`\nВнесок правил при порозі ${THRESHOLDS.auto} (AUD-01):\n`);
+    console.log(
+      '| Вимкнене правило | Об’єднано пар | Правильних | Precision | Recall | F1 | ΔF1 | На модерацію | З них правильний кандидат |',
+    );
+    console.log('|---|---|---|---|---|---|---|---|---|');
+    const rules = MATCH_RULES.map((r) => r.key).filter(
+      (k) => !BARCODE_RULES.includes(k),
+    );
+    let base = 0;
+    for (const rule of [null, ...rules]) {
+      const result = simulate(
+        evaluated,
+        vocabulary,
+        variations,
+        THRESHOLDS,
+        rule ? { [rule]: false } : {},
+      );
+      const m = measure(result, inputs, truth);
+      if (!rule) base = m.f1;
+      const delta = rule ? (m.f1 - base).toFixed(3) : '—';
+      console.log(
+        `| ${rule ?? '— (усі увімкнені)'} | ${m.predicted.size} | ${m.correct} | ${pct(m.precision)} | ${pct(m.recall)} | ${m.f1.toFixed(3)} | ${delta} | ${result.reviews.length} | ${m.reviewCorrect} |`,
+      );
+    }
+    console.log(
+      `\nНе перевіряються (штрихкоди приховано від алгоритму): ${BARCODE_RULES.join(', ')}.`,
+    );
+  }
+}
+
+/** Попарні метрики одного прогону відносно еталону */
+function measure(
+  result: ReturnType<typeof simulate>,
+  inputs: Map<string, ListingInput>,
+  truth: Set<string>,
+) {
+  const predicted = predictedPairs(result.cluster, inputs);
+  const correct = [...predicted].filter((p) => truth.has(p)).length;
+  const precision = predicted.size ? correct / predicted.size : 0;
+  const recall = correct / truth.size;
+  const f1 =
+    precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
+  const reviewCorrect = result.reviews.filter((r) =>
+    sharesBarcode(r.listing, r.top),
+  ).length;
+  return { predicted, correct, precision, recall, f1, reviewCorrect };
 }
 
 /** Пари "id|id" карток різних мереж зі спільним GTIN */
@@ -194,8 +244,10 @@ function simulate(
   vocabulary: Map<string, string[][]>,
   variations: Variations,
   thresholds: typeof THRESHOLDS,
+  rules: RuleSwitches = {},
 ) {
   const index = new CatalogIndex(thresholds);
+  index.setRules(rules);
   for (const [country, docs] of vocabulary) index.setVocabulary(country, docs);
   index.setVariations(variations);
   const cluster = new Map<string, string>();
