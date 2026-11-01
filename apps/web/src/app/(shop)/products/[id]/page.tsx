@@ -65,7 +65,7 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
       <RecordView productId={product.id} />
       <div className="grid gap-6 md:grid-cols-2">
         <div className="relative md:sticky md:top-6 md:self-start">
-          <ProductImage src={product.imageUrl} sizes="(min-width: 768px) 50vw, 100vw" preload className="aspect-square w-full border border-line" />
+          <ProductImage src={product.imageUrl} preload className="aspect-square w-full border border-line" />
           {/* На десктопі шлях назад — хлібні крихти (Figma: 06 Товар — десктоп) */}
           <BackButton fallback="/products" label={t('nav.back')} className="absolute top-3 left-3 md:hidden" />
         </div>

@@ -8,8 +8,9 @@ const nextConfig: NextConfig = {
     // Фото мереж (src/lib/images.ts): стиснені WebP з нашого домену замість оригіналів з десятка чужих
     remotePatterns: IMAGE_HOSTS.map((hostname) => ({ hostname })),
     formats: ["image/webp"],
-    // Фото товарів майже не змінюються: тиждень у кеші сервера
-    minimumCacheTTL: 7 * 24 * 60 * 60,
+    // Фото товарів майже не змінюються: місяць у кеші сервера (прогрів — bun run images:warm);
+    // застаріла копія віддається одразу й оновлюється у фоні
+    minimumCacheTTL: 31 * 24 * 60 * 60,
   },
 };
 

@@ -2,24 +2,22 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
-import { optimizable } from '@/lib/images';
+import { HERO_WIDTH, optimizable, photoUrl, PHOTO_WIDTH } from '@/lib/images';
 
 /**
  * Фото товару з сайту мережі: FIT на білому; без фото — нейтральна плашка.
- * Відомі домени йдуть через оптимізатор Next (WebP під `sizes`, кеш на сервері) — замість
- * оригіналів по 100–200 КБ з десятка доменів. Проявляється лише після decode()
- * (docs/07-motion.md §4.1), щоб не малювалось частинами.
+ * Відомі домени йдуть через оптимізатор Next (WebP, кеш на сервері) — замість оригіналів
+ * по 100–200 КБ з десятка доменів; одна копія на фото (PHOTO_WIDTH, у головного — HERO_WIDTH),
+ * а не під кожен екран, — її заздалегідь прогріває `bun run images:warm`. Проявляється лише
+ * після decode() (docs/07-motion.md §4.1), щоб не малювалось частинами.
  */
 export function ProductImage({
   src,
   className = '',
-  sizes = '96px',
   preload,
 }: {
   src: string | null;
   className?: string;
-  /** Ширина на екрані, як у `<img sizes>`: з неї оптимізатор вибирає розмір */
-  sizes?: string;
   /** Головне фото сторінки (LCP) */
   preload?: boolean;
 }) {
@@ -32,9 +30,9 @@ export function ProductImage({
         src={src}
         alt=""
         fill
-        sizes={sizes}
         preload={preload}
         unoptimized={!optimizable(src)}
+        loader={({ src }) => photoUrl(src, preload ? HERO_WIDTH : PHOTO_WIDTH)}
         data-ready={ready || undefined}
         // Фото з кешу могло завантажитись ще до гідратації — тоді onLoad уже не прийде
         ref={(img) => {
