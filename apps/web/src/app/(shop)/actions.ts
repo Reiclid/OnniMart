@@ -17,11 +17,11 @@ import {
   INTERESTS_COOKIE,
   isCountry,
   ONBOARDED_COOKIE,
-  ONBOARDING_COOKIE_MAX_AGE,
   parseInterests,
 } from '@/lib/country';
 import { currentCountry, findProducts, guestConsent, localized } from '@/lib/session';
-import { CONSENT_COOKIE, GUEST_COOKIE_MAX_AGE, parseViews, VIEWS_COOKIE } from '@/lib/views';
+import { finishSignIn, onboardingCookie, safeNext } from '@/lib/sign-in';
+import { CONSENT_COOKIE, GUEST_COOKIE_MAX_AGE, VIEWS_COOKIE } from '@/lib/views';
 import {
   addFavourite,
   clearViews,
@@ -29,17 +29,12 @@ import {
   deleteMe,
   deleteSubscription,
   markNotificationsRead,
-  recordViews,
   removeFavourite,
   updateMe,
   updateSubscription,
 } from '@/api/generated/me/me';
 
 export type FormState = { error: string | null };
-
-/** Лише внутрішні адреси: відкритий редирект на чужий сайт неможливий */
-const safeNext = (value: FormDataEntryValue | null) =>
-  typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/profile';
 
 const AUTH_ERRORS: Record<number, MessageKey> = {
   400: 'auth.errors.badInput',
@@ -49,54 +44,19 @@ const AUTH_ERRORS: Record<number, MessageKey> = {
 };
 
 export async function authenticate(_prev: FormState, form: FormData): Promise<FormState> {
+  const isNew = form.get('mode') === 'register';
   const credentials = { email: String(form.get('email') ?? ''), password: String(form.get('password') ?? '') };
+  if (isNew && form.get('password2') !== credentials.password) return { error: (await getT())('auth.errors.passwordsDiffer') };
   let session;
   try {
-    const name = String(form.get('name') ?? '').trim();
-    session = (form.get('mode') === 'register' ? await register({ ...credentials, ...(name && { name }) }) : await login(credentials)).data;
+    session = (isNew ? await register(credentials) : await login(credentials)).data;
   } catch (error) {
     if (error instanceof ApiError) return { error: (await getT())(AUTH_ERRORS[error.status] ?? 'auth.errors.generic') };
     throw error;
   }
-  const jar = await cookies();
-  jar.set(SESSION_COOKIE, session.token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    expires: new Date(session.expiresAt),
-  });
-  // Історія гостя переходить в акаунт (API чекає від найстарішого до найновішого)
-  const views = parseViews(jar.get(VIEWS_COOKIE)?.value);
-  if (views.length > 0) {
-    await recordViews({ productIds: views.reverse() }, { headers: { Authorization: `Bearer ${session.token}` } }).catch(() => undefined);
-    jar.delete(VIEWS_COOKIE);
-  }
-  // Країна й категорії: новий акаунт бере вибір гостя; наявний — лише порожні поля, а пристрій далі йде за акаунтом
-  const { user } = session;
-  const guestInterests = parseInterests(jar.get(INTERESTS_COOKIE)?.value);
-  const isNew = form.get('mode') === 'register';
-  const guestCurrency = jar.get(CURRENCY_COOKIE)?.value;
-  const patch = {
-    ...(isNew && { countryCode: await currentCountry() }),
-    // Валюта: новий акаунт бере вибір гостя; наявний — свою (null — автоматично)
-    ...(isNew && guestCurrency && /^[A-Z]{3}$/.test(guestCurrency) && { currencyCode: guestCurrency }),
-    ...(guestInterests.length > 0 && user.interests.length === 0 && { interests: guestInterests }),
-  };
-  if (Object.keys(patch).length > 0) {
-    await updateMe(patch, { headers: { Authorization: `Bearer ${session.token}` } }).catch(() => undefined);
-  }
-  const country = patch.countryCode ?? user.countryCode ?? undefined;
-  if (isCountry(country)) jar.set(COUNTRY_COOKIE, country, onboardingCookie);
-  if (!isNew) {
-    if (user.currencyCode) jar.set(CURRENCY_COOKIE, user.currencyCode, onboardingCookie);
-    else jar.delete(CURRENCY_COOKIE);
-  }
-  jar.set(ONBOARDED_COOKIE, '1', onboardingCookie);
+  await finishSignIn(session, isNew);
   redirect(safeNext(form.get('next')));
 }
-
-const onboardingCookie = { sameSite: 'lax', path: '/', maxAge: ONBOARDING_COOKIE_MAX_AGE } as const;
 
 /** Перший запуск (Figma 14–16): країна й категорії — у cookie, а в акаунт, якщо покупець увійшов. Skip — лише позначка */
 export async function finishOnboarding(form: FormData) {
