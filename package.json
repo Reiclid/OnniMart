@@ -32,6 +32,7 @@
     "test:matching": "bun --filter @repo/matching test",
     "typecheck": "bun run build:packages && bun --filter '@repo/*' typecheck && cd apps/api && bun x tsc --noEmit -p tsconfig.json",
     "match:evaluate": "bun --filter api match:evaluate",
+    "catalog:duplicates": "bun --filter api catalog:duplicates",
     "stores:download": "bun --filter api stores:download",
     "stores:import": "bun --filter api stores:import",
     "food:import": "bun --filter api food:import",
