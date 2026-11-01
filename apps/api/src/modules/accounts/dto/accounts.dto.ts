@@ -38,6 +38,33 @@ export class RegisterDto extends LoginDto {
   name?: string;
 }
 
+export class GoogleLoginDto {
+  @ApiProperty({ description: 'code з адреси повернення Google' })
+  @IsString()
+  @MaxLength(2000)
+  code!: string;
+
+  @ApiProperty({
+    description: 'PKCE code_verifier (RFC 7636: 43–128 символів)',
+  })
+  @Matches(/^[A-Za-z0-9._~-]{43,128}$/)
+  codeVerifier!: string;
+
+  @ApiProperty({
+    description: 'redirect_uri, з яким веб відправив покупця на Google',
+  })
+  @IsString()
+  @MaxLength(500)
+  redirectUri!: string;
+
+  @ApiProperty({
+    description: 'nonce із запиту на Google — має повернутися в ID-токені',
+  })
+  @IsString()
+  @MaxLength(200)
+  nonce!: string;
+}
+
 export class UserDto {
   @ApiProperty() id!: string;
   @ApiProperty() email!: string;
@@ -74,6 +101,13 @@ export class SessionDto {
   token!: string;
   @ApiProperty() expiresAt!: string;
   @ApiProperty({ type: UserDto }) user!: UserDto;
+}
+
+export class GoogleSessionDto extends SessionDto {
+  @ApiProperty({
+    description: 'Акаунт щойно створено (перший вхід через Google)',
+  })
+  created!: boolean;
 }
 
 export class UpdateMeDto {

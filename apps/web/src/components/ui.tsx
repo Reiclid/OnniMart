@@ -61,6 +61,9 @@ export const HeartIcon = (props: IconProps) =>
   icon(props, <path d="M12 20.5s-8-4.6-8-10.6A4.4 4.4 0 0 1 12 7a4.4 4.4 0 0 1 8 2.9c0 6-8 10.6-8 10.6Z" />);
 
 export const CheckIcon = (props: IconProps) => icon(props, <path d="m5 12.5 4.5 4.5L19 7" />);
+export const EyeIcon = (props: IconProps) => icon(props, <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></>);
+export const EyeOffIcon = (props: IconProps) =>
+  icon(props, <><path d="M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3 3.9M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" /></>);
 export const ChevronLeftIcon = (props: IconProps) => icon(props, <path d="m15 18-6-6 6-6" />);
 
 /** Верхній рядок вкладеної сторінки (Figma: Top bar): «Назад», заголовок, дія праворуч */

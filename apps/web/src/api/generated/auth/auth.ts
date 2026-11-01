@@ -6,6 +6,8 @@
  * OpenAPI spec version: 1.0
  */
 import type {
+  GoogleLoginDto,
+  GoogleSessionDto,
   LoginDto,
   RegisterDto,
   SessionDto
@@ -81,6 +83,42 @@ export const login = async (loginDto: LoginDto, options?: Parameters<typeof cust
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(loginDto)
+  }
+);}
+
+
+export type loginWithGoogleResponse200 = {
+  data: GoogleSessionDto
+  status: 200
+}
+
+export type loginWithGoogleResponseSuccess = (loginWithGoogleResponse200) & {
+  headers: Headers;
+};
+;
+
+export type loginWithGoogleResponse = (loginWithGoogleResponseSuccess)
+
+export const getLoginWithGoogleUrl = () => {
+
+
+
+
+  return `/api/v1/auth/google`
+}
+
+/**
+ * 401 — Google не підтвердив вхід; 409 — email прив’язаний до іншого Google-акаунта; 503 — не налаштовано
+ * @summary Вхід або реєстрація через Google (OIDC code + PKCE)
+ */
+export const loginWithGoogle = async (googleLoginDto: GoogleLoginDto, options?: Parameters<typeof customFetch>[1]): Promise<loginWithGoogleResponse> => {
+
+  return customFetch<loginWithGoogleResponse>(getLoginWithGoogleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(googleLoginDto)
   }
 );}
 

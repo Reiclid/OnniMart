@@ -62,6 +62,8 @@ export * from './getScrapeRunsParams';
 export * from './getVariationsFilter';
 export * from './getVariationsParams';
 export * from './getVariationsSort';
+export * from './googleLoginDto';
+export * from './googleSessionDto';
 export * from './guestEventBatchDto';
 export * from './healthDto';
 export * from './healthDtoStatus';
