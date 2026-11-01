@@ -223,6 +223,8 @@ type Strategy = 'all' | 'last';
  * нічого не знайшлось — м'якше, без останніх слів. Запит, що називає поняття (`concept`:
  * "молоко", "Milch"), спершу шукає лише серед товарів цього поняття всіма мовами — без
  * солодощів "Milch-Mäuse" і без спорідненого кефіру; порожньо — так само без фільтра поняття.
+ * `first` (умова фільтра, напр. країна покупця) — її товари йдуть першими, далі решта;
+ * сторінки проходять крізь обидві частини.
  */
 export async function searchProductIds(
   q: string,
@@ -231,6 +233,7 @@ export async function searchProductIds(
   limit: number,
   strategies: Strategy[] = ['all', 'last'],
   concept: string | null = null,
+  first: string | null = null,
 ): Promise<{ ids: string[]; scores: number[]; total: number }> {
   const conceptFilter = concept && [
     ...filter,
@@ -244,27 +247,53 @@ export async function searchProductIds(
         ]
       : [{ strategy, filter }],
   );
-  let found = { ids: [] as string[], scores: [] as number[], total: 0 };
-  for (const attempt of attempts) {
-    const result = await meili<{
+  const search = (
+    matchingStrategy: Strategy,
+    filter: string[],
+    offset: number,
+    limit: number,
+  ) =>
+    meili<{
       hits: { id: string; _rankingScore?: number }[];
       estimatedTotalHits: number;
     }>(`/indexes/${PRODUCTS_INDEX}/search`, {
       method: 'POST',
       body: JSON.stringify({
         q,
-        filter: attempt.filter,
+        filter,
         offset,
         limit,
-        matchingStrategy: attempt.strategy,
+        matchingStrategy,
         attributesToRetrieve: ['id'],
         showRankingScore: true,
       }),
     });
+  let found = { ids: [] as string[], scores: [] as number[], total: 0 };
+  for (const { strategy, filter } of attempts) {
+    let hits: { id: string; _rankingScore?: number }[];
+    let total: number;
+    if (first) {
+      const head = await search(strategy, [...filter, first], offset, limit);
+      const tail = await search(
+        strategy,
+        [...filter, `NOT (${first})`],
+        Math.max(0, offset - head.estimatedTotalHits),
+        limit - head.hits.length,
+      );
+      hits = [...head.hits, ...tail.hits];
+      total = head.estimatedTotalHits + tail.estimatedTotalHits;
+    } else {
+      ({ hits, estimatedTotalHits: total } = await search(
+        strategy,
+        filter,
+        offset,
+        limit,
+      ));
+    }
     found = {
-      ids: result.hits.map((h) => h.id),
-      scores: result.hits.map((h) => h._rankingScore ?? 0),
-      total: result.estimatedTotalHits,
+      ids: hits.map((h) => h.id),
+      scores: hits.map((h) => h._rankingScore ?? 0),
+      total,
     };
     if (found.total > 0) break;
   }

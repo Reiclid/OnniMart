@@ -11,6 +11,8 @@ describe('conceptOf', () => {
     ['Молоко згущене Metro Chef незбиране з цукром 8,5%', 'dairy-eggs', 'condensed-milk'],
     ['Сир кисломолочний «Молокія» 5%', 'dairy-eggs', 'cottage-cheese'],
     ['Milch-Haselnuss-Schnitte', 'dairy-eggs', null],
+    ['Edelmarzipan-Brot', 'bakery', null],
+    ['Magenbrot', 'bakery', null],
     ['Сир Комо Кантрі зі смаком топленого молока нарізка 50%', 'dairy-eggs', 'cheese'],
     ['Біфідойогурт Активіа без цукру 1,5%', 'dairy-eggs', 'yogurt'],
     ['Яйця курячі Ясенсвіт М С1', 'dairy-eggs', 'eggs'],

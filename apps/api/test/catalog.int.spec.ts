@@ -221,6 +221,11 @@ const COLA_EAN = '5449000000996';
     expect(byBarcode.items[0].chainsCount).toBe(2);
     const bySilpo = await catalog.getProducts({ chain: 'silpo' });
     expect(bySilpo.total).toBe(1);
+    // Країна в каталозі — фільтр, у пошуку — лише порядок: український товар видно з DE
+    expect((await catalog.getProducts({ country: 'DE' })).total).toBe(0);
+    expect(
+      (await catalog.getProducts({ q: 'моршин', country: 'DE' })).total,
+    ).toBe(1);
   });
 
   it('повторний пакет нічого не дублює', async () => {

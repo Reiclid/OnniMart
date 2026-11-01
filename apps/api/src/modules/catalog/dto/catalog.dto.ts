@@ -59,7 +59,7 @@ export class ProductsQueryDto {
   chain?: string;
   @ApiPropertyOptional({
     description:
-      'ISO-код країни (UA, DE) — лише товари, що продаються в її мережах',
+      'ISO-код країни (UA, DE): без q — лише товари її мереж; з q (пошук) — вони першими, далі решта країн',
   })
   @IsOptional()
   @Matches(/^[A-Z]{2}$/, { message: 'код країни: дві великі латинські літери' })

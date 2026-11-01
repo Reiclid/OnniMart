@@ -64,7 +64,11 @@ export class CatalogService {
     return { items: await this.summaries(ids), total, page, pageSize };
   }
 
-  /** id товарів у базовому порядку: релевантність Meilisearch (з оцінкою 0..1) або популярність (SQL) */
+  /**
+   * id товарів у базовому порядку: релевантність Meilisearch (з оцінкою 0..1) або популярність
+   * (SQL). Країна в каталозі — фільтр, а в пошуку (є `q`) — порядок: спершу товари її мереж,
+   * далі решти країн ("хліб" у DE знаходить і український хліб).
+   */
   async findProductIds(
     query: Pick<
       ProductsQueryDto,
@@ -76,6 +80,8 @@ export class CatalogService {
     const minChains = isTrue(query.multiChain) ? 2 : 1;
     const q = query.q?.trim();
     const gtin = q && /^\d{8,14}$/.test(q) ? normalizeGtin(q) : null;
+    const countryFirst = q ? query.country : undefined;
+    const country = q ? undefined : query.country;
 
     // Текстовий запит — у Meilisearch (помилки в словах, синоніми, латиниця); при збої — SQL
     if (q && !gtin && searchEnabled()) {
@@ -84,13 +90,14 @@ export class CatalogService {
         searchFilter({
           category: query.category,
           chain: query.chain,
-          country: query.country,
+          country,
           minChains,
         }),
         offset,
         limit,
         undefined,
         queryConcept(q),
+        countryFirst ? searchFilter({ country: countryFirst })[0] : null,
       ).catch((error: unknown) => {
         this.logger.warn(
           `Meilisearch недоступний, пошук через SQL: ${errorText(error)}`,
@@ -134,11 +141,9 @@ export class CatalogService {
         Prisma.sql`EXISTS (SELECT 1 FROM listings cl JOIN product_variants cv ON cv.id = cl."variantId" JOIN store_chains cc ON cc.id = cl."chainId" WHERE cv."productId" = p.id AND cl."delistedAt" IS NULL AND cc.slug = ${query.chain})`,
       );
     }
-    if (query.country) {
-      filters.push(
-        Prisma.sql`EXISTS (SELECT 1 FROM listings kl JOIN product_variants kv ON kv.id = kl."variantId" JOIN store_chains kc ON kc.id = kl."chainId" WHERE kv."productId" = p.id AND kl."delistedAt" IS NULL AND kc."countryCode" = ${query.country})`,
-      );
-    }
+    const inCountry = (code: string) =>
+      Prisma.sql`EXISTS (SELECT 1 FROM listings kl JOIN product_variants kv ON kv.id = kl."variantId" JOIN store_chains kc ON kc.id = kl."chainId" WHERE kv."productId" = p.id AND kl."delistedAt" IS NULL AND kc."countryCode" = ${code})`;
+    if (country) filters.push(inCountry(country));
     filters.push(Prisma.sql`s.chains >= ${minChains}`);
 
     // Лічильники мереж і карток — готові (матеріалізоване подання product_stats,
@@ -152,7 +157,8 @@ export class CatalogService {
     const [rows, [{ total }]] = await Promise.all([
       this.prisma.$queryRaw<{ id: string }[]>`
         SELECT p.id ${from}
-        ORDER BY s.chains DESC, s.listings DESC, p.name
+        ORDER BY ${countryFirst ? Prisma.sql`${inCountry(countryFirst)} DESC,` : Prisma.empty}
+          s.chains DESC, s.listings DESC, p.name
         LIMIT ${limit} OFFSET ${offset}`,
       this.prisma.$queryRaw<{ total: number }[]>`
         SELECT count(*)::int AS total ${from}`,

@@ -114,6 +114,19 @@ describe('rankSearch', () => {
     expect(ids).toEqual(['mine-too', 'mine', 'best']);
   });
 
+  it('вибрані мережі, далі своя країна, далі решта країн', () => {
+    const ids = rankSearch(
+      [
+        item('abroad', { relevance: 1, chains: ['silpo'], inCountry: false }),
+        item('home', { relevance: 0.3, chains: ['penny'], inCountry: true }),
+        item('mine', { relevance: 0.2, chains: ['lidl-de'], inCountry: true }),
+      ],
+      emptyProfile(),
+      ['lidl-de'],
+    );
+    expect(ids).toEqual(['mine', 'home', 'abroad']);
+  });
+
   it('без профілю й ознак — порядок базового пошуку', () => {
     const ids = rankSearch(
       [item('a', { relevance: 1 }), item('b', { relevance: 1 })],
