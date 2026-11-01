@@ -26,7 +26,7 @@ export const CONCEPTS: Concept[] = [
   // Випічка
   { slug: 'bakery', categories: ['bakery'], names: { uk: ['випічка'], de: ['Backwaren', 'Gebäck'], en: ['bakery', 'baked goods'] } },
   { slug: 'bread', parent: 'bakery', categories: ['bakery'], names: { uk: ['хліб', 'хлібина', 'батон'], de: ['Brot', 'Laib'], en: ['bread', 'loaf'] },
-    stems: ['^хліб(?!ц)', '^батон(?!ч)', 'brot(?!ch|aufstrich)', '^bread', '^loaf'] },
+    stems: ['^хліб(?!ц)', '^батон(?!ч)', '(?<!marzipan-?|magen)brot(?!ch|aufstrich)', '^bread', '^loaf'] },
   { slug: 'baguette', parent: 'bakery', categories: ['bakery'], names: { uk: ['багет'], de: ['Baguette'], en: ['baguette'] },
     stems: ['^багет', 'baguet'] },
   { slug: 'flatbread', parent: 'bakery', categories: ['bakery'], names: { uk: ['лаваш', 'піта', 'тортилья'], de: ['Fladenbrot', 'Wraps'], en: ['flatbread', 'pita', 'tortilla'] },
