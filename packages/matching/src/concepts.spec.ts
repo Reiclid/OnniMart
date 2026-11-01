@@ -1,5 +1,5 @@
 import { CATEGORIES } from './categories';
-import { CONCEPTS, conceptOf, conceptPath, conceptTerms } from './concepts';
+import { CONCEPTS, conceptLabels, conceptOf, conceptPath, conceptTerms, queryConcept } from './concepts';
 
 describe('conceptOf', () => {
   it.each([
@@ -10,6 +10,7 @@ describe('conceptOf', () => {
     ['Шоколад молочний Millennium Golden Nut', 'sweets-snacks', 'chocolate'],
     ['Молоко згущене Metro Chef незбиране з цукром 8,5%', 'dairy-eggs', 'condensed-milk'],
     ['Сир кисломолочний «Молокія» 5%', 'dairy-eggs', 'cottage-cheese'],
+    ['Milch-Haselnuss-Schnitte', 'dairy-eggs', null],
     ['Сир Комо Кантрі зі смаком топленого молока нарізка 50%', 'dairy-eggs', 'cheese'],
     ['Біфідойогурт Активіа без цукру 1,5%', 'dairy-eggs', 'yogurt'],
     ['Яйця курячі Ясенсвіт М С1', 'dairy-eggs', 'eggs'],
@@ -74,5 +75,34 @@ describe('довідник', () => {
     expect(related).not.toContain('хліб');
     expect(conceptTerms('eggs').related).toEqual([]);
     expect(conceptTerms('unknown')).toEqual({ names: [], related: [] });
+  });
+});
+
+describe('queryConcept', () => {
+  it.each([
+    ['молоко', 'milk'],
+    ['Milch', 'milk'],
+    ['milk', 'milk'],
+    ['хліб', 'bread'],
+    ['Brot', 'bread'],
+    ['молоко галичина', 'milk'],
+    ['масло вершкове', 'butter'],
+    ['молочні продукти', 'dairy'],
+    ['Backwaren', 'bakery'],
+    ['згущене молоко', 'condensed-milk'],
+    ['кава з молоком', 'coffee'],
+  ])('%s → %s', (query, slug) => {
+    expect(queryConcept(query)).toBe(slug);
+  });
+
+  it('бренди й незнайомі слова — без поняття', () => {
+    expect(queryConcept('Milka')).toBeNull();
+    expect(queryConcept('Моршинська')).toBeNull();
+    expect(queryConcept('')).toBeNull();
+  });
+
+  it('власні назви всіма мовами, без предків', () => {
+    expect(conceptLabels('milk')).toEqual(['молоко', 'Milch', 'milk']);
+    expect(conceptLabels('nope')).toEqual([]);
   });
 });

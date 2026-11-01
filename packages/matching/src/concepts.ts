@@ -45,7 +45,7 @@ export const CONCEPTS: Concept[] = [
   // Молочне
   { slug: 'dairy', categories: ['dairy-eggs'], names: { uk: ['молочні продукти', 'молочка'], de: ['Milchprodukte'], en: ['dairy'] } },
   { slug: 'milk', parent: 'dairy', categories: ['dairy-eggs'], names: { uk: ['молоко'], de: ['Milch'], en: ['milk'] },
-    stems: ['^молок', 'milch(?!reis)', '^milk(?!\\p{L})'] },
+    stems: ['^молок', 'milch(?!reis|.*schnitte)', '^milk(?!\\p{L})'] },
   { slug: 'condensed-milk', parent: 'dairy', categories: ['dairy-eggs', 'pantry', 'sweets-snacks'], names: { uk: ['згущене молоко', 'згущенка'], de: ['Kondensmilch'], en: ['condensed milk'] },
     stems: ['^молоко згущ', '^згущ', 'kondensmilch', 'condensed milk'] },
   { slug: 'kefir', parent: 'dairy', categories: ['dairy-eggs'], names: { uk: ['кефір'], de: ['Kefir'], en: ['kefir'] },
@@ -58,7 +58,7 @@ export const CONCEPTS: Concept[] = [
     stems: ['^вершк(?!ов)', 'sahne', '^cream(?!\\p{L})'] },
   { slug: 'butter', parent: 'dairy', categories: ['dairy-eggs'], names: { uk: ['масло вершкове'], de: ['Butter'], en: ['butter'] },
     stems: ['^масл(?!ин|ян)', 'butter'] },
-  { slug: 'cottage-cheese', parent: 'dairy', categories: ['dairy-eggs'], names: { uk: ['кисломолочний сир', 'творог'], de: ['Quark', 'Hüttenkäse'], en: ['cottage cheese', 'quark'] },
+  { slug: 'cottage-cheese', parent: 'cheese', categories: ['dairy-eggs'], names: { uk: ['кисломолочний сир', 'творог'], de: ['Quark', 'Hüttenkäse'], en: ['cottage cheese', 'quark'] },
     stems: ['^сир кисломол', '^кисломолочн[иі]и сир', '^творог', 'quark', 'huttenkase', 'cottage cheese'] },
   { slug: 'cheese', parent: 'dairy', categories: ['dairy-eggs'], names: { uk: ['сир'], de: ['Käse'], en: ['cheese'] },
     stems: ['^сир(?![онц])', '^моцарел', '^пармезан', '^бринз', '^фет[аи]', 'kase', 'mozzarella', 'gouda', 'cheese', 'parmesan', 'emmentaler', 'cheddar'] },
@@ -298,4 +298,24 @@ export function conceptTerms(slug: string): { names: string[]; related: string[]
       ? CONCEPTS.filter((c) => c.parent === concept.parent && c !== concept).flatMap(namesOf)
       : [],
   };
+}
+
+/** Власні назви поняття всіма мовами, без предків: milk → молоко, Milch, milk */
+export function conceptLabels(slug: string): string[] {
+  const concept = BY_SLUG.get(slug);
+  return concept ? namesOf(concept) : [];
+}
+
+/** fold(назва) → поняття, для запитів-назв без основ ("молочні продукти", "Backwaren") */
+const BY_NAME = new Map(
+  CONCEPTS.flatMap((c) => namesOf(c).map((n) => [fold(n), c.slug] as const)),
+);
+
+/**
+ * Поняття, яке називає запит покупця будь-якою мовою: "молоко", "Milch", "milk" → milk,
+ * "молоко галичина" → milk, "випічка" → bakery. Запит — не назва товару, тож категорії немає:
+ * точна назва поняття, інакше ті самі основи, що й для товарів.
+ */
+export function queryConcept(query: string): string | null {
+  return BY_NAME.get(fold(query).trim()) ?? conceptOf(query);
 }
