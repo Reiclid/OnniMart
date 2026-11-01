@@ -1,4 +1,4 @@
-import { adminAccess } from './admin-access';
+import { adminAccess, adminGate } from './admin-access';
 
 const basic = (user: string, password: string) => `Basic ${btoa(`${user}:${password}`)}`;
 
@@ -33,5 +33,32 @@ describe('adminAccess', () => {
     for (let i = 0; i < 10; i++) expect(adminAccess(from('6.6.6.6', `guess${i}`), 'secret')).toBe('challenge');
     expect(adminAccess(from('6.6.6.6', 'secret'), 'secret')).toBe('forbidden');
     expect(adminAccess(from('7.7.7.7', 'secret'), 'secret')).toBe('ok');
+  });
+});
+
+describe('adminGate (лише акаунт ADMIN_EMAIL)', () => {
+  const remote = new Headers({ host: 'abc.trycloudflare.com' });
+  const env = { adminEmail: 'owner@example.com' };
+  const answer = (value: boolean | null) => () => Promise.resolve(value);
+
+  it('без ADMIN_EMAIL — як раніше, API не питаємо', async () => {
+    const isAdmin = jest.fn(answer(true));
+    expect(await adminGate(remote, {}, isAdmin)).toBe('forbidden');
+    expect(isAdmin).not.toHaveBeenCalled();
+  });
+
+  it('пускає лише адміністратора, не важливо звідки; гостя — на вхід', async () => {
+    expect(await adminGate(remote, env, answer(true))).toBe('ok');
+    expect(await adminGate(remote, env, answer(false))).toBe('forbidden');
+    expect(await adminGate(remote, env, answer(null))).toBe('login');
+    expect(await adminGate(new Headers({ host: 'localhost:3000' }), env, answer(false))).toBe('forbidden');
+  });
+
+  it('з ADMIN_WEB_PASSWORD — спершу пароль, потім акаунт', async () => {
+    const isAdmin = jest.fn(answer(true));
+    expect(await adminGate(remote, { ...env, password: 'secret' }, isAdmin)).toBe('challenge');
+    expect(isAdmin).not.toHaveBeenCalled();
+    const withPassword = new Headers({ host: 'abc.trycloudflare.com', authorization: basic('x', 'secret') });
+    expect(await adminGate(withPassword, { ...env, password: 'secret' }, answer(false))).toBe('forbidden');
   });
 });

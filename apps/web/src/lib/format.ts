@@ -110,3 +110,13 @@ export function formatEta(seconds: number): string {
   const rest = minutes % 60;
   return rest ? `~${hours} год ${rest} хв` : `~${hours} год`;
 }
+
+/** Таймер до наступного обходу (адмінка): "04:05:09", "2 д 04:05:09"; минуле — "00:00:00" */
+export function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const days = Math.floor(total / 86_400);
+  const clock = [Math.floor(total / 3600) % 24, Math.floor(total / 60) % 60, total % 60]
+    .map((n) => String(n).padStart(2, '0'))
+    .join(':');
+  return days ? `${days} д ${clock}` : clock;
+}

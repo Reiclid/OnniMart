@@ -6,11 +6,133 @@
  * OpenAPI spec version: 1.0
  */
 import type {
+  RunAllResponseDto,
+  ScheduleDto,
   TriggerScraperDto,
-  TriggerScraperResponseDto
+  TriggerScraperResponseDto,
+  UpdateScheduleDto
 } from '../model';
 
 import { customFetch } from '../../custom-fetch';
+
+export type getScheduleResponse200 = {
+  data: ScheduleDto
+  status: 200
+}
+
+export type getScheduleResponseSuccess = (getScheduleResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getScheduleResponse = (getScheduleResponseSuccess)
+
+export const getGetScheduleUrl = () => {
+
+
+
+
+  return `/api/v1/scraper/schedule`
+}
+
+/**
+ * @summary Розклад обходів: налаштування й час наступного обходу
+ */
+export const getSchedule = async ( options?: Parameters<typeof customFetch>[1]): Promise<getScheduleResponse> => {
+
+  return customFetch<getScheduleResponse>(getGetScheduleUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export type updateScheduleResponse200 = {
+  data: ScheduleDto
+  status: 200
+}
+
+export type updateScheduleResponse401 = {
+  data: void
+  status: 401
+}
+
+export type updateScheduleResponseSuccess = (updateScheduleResponse200) & {
+  headers: Headers;
+};
+export type updateScheduleResponseError = (updateScheduleResponse401) & {
+  headers: Headers;
+};
+
+export type updateScheduleResponse = (updateScheduleResponseSuccess | updateScheduleResponseError)
+
+export const getUpdateScheduleUrl = () => {
+
+
+
+
+  return `/api/v1/scraper/schedule`
+}
+
+/**
+ * @summary Змінити розклад обходів
+ */
+export const updateSchedule = async (updateScheduleDto: UpdateScheduleDto, options?: Parameters<typeof customFetch>[1]): Promise<updateScheduleResponse> => {
+
+  return customFetch<updateScheduleResponse>(getUpdateScheduleUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateScheduleDto)
+  }
+);}
+
+
+export type runAllScrapesResponse202 = {
+  data: RunAllResponseDto
+  status: 202
+}
+
+export type runAllScrapesResponse401 = {
+  data: void
+  status: 401
+}
+
+export type runAllScrapesResponseSuccess = (runAllScrapesResponse202) & {
+  headers: Headers;
+};
+export type runAllScrapesResponseError = (runAllScrapesResponse401) & {
+  headers: Headers;
+};
+
+export type runAllScrapesResponse = (runAllScrapesResponseSuccess | runAllScrapesResponseError)
+
+export const getRunAllScrapesUrl = () => {
+
+
+
+
+  return `/api/v1/scraper/run-all`
+}
+
+/**
+ * @summary Запустити повний обхід усіх увімкнених мереж зараз
+ */
+export const runAllScrapes = async ( options?: Parameters<typeof customFetch>[1]): Promise<runAllScrapesResponse> => {
+
+  return customFetch<runAllScrapesResponse>(getRunAllScrapesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
 
 export type triggerScrapeResponse201 = {
   data: TriggerScraperResponseDto

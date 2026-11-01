@@ -5,10 +5,16 @@
  * - ADMIN_WEB_PASSWORD задано → Basic-авторизація з цим паролем (ім'я будь-яке);
  * - не задано → лише прямий запит на localhost. Next сам ставить x-forwarded-* з адресою
  *   клієнта, тому перевіряємо їх значення: усі адреси — loopback, хост — localhost.
+ *
+ * ADMIN_EMAIL задано → понад це (adminGate) лише один акаунт: той, кого API позначає
+ * `admin` (цей email, вхід тільки через Google). Тоді localhost не обовʼязковий — досить
+ * входу в акаунт; ADMIN_WEB_PASSWORD, якщо задано, лишається другим замком.
  */
 import { clientAddress } from './client-address';
 
 export type AdminAccess = 'ok' | 'challenge' | 'forbidden';
+/** 'login' — режим акаунта, але покупець не увійшов: на сторінку входу */
+export type AdminGate = AdminAccess | 'login';
 
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
@@ -58,4 +64,39 @@ function sameText(a: string, b: string): boolean {
   let diff = a.length ^ b.length;
   for (let i = 0; i < b.length; i++) diff |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+/**
+ * Повна перевірка доступу до адмінки (proxy.ts і серверні дії). `isAdmin` питає API про
+ * сесію поточного запиту: null — не увійшов, false — інший акаунт.
+ */
+export async function adminGate(
+  headers: Headers,
+  env: { password?: string; adminEmail?: string },
+  isAdmin: () => Promise<boolean | null>,
+): Promise<AdminGate> {
+  const base = adminAccess(headers, env.password);
+  if (!env.adminEmail) return base;
+  if (env.password && base !== 'ok') return base;
+  const admin = await isAdmin();
+  if (admin === null) return 'login';
+  return admin ? 'ok' : 'forbidden';
+}
+
+/** Чи сесія з цим токеном — адміністратор; null — сесії немає або вона закінчилась */
+export async function sessionIsAdmin(token: string | undefined): Promise<boolean | null> {
+  if (!token) return null;
+  try {
+    const response = await fetch(`${process.env.API_URL ?? 'http://localhost:3001'}/api/v1/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.status === 401) return null;
+    if (!response.ok) return false; // API лежить — не пускаємо
+    const user = (await response.json()) as { admin?: unknown };
+    return user.admin === true;
+  } catch {
+    return false;
+  }
 }
