@@ -634,6 +634,8 @@ model User {
   id                 String    @id @default(uuid())
   email              String    @unique
   passwordHash       String?
+  /// Google-акаунт (claim sub з ID-токена); null — входив лише паролем
+  googleSub          String?   @unique
   name               String?
   locale             String    @default("uk")
   countryCode        String?   @db.Char(2)

@@ -24,6 +24,8 @@ import { AccountsService } from './accounts.service';
 import { AlertsService } from './alerts.service';
 import {
   CreateSubscriptionDto,
+  GoogleLoginDto,
+  GoogleSessionDto,
   LoginDto,
   NotificationDto,
   RegisterDto,
@@ -62,6 +64,20 @@ export class AuthController {
   @ApiResponse({ status: 200, type: SessionDto })
   login(@Body() dto: LoginDto): Promise<SessionDto> {
     return this.accounts.login(dto);
+  }
+
+  @MutationLimit()
+  @Post('google')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Вхід або реєстрація через Google (OIDC code + PKCE)',
+    operationId: 'loginWithGoogle',
+    description:
+      '401 — Google не підтвердив вхід; 409 — email прив’язаний до іншого Google-акаунта; 503 — не налаштовано',
+  })
+  @ApiResponse({ status: 200, type: GoogleSessionDto })
+  google(@Body() dto: GoogleLoginDto): Promise<GoogleSessionDto> {
+    return this.accounts.google(dto);
   }
 
   @Post('logout')

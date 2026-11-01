@@ -1,6 +1,8 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, User } from '../../generated/prisma/client';
@@ -11,7 +13,10 @@ import {
   sessionTokenHash,
   verifyPassword,
 } from '../../auth/password';
+import { exchangeGoogleCode, googleIdentity } from '../../auth/google';
 import type {
+  GoogleLoginDto,
+  GoogleSessionDto,
   LoginDto,
   RegisterDto,
   SessionDto,
@@ -43,6 +48,8 @@ const normalizeEmail = (email: string) => email.trim().toLowerCase();
 /** Облікові записи: реєстрація, вхід за паролем, сесії, профіль і налаштування */
 @Injectable()
 export class AccountsService {
+  private readonly logger = new Logger(AccountsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async register(dto: RegisterDto): Promise<SessionDto> {
@@ -79,6 +86,59 @@ export class AccountsService {
       where: { userId: user.id, expiresAt: { lte: new Date() } },
     });
     return this.startSession(user);
+  }
+
+  /**
+   * Вхід через Google: спершу за sub, далі за підтвердженим email (наявний акаунт з паролем
+   * отримує прив'язку), інакше новий акаунт без пароля
+   */
+  async google(dto: GoogleLoginDto): Promise<GoogleSessionDto> {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new ServiceUnavailableException('Вхід через Google не налаштовано');
+    }
+    let identity;
+    try {
+      const idToken = await exchangeGoogleCode(dto, { clientId, clientSecret });
+      if (!idToken) throw new Error('Google не обміняв code');
+      identity = googleIdentity(idToken, { clientId, nonce: dto.nonce });
+    } catch (error) {
+      this.logger.warn(
+        `Вхід через Google відхилено: ${(error as Error).message}`,
+      );
+      throw new UnauthorizedException('Не вдалося увійти через Google');
+    }
+    const email = normalizeEmail(identity.email);
+    const existing =
+      (await this.prisma.user.findUnique({
+        where: { googleSub: identity.sub },
+      })) ?? (await this.prisma.user.findUnique({ where: { email } }));
+    // Email уже прив'язаний до іншого Google-акаунта — не перехоплюємо його
+    if (existing?.googleSub && existing.googleSub !== identity.sub) {
+      throw new ConflictException(
+        'Цей email уже пов’язаний з іншим Google-акаунтом',
+      );
+    }
+    const user = existing
+      ? existing.googleSub
+        ? existing
+        : await this.prisma.user.update({
+            where: { id: existing.id },
+            data: {
+              googleSub: identity.sub,
+              name: existing.name ?? identity.name,
+            },
+          })
+      : await this.prisma.user.create({
+          data: {
+            email,
+            name: identity.name,
+            googleSub: identity.sub,
+            countryCode: 'UA',
+          },
+        });
+    return { ...(await this.startSession(user)), created: !existing };
   }
 
   async logout(token: string): Promise<void> {

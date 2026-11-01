@@ -43,6 +43,14 @@ export function checkEnv(
   if (hours !== undefined && !(Number(hours) > 0)) {
     errors.push(`SCRAPE_INTERVAL_HOURS: додатне число, а не "${hours}"`);
   }
+  if (
+    process === 'api' &&
+    !env.GOOGLE_CLIENT_ID !== !env.GOOGLE_CLIENT_SECRET
+  ) {
+    warnings.push(
+      'GOOGLE_CLIENT_ID і GOOGLE_CLIENT_SECRET задаються разом — вхід через Google вимкнено',
+    );
+  }
   if (process === 'api' && !env.ADMIN_TOKEN) {
     warnings.push('ADMIN_TOKEN не задано — зміни через API вимкнено');
   }
