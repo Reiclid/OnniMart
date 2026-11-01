@@ -23,10 +23,11 @@ import {
   updateProduct,
   updateVariant,
 } from '@/api/generated/catalog/catalog';
-import type { UpdateProductDto, UpdateScheduleDto, UpdateVariantDto } from '@/api/generated/model';
+import type { ScheduleDto, UpdateProductDto, UpdateScheduleDto, UpdateVariantDto } from '@/api/generated/model';
 import { runAllScrapes, triggerScrape, updateSchedule } from '@/api/generated/scraper/scraper';
 import { SESSION_COOKIE } from '@/api/custom-fetch';
 import { adminGate, sessionIsAdmin } from '@/lib/admin-access';
+import { revalidatePath } from 'next/cache';
 import { cookies, headers } from 'next/headers';
 
 export type ActionResult = { error: string | null };
@@ -56,12 +57,21 @@ export async function triggerScrapeAction(store: string, maxPages?: number) {
   return run(() => triggerScrape({ store, maxPages }));
 }
 
-export async function updateScheduleAction(patch: UpdateScheduleDto) {
-  return run(() => updateSchedule(patch));
+// revalidatePath — щоб Огляд одразу показав новий розклад і запуски у відповіді дії
+export async function updateScheduleAction(patch: UpdateScheduleDto): Promise<ActionResult & { schedule?: ScheduleDto }> {
+  let schedule: ScheduleDto | undefined;
+  const result = await run(async () => {
+    const response = await updateSchedule(patch);
+    if (response.status === 200) schedule = response.data;
+  });
+  revalidatePath('/admin');
+  return { ...result, schedule };
 }
 
 export async function runAllScrapesAction() {
-  return run(() => runAllScrapes());
+  const result = await run(() => runAllScrapes());
+  revalidatePath('/admin');
+  return result;
 }
 
 export async function runMatchingAction() {

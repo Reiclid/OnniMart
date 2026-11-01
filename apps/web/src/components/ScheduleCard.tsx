@@ -9,8 +9,16 @@ import { formatCountdown, formatDateTime } from '@/lib/format';
 const PERIODS = [6, 12, 24, 48, 72];
 
 /** Розклад обходів (Огляд): таймер до наступного, період, "Запустити зараз" і чи скидає він таймер */
-export function ScheduleCard({ schedule }: { schedule: ScheduleDto }) {
+export function ScheduleCard({ schedule: fromServer }: { schedule: ScheduleDto }) {
   const router = useRouter();
+  // Відповідь дії показуємо одразу; новіші дані сторінки (оновлення) її замінюють
+  const [saved, setSaved] = useState<ScheduleDto | null>(null);
+  const [seen, setSeen] = useState(fromServer);
+  if (seen !== fromServer) {
+    setSeen(fromServer);
+    setSaved(null);
+  }
+  const schedule = saved ?? fromServer;
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,9 +28,13 @@ export function ScheduleCard({ schedule }: { schedule: ScheduleDto }) {
 
   const next = schedule.nextRunAt ? Date.parse(schedule.nextRunAt) : null;
   useEffect(() => {
-    setNow(Date.now());
+    // Перший кадр — одразу після монтування (на сервері часу клієнта немає), далі щосекунди
+    const first = requestAnimationFrame(() => setNow(Date.now()));
     const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      cancelAnimationFrame(first);
+      clearInterval(timer);
+    };
   }, []);
   const left = next !== null && now !== null ? next - now : null;
   // Час настав: воркер перевіряє щохвилини — оновлюємо сторінку, щоб побачити запуски
@@ -45,7 +57,12 @@ export function ScheduleCard({ schedule }: { schedule: ScheduleDto }) {
       startTransition(() => router.refresh());
     }
   }
-  const save = (patch: UpdateScheduleDto) => act(() => updateScheduleAction(patch));
+  const save = (patch: UpdateScheduleDto) =>
+    act(async () => {
+      const result = await updateScheduleAction(patch);
+      if (result.schedule) setSaved(result.schedule);
+      return result;
+    });
 
   const soon = schedule.chains.filter(
     (chain) => !chain.active && next !== null && Date.parse(chain.nextRunAt) - next < 60_000,
