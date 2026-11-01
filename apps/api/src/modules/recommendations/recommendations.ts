@@ -21,7 +21,8 @@ export interface UnitPrice {
 }
 
 /**
- * Кандидати в порядку базового пошуку: релевантність 1 → 0 за позицією.
+ * Кандидати в порядку базового пошуку: релевантність — оцінка Meilisearch (0..1), а без неї
+ * (SQL, "Для вас") — 1 → 0 за позицією.
  * Товар без ознак (усі картки зникли) лишається, але без мереж і цін.
  */
 export function toCandidates(
@@ -29,6 +30,7 @@ export function toCandidates(
   facts: ProductFacts[],
   prices: UnitPrice[],
   country: string | null,
+  scores?: number[],
 ): Candidate[] {
   const byId = new Map(facts.map((f) => [f.id, f]));
   const unitPrices = new Map<string, Record<string, number>>();
@@ -38,7 +40,7 @@ export function toCandidates(
     const f = byId.get(id);
     return {
       id,
-      relevance: 1 - i / ids.length,
+      relevance: scores?.[i] ?? 1 - i / ids.length,
       category: f?.category ?? null,
       concept: f ? conceptOf(f.name, f.category) : null,
       brand: f?.brandId ?? null,

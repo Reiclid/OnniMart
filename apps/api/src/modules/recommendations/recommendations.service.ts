@@ -96,10 +96,17 @@ export class RecommendationsService implements OnModuleDestroy {
           this.user(userId),
         ]);
         const [candidates, { profile }] = await Promise.all([
-          this.candidates(base.ids, query.country ?? user.countryCode),
+          this.candidates(
+            base.ids,
+            query.country ?? user.countryCode,
+            base.scores,
+          ),
           this.profile(userId, user.chainIds),
         ]);
-        ranked = { ids: rankSearch(candidates, profile), total: base.total };
+        ranked = {
+          ids: rankSearch(candidates, profile, user.chainIds),
+          total: base.total,
+        };
         void this.redis
           .set(key, JSON.stringify(ranked), 'EX', RANKED_POOL_TTL_S)
           .catch((error) =>
@@ -277,8 +284,9 @@ export class RecommendationsService implements OnModuleDestroy {
   private candidates(
     ids: string[],
     country: string | null,
+    scores?: number[],
   ): Promise<Candidate[]> {
-    return loadCandidates(this.prisma, ids, country);
+    return loadCandidates(this.prisma, ids, country, scores);
   }
 
   /** Покази з позицією (+ сам запит на першій сторінці); не гальмують відповідь */
@@ -324,6 +332,7 @@ export async function loadCandidates(
   prisma: PrismaService,
   ids: string[],
   country: string | null,
+  scores?: number[],
 ): Promise<Candidate[]> {
   if (!ids.length) return [];
   const list = Prisma.join(ids);
@@ -352,5 +361,5 @@ export async function loadCandidates(
       WHERE v."productId" IN (${list}) AND v."netQuantity" > 0 AND NOT v."isWeighted"
       GROUP BY v."productId", sc.currency`,
   ]);
-  return toCandidates(ids, facts, prices, country);
+  return toCandidates(ids, facts, prices, country, scores);
 }
