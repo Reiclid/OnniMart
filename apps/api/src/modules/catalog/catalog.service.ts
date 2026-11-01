@@ -40,7 +40,7 @@ import {
 
 const SIMILAR_LIMIT = 8;
 const SUGGESTIONS_LIMIT = 6;
-import { normalizeGtin } from '@repo/matching';
+import { conceptLabels, normalizeGtin, queryConcept } from '@repo/matching';
 
 /** Каталог для клієнтів і адмінки: товари, фасування, пропозиції мереж, черга модерації */
 @Injectable()
@@ -64,7 +64,7 @@ export class CatalogService {
     return { items: await this.summaries(ids), total, page, pageSize };
   }
 
-  /** id товарів у базовому порядку: релевантність Meilisearch або популярність (SQL) */
+  /** id товарів у базовому порядку: релевантність Meilisearch (з оцінкою 0..1) або популярність (SQL) */
   async findProductIds(
     query: Pick<
       ProductsQueryDto,
@@ -72,7 +72,7 @@ export class CatalogService {
     >,
     offset: number,
     limit: number,
-  ): Promise<{ ids: string[]; total: number }> {
+  ): Promise<{ ids: string[]; total: number; scores?: number[] }> {
     const minChains = isTrue(query.multiChain) ? 2 : 1;
     const q = query.q?.trim();
     const gtin = q && /^\d{8,14}$/.test(q) ? normalizeGtin(q) : null;
@@ -89,6 +89,8 @@ export class CatalogService {
         }),
         offset,
         limit,
+        undefined,
+        queryConcept(q),
       ).catch((error: unknown) => {
         this.logger.warn(
           `Meilisearch недоступний, пошук через SQL: ${errorText(error)}`,
@@ -104,8 +106,23 @@ export class CatalogService {
         Prisma.sql`EXISTS (SELECT 1 FROM barcodes bc JOIN product_variants bv ON bv.id = bc."variantId" WHERE bv."productId" = p.id AND bc.gtin = ${gtin})`,
       );
     } else if (q) {
-      const like = `%${q}%`;
-      filters.push(Prisma.sql`(p.name ILIKE ${like} OR b.name ILIKE ${like})`);
+      // Кожне слово — у назві чи бренді (не підряд: "молоко галичина"); слово-поняття —
+      // будь-якою мовою: "молоко" знаходить і Vollmilch
+      for (const word of q.split(/\s+/).slice(0, 8)) {
+        const concept = queryConcept(word);
+        const likes = [word, ...(concept ? conceptLabels(concept) : [])].map(
+          (w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`,
+        );
+        filters.push(
+          Prisma.sql`(${Prisma.join(
+            likes.map(
+              (like) =>
+                Prisma.sql`p.name ILIKE ${like} OR b.name ILIKE ${like}`,
+            ),
+            ' OR ',
+          )})`,
+        );
+      }
     }
     if (query.category) {
       filters.push(
