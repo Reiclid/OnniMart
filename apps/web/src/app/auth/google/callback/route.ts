@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import type { NextRequest } from 'next/server';
 import { loginWithGoogle } from '@/api/generated/auth/auth';
 import { GOOGLE_COOKIE, GOOGLE_COOKIE_PATH, googleRedirectUri, parseGoogleFlow } from '@/lib/google';
-import { finishSignIn } from '@/lib/sign-in';
+import { afterSignIn, finishSignIn } from '@/lib/sign-in';
 
 /** Повернення від Google: state з cookie має збігтися, далі code → API → сесія */
 export async function GET(request: NextRequest) {
@@ -28,5 +28,5 @@ export async function GET(request: NextRequest) {
   );
   if (!session) redirect(`/login?error=google&next=${encodeURIComponent(flow.next)}`);
   await finishSignIn(session, session.created);
-  redirect(flow.next);
+  redirect(afterSignIn(flow.next, session.created));
 }

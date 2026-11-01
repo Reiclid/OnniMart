@@ -9,7 +9,13 @@ const inter = localFont({ src: "./fonts/InterVariable.woff2", variable: "--font-
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
-  return { title: t("meta.title"), description: t("meta.description") };
+  return {
+    title: t("meta.title"),
+    description: t("meta.description"),
+    icons: { icon: "/pwa-icon/192", apple: "/pwa-icon/180" },
+    // З головного екрана iPhone — окреме вікно без панелей Safari; лише так iOS дозволяє push
+    appleWebApp: { capable: true, title: "OnniMart" },
+  };
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

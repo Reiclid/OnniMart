@@ -1,13 +1,11 @@
 import { getChains } from '@/api/generated/monitoring/monitoring';
 import Link from 'next/link';
 import { DeleteAccount } from '@/components/DeleteAccount';
-import { Switch } from '@/components/Switch';
 import { listStyles as s, PageHeader } from '@/components/ui';
 import { INTL_LOCALE } from '@/i18n';
 import { getI18n } from '@/i18n/server';
 import { countryList } from '@/lib/country';
 import { currentCountry, requireUser } from '@/lib/session';
-import { saveNotifications } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,16 +29,7 @@ export default async function SettingsPage() {
       <section className="space-y-2">
         <h2 className={s.heading}>{t('settings.notifications')}</h2>
         <div className={s.card}>
-          <form action={saveNotifications} className="divide-y divide-line">
-            <label className={s.row}>
-              <span className="flex-1">{t('settings.push')}</span>
-              <Switch name="notifyPush" defaultChecked={user.notifyPush} label={t('settings.push')} />
-            </label>
-            <label className={s.row}>
-              <span className="flex-1">{t('settings.email')}</span>
-              <Switch name="notifyEmail" defaultChecked={user.notifyEmail} label={t('settings.email')} />
-            </label>
-          </form>
+          {link('/settings/notifications', t('settings.push'))}
           {link('/settings/discount', t('settings.minDiscount'), user.minDiscount ? `${user.minDiscount} %` : t('settings.anyDiscount'))}
         </div>
       </section>

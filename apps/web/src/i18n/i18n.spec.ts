@@ -80,7 +80,7 @@ describe('ключі в коді', () => {
 
   it('вітрина без захардкоджених англійських текстів (JSX-текст, aria-label, placeholder, title)', () => {
     // Компоненти й сторінки покупця; адмінка українською і поки без каталогу
-    const shop = sources.filter((s) => s.path.includes('(shop)') || /app[\\/]login[\\/]/.test(s.path) || /components[\\/](Nav|SearchField|FilterChips|ProductCard|ProductGrid|ChainPriceRow|AuthForm|BarcodeScanner)\.tsx$/.test(s.path));
+    const shop = sources.filter((s) => s.path.includes('(shop)') || /app[\\/]login[\\/]/.test(s.path) || /components[\\/](Nav|SearchField|FilterChips|ProductCard|ProductGrid|ChainPriceRow|AuthForm|BarcodeScanner|PushPrompt|PushControls)\.tsx$/.test(s.path));
     const found = shop.flatMap(({ path, text }) =>
       [
         ...text.matchAll(/>\s*([A-Za-z][A-Za-z ,.'’!?…-]{2,})\s*</g),
