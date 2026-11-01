@@ -122,10 +122,17 @@ body {
 }
 
 /* Фото проявляється після decode(); до того — плашка page */
+/* Фото проявляється з розмиття над своєю 32-px копією; з кешу — одразу (ProductImage) */
 @utility photo {
-  transition: opacity var(--duration-fast) var(--ease-standard);
+  transition:
+    opacity var(--duration-slow) var(--ease-enter),
+    filter var(--duration-slow) var(--ease-enter);
   &:not([data-ready]) {
     opacity: 0;
+    filter: blur(12px);
+  }
+  &[data-ready='cached'] {
+    transition: none;
   }
 }
 
