@@ -81,12 +81,8 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
           )}
           <div className="flex items-start gap-3">
             <div className="flex-1 space-y-1">
-              {/* Бренд уже в заголовку — над ним тип продукту; інакше, як і раніше, бренд */}
-              {kind ? (
-                <div className="text-body-sm font-semibold text-fg-muted first-letter:uppercase">{kind}</div>
-              ) : (
-                product.brand && <div className="text-body-sm font-semibold text-brand">{product.brand}</div>
-              )}
+              {/* Бренд уже в заголовку — окремо над ним не показуємо */}
+              {!kind && product.brand && <div className="text-body-sm font-semibold text-brand">{product.brand}</div>}
               <h1 className="text-display font-bold">{title}</h1>
             </div>
             {user ? (
