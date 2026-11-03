@@ -32,10 +32,10 @@ export function nameLines(name: string): number {
   return Math.min(2, lines);
 }
 
-/** Оцінка висоти картки, px: фото + тип продукту + назва (1–2 рядки) + ціна + мережа */
-export function estimateCardHeight(card: { name: string; kind?: string | null; price: number | null; caption: string; note?: string }): number {
+/** Оцінка висоти картки, px: фото + назва (1–2 рядки) + ціна + мережа */
+export function estimateCardHeight(card: { name: string; price: number | null; caption: string; note?: string }): number {
   return (
-    20 + 140 + 10 + (card.kind ? 14 : 0) + nameLines(card.name) * 21 +
+    20 + 140 + 10 + nameLines(card.name) * 21 +
     (card.price !== null ? 8 + 22 : 0) +
     (card.caption || card.note ? 8 + 18 : 0)
   );

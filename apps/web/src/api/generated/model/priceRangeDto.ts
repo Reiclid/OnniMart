@@ -12,4 +12,9 @@ export interface PriceRangeDto {
   max: number;
   /** Мережа з найнижчою ціною */
   minChain: string;
+  /**
+     * Звичайна ціна найдешевшої пропозиції, якщо вона зараз на акції
+     * @nullable
+     */
+  minRegular: number | null;
 }

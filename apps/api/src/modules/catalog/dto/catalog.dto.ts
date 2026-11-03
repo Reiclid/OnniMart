@@ -20,6 +20,13 @@ export class PriceRangeDto {
   @ApiProperty() min!: number;
   @ApiProperty() max!: number;
   @ApiProperty({ description: 'Мережа з найнижчою ціною' }) minChain!: string;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'Звичайна ціна найдешевшої пропозиції, якщо вона зараз на акції',
+  })
+  minRegular!: number | null;
 }
 
 export class ProductIdsQueryDto {
