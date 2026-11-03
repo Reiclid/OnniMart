@@ -12,7 +12,7 @@ import { RecordView } from '@/components/RecordView';
 import { RollingNumber } from '@/components/RollingNumber';
 import { SlidingPill } from '@/components/SlidingPill';
 import { buttonStyles, Chip, HeartIcon, ProductImage } from '@/components/ui';
-import { currencySymbol, formatMoney, formatShown, formatUnitPrice, lineChipLabel } from '@/lib/format';
+import { currencySymbol, formatMoney, formatShown, formatUnitPrice, lineChipLabel, splitProductName } from '@/lib/format';
 import { productView } from '@/lib/offers';
 import { getI18n } from '@/i18n/server';
 import { INTL_LOCALE } from '@/i18n';
@@ -58,6 +58,7 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
   const series = history?.series.filter((s) => s.currency === cheapest?.currency) ?? [];
   // Серце не головне: збій API лишає його порожнім
   const favourite = user ? await getFavouriteIds().then((r) => r.data.productIds.includes(product.id), () => false) : false;
+  const { kind, title } = splitProductName(product.name, product.brand);
   const heart = `press grid size-11 shrink-0 place-items-center rounded-full border border-line bg-surface ${favourite ? 'text-danger' : 'text-fg-muted hover:text-fg'}`;
 
   return (
@@ -80,8 +81,13 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
           )}
           <div className="flex items-start gap-3">
             <div className="flex-1 space-y-1">
-              {product.brand && <div className="text-body-sm font-semibold text-brand">{product.brand}</div>}
-              <h1 className="text-display font-bold">{product.name}</h1>
+              {/* Бренд уже в заголовку — над ним тип продукту; інакше, як і раніше, бренд */}
+              {kind ? (
+                <div className="text-body-sm font-semibold text-fg-muted first-letter:uppercase">{kind}</div>
+              ) : (
+                product.brand && <div className="text-body-sm font-semibold text-brand">{product.brand}</div>
+              )}
+              <h1 className="text-display font-bold">{title}</h1>
             </div>
             {user ? (
               <form action={toggleFavourite}>
