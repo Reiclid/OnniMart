@@ -94,6 +94,7 @@ export const productCard = (p: ProductSummaryDto, t: T, money?: Money): ProductC
     imageUrl: p.imageUrl,
     name: splitProductName(p.name, p.brand).title,
     price: p.prices[0]?.min ?? null,
+    oldPrice: p.prices[0]?.minRegular,
     from: (p.prices[0]?.max ?? 0) > (p.prices[0]?.min ?? 0) ? t('card.from') : undefined,
     currency: p.prices[0]?.currency ?? 'UAH',
     money,
