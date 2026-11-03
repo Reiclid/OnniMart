@@ -140,6 +140,7 @@ export class ScrapeScheduler
         await this.schedule.chains(settings),
         now,
         settings.intervalHours * 60 * 60 * 1000,
+        settings,
       );
       for (const slug of due) {
         await this.scraper.triggerScrape(slug, undefined, 'cron');

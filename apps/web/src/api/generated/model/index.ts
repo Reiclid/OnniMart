@@ -150,6 +150,7 @@ export * from './unitPriceSectionDto';
 export * from './updateMeDto';
 export * from './updateProductDto';
 export * from './updateScheduleDto';
+export * from './updateScheduleDtoUtcOffset';
 export * from './updateSubscriptionDto';
 export * from './updateVariantDto';
 export * from './userDto';

@@ -45,7 +45,15 @@ export class ScheduleService implements OnModuleDestroy {
   }
 
   async update(patch: UpdateScheduleDto): Promise<ScheduleDto> {
-    const next = { ...(await this.settings()), ...patch };
+    const current = await this.settings();
+    const next = { ...current, ...patch };
+    // Новий розклад діє наперед: слот, що вже минув, не запускає обхід усіх мереж одразу
+    if (
+      next.startTime !== current.startTime ||
+      next.utcOffset !== current.utcOffset ||
+      next.intervalHours !== current.intervalHours
+    )
+      next.startTimeSetAt = new Date().toISOString();
     await this.redis.set(SCRAPER_SCHEDULE_KEY, JSON.stringify(next));
     this.logger.log(`Розклад: ${JSON.stringify(next)}`);
     return this.status();
@@ -101,7 +109,10 @@ export class ScheduleService implements OnModuleDestroy {
       name: chain.name,
       // Прострочене (воркер ще не перевірив або вимкнений) показуємо як "зараз"
       nextRunAt: new Date(
-        Math.max(nextDueAt(chain, intervalMs).getTime(), now.getTime()),
+        Math.max(
+          nextDueAt(chain, intervalMs, settings).getTime(),
+          now.getTime(),
+        ),
       ).toISOString(),
       active: isActive(chain.lastRun),
     }));
@@ -110,7 +121,11 @@ export class ScheduleService implements OnModuleDestroy {
       .map((chain) => chain.nextRunAt)
       .sort();
     return {
-      ...settings,
+      enabled: settings.enabled,
+      intervalHours: settings.intervalHours,
+      manualResetsTimer: settings.manualResetsTimer,
+      startTime: settings.startTime,
+      utcOffset: settings.utcOffset,
       nextRunAt: settings.enabled ? (upcoming[0] ?? null) : null,
       activeRuns: chains.filter((chain) => chain.active).length,
       chains,
