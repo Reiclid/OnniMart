@@ -180,6 +180,7 @@ export class CatalogService {
               where: { delistedAt: null },
               select: {
                 currentPrice: true,
+                regularPrice: true,
                 isOnPromo: true,
                 inStock: true,
                 chain: { select: { name: true, currency: true } },
@@ -215,6 +216,7 @@ export class CatalogService {
               currency: l.chain.currency,
               price: toNumber(l.currentPrice),
               chain: l.chain.name,
+              regular: l.isOnPromo ? toNumber(l.regularPrice) : null,
             })),
           ),
           onPromo: available.some((l) => l.isOnPromo),
@@ -543,12 +545,19 @@ export class CatalogService {
   }
 }
 
-function priceRanges(
-  prices: { currency: string; price: number | null; chain: string }[],
+export function priceRanges(
+  prices: {
+    currency: string;
+    price: number | null;
+    chain: string;
+    /** Звичайна ціна, якщо пропозиція зараз на акції */
+    regular: number | null;
+  }[],
 ): PriceRangeDto[] {
   const ranges = new Map<string, PriceRangeDto>();
-  for (const { currency, price, chain } of prices) {
+  for (const { currency, price, chain, regular } of prices) {
     if (price === null) continue;
+    const minRegular = regular !== null && regular > price ? regular : null;
     const range = ranges.get(currency);
     if (!range)
       ranges.set(currency, {
@@ -556,10 +565,15 @@ function priceRanges(
         min: price,
         max: price,
         minChain: chain,
+        minRegular,
       });
     else {
-      if (price < range.min)
-        Object.assign(range, { min: price, minChain: chain });
+      // За однакової ціни — та, що на акції: картка покаже знижку
+      if (
+        price < range.min ||
+        (price === range.min && minRegular && !range.minRegular)
+      )
+        Object.assign(range, { min: price, minChain: chain, minRegular });
       range.max = Math.max(range.max, price);
     }
   }
