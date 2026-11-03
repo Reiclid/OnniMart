@@ -1,5 +1,5 @@
 // Публічне посилання на сайт (для телефона поза цією мережею): безкоштовний тунель Cloudflare,
-// без акаунта. Адреса *.trycloudflare.com нова при кожному запуску — cloudflared друкує її в рамці.
+// без акаунта. Адреса *.trycloudflare.com нова при кожному запуску: друкуємо її в рамці й копіюємо в буфер.
 // Назовні видно лише сайт; API, Redis і база — ні, адмінка без ADMIN_WEB_PASSWORD закрита
 // (src/lib/admin-access.ts).
 //   bun run share            production: next build → next start на :3100 (SHARE_PORT) → тунель.
@@ -27,7 +27,8 @@ process.on('SIGINT', () => stop());
 
 if (!dev) {
   console.log('Збираю production (next build)…');
-  if (spawnSync(process.execPath, next('build'), { cwd: web, stdio: 'inherit' }).status !== 0) stop(1);
+  // --webpack, як і dev: Turbopack запускає PostCSS окремим процесом `node`, а тут лише bun
+  if (spawnSync(process.execPath, next('build', '--webpack'), { cwd: web, stdio: 'inherit' }).status !== 0) stop(1);
   children.push(spawn(process.execPath, next('start', '--port', port), { cwd: web, stdio: 'inherit' }));
   // Тунель — коли сайт уже відповідає, інакше перші відвідувачі побачать помилку Cloudflare
   for (let i = 0; ; i++) {
@@ -40,11 +41,48 @@ if (!dev) {
   }
 }
 
-const tunnel = spawn(bin, ['tunnel', '--no-autoupdate', '--url', `http://localhost:${port}`], { stdio: 'inherit' });
+// Лог cloudflared ховаємо: з нього потрібна лише адреса — її друкуємо великою рамкою й кладемо в буфер обміну.
+// Якщо тунель впав до появи адреси — показуємо весь лог
+const tunnel = spawn(bin, ['tunnel', '--no-autoupdate', '--url', `http://localhost:${port}`], {
+  stdio: ['ignore', 'pipe', 'pipe'],
+});
 children.push(tunnel);
+let log = '';
+let url: string | undefined;
+const scan = (chunk: Buffer) => {
+  if (url) return;
+  log += chunk.toString();
+  url = log.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)?.[0];
+  if (url) announce(url);
+};
+tunnel.stdout.on('data', scan);
+tunnel.stderr.on('data', scan);
 tunnel
   .on('error', () => {
     console.error(`cloudflared не знайдено (${bin}). Встановіть його або задайте CLOUDFLARED=<шлях>`);
     stop(1);
   })
-  .on('exit', (code) => stop(code ?? 0));
+  .on('exit', (code) => {
+    if (!url) console.error(log);
+    stop(code ?? 0);
+  });
+
+function announce(address: string) {
+  const copied = copy(address);
+  const lines = [
+    'OnniMart відкрито в інтернеті:',
+    '',
+    address,
+    '',
+    copied ? 'Адресу скопійовано в буфер обміну.' : 'Виділіть адресу й скопіюйте.',
+    'Нова адреса при кожному запуску. Ctrl+C — зупинити.',
+  ];
+  const width = Math.max(...lines.map((line) => line.length)) + 4;
+  const row = (line: string) => `║  ${line.padEnd(width - 4)}  ║`;
+  console.log(['', `╔${'═'.repeat(width)}╗`, ...lines.map(row), `╚${'═'.repeat(width)}╝`, ''].join('\n'));
+}
+
+function copy(text: string) {
+  const command = process.platform === 'win32' ? 'clip' : process.platform === 'darwin' ? 'pbcopy' : undefined;
+  return command !== undefined && spawnSync(command, { input: text }).status === 0;
+}
