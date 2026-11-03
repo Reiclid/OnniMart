@@ -25,8 +25,7 @@ export default async function SearchPage(props: PageProps<'/products'>) {
   const categoryName = categories.find((c) => c.slug === category)?.name;
 
   return (
-    // data-page — біла сторінка каталогу (globals.css): картки на ній без рамки
-    <div data-page="catalog" className="space-y-4">
+    <div data-white className="space-y-4">
       <h1 className={categoryName ? 'text-title font-bold' : 'sr-only'}>{categoryName ?? (q ? t('catalog.resultsFor', { q }) : t('catalog.title'))}</h1>
       <div className="md:hidden">
         <SearchField key={q} q={q} filters={filters} />

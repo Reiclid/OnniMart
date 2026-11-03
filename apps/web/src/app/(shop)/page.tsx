@@ -36,7 +36,7 @@ export default async function HomePage() {
   ]);
 
   return (
-    <div className="space-y-8">
+    <div data-white className="space-y-8">
       <div className="space-y-4">
         {/* На десктопі пошук — у шапці; дзвіночок — у таб-барі */}
         <div className="md:hidden">
@@ -56,7 +56,7 @@ export default async function HomePage() {
         ) : (
           <div className={carousel}>
             {deals.items.map((listing, i) => (
-              <ProductCard key={listing.id} card={listingCard(listing, money)} motion={cascade(i)} />
+              <ProductCard key={listing.id} card={listingCard(listing, money)} motion={cascade(i)} bare />
             ))}
           </div>
         )}
@@ -70,7 +70,7 @@ export default async function HomePage() {
           </div>
           <div className={carousel}>
             {viewed.slice(0, 12).map((product) => (
-              <ProductCard key={product.id} card={productCard(product, t, money)} />
+              <ProductCard key={product.id} card={productCard(product, t, money)} bare />
             ))}
           </div>
         </section>
@@ -80,7 +80,7 @@ export default async function HomePage() {
         <section className="space-y-3">
           <h2 className="text-title font-bold">{t(user ? 'home.forYou' : 'home.popular')}</h2>
           {/* Каскад по рядках: рядок × 40 мс, лише перші 3 рядки */}
-          <ProductMasonry items={picks.map((product, i) => ({ card: productCard(product, t, money), motion: cascade(Math.floor(i / 2), { limit: 3, stagger: 40 }) }))} />
+          <ProductMasonry bare items={picks.map((product, i) => ({ card: productCard(product, t, money), motion: cascade(Math.floor(i / 2), { limit: 3, stagger: 40 }) }))} />
         </section>
       )}
 

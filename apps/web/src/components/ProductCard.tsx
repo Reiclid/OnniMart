@@ -35,7 +35,7 @@ export const cascade = (i: number, { limit = 4, stagger = 30, y = 12 } = {}) =>
 
 /**
  * Картка товару (Figma: Product card C): фото зі знижкою, назва, ціна ("from" — якщо є дорожчі), мережа й "найнижча з N".
- * `bare` — без рамки, для білої сторінки каталогу (рамка лише при наведенні)
+ * `bare` — без рамки, для білих сторінок (рамка лише при наведенні)
  */
 export function ProductCard({ card, motion, bare }: { card: ProductCardData; motion?: ReturnType<typeof cascade>; bare?: boolean }) {
   const { price, oldPrice, currency, money } = card;
