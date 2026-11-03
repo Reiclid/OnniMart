@@ -53,6 +53,7 @@ export const de: Catalog = {
     loadingMore: 'Weitere werden geladen…',
   },
   card: {
+    from: 'ab',
     lowestOf: 'günstigste von {count}',
     cheapestAt: 'Am günstigsten bei {chain}',
   },

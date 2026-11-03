@@ -12,8 +12,9 @@ export interface ProductCardData {
   imageUrl: string | null;
   name: string;
   price: number | null;
-  /** Найвища ціна серед мереж: картка показує діапазон "min – max" */
-  maxPrice?: number | null;
+  /** Перед ціною (перекладене): "from" — коли в мережах чи розмірах є дорожчі. Діапазон "min – max" змішував
+   *  розміри (0,33 л і 1,75 л) і не влазив у рядок на телефоні */
+  from?: string;
   oldPrice?: number | null;
   currency: string;
   /** Валюта показу: головний цінник перераховано, під ним справжня ціна мережі */
@@ -30,11 +31,10 @@ export const cascade = (i: number, { limit = 4, stagger = 30, y = 12 } = {}) =>
     ? { className: 'appear', style: { '--i': i, '--stagger': `${stagger}ms`, '--appear-y': `${y}px` } as CSSProperties }
     : undefined;
 
-/** Картка товару (Figma: Product card C): фото зі знижкою, назва, ціна або діапазон, мережа й "найнижча з N" */
+/** Картка товару (Figma: Product card C): фото зі знижкою, назва, ціна ("from" — якщо є дорожчі), мережа й "найнижча з N" */
 export function ProductCard({ card, motion }: { card: ProductCardData; motion?: ReturnType<typeof cascade> }) {
-  const { price, maxPrice, oldPrice, currency, money } = card;
+  const { price, oldPrice, currency, money } = card;
   const shown = price !== null ? formatShown(price, currency, money) : null;
-  const max = maxPrice && price !== null && maxPrice > price ? formatShown(maxPrice, currency, money).text.replace('≈ ', '') : null;
   const discount = price !== null && oldPrice ? Math.round((1 - price / oldPrice) * 100) : 0;
   return (
     <Link
@@ -52,8 +52,8 @@ export function ProductCard({ card, motion }: { card: ProductCardData; motion?: 
         <span className="line-clamp-2 text-body font-medium">{card.name}</span>
         {shown && (
           <span className="mt-auto flex flex-wrap items-baseline justify-center gap-x-1.5 tabular-nums">
+            {card.from && <span className="text-body-sm text-fg-muted">{card.from}</span>}
             <span className={`whitespace-nowrap text-title-sm font-bold ${discount > 0 ? 'text-danger' : ''}`}>{shown.text}</span>
-            {max && <span className="whitespace-nowrap text-title-sm font-bold">– {max}</span>}
             {discount > 0 && (
               <span className="whitespace-nowrap text-body-sm text-fg-muted line-through">{formatShown(oldPrice!, currency, money).text.replace('≈ ', '')}</span>
             )}
@@ -90,7 +90,7 @@ export const productCard = (p: ProductSummaryDto, t: T, money?: Money): ProductC
   imageUrl: p.imageUrl,
   name: p.name,
   price: p.prices[0]?.min ?? null,
-  maxPrice: p.prices[0]?.max ?? null,
+  from: (p.prices[0]?.max ?? 0) > (p.prices[0]?.min ?? 0) ? t('card.from') : undefined,
   currency: p.prices[0]?.currency ?? 'UAH',
   money,
   caption: p.prices[0]?.minChain ?? '',
