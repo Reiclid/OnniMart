@@ -80,6 +80,10 @@ body {
   color: var(--color-fg);
   font-family: var(--font-sans);
 }
+/* Каталог — на білому (Figma: 02 Search) */
+body:has([data-page='catalog']) {
+  background: var(--color-surface);
+}
 
 /*
  * Рух (docs/07-motion.md). Лише transform/opacity (scale і translate — окремі властивості, не

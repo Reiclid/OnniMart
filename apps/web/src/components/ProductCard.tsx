@@ -33,8 +33,11 @@ export const cascade = (i: number, { limit = 4, stagger = 30, y = 12 } = {}) =>
     ? { className: 'appear', style: { '--i': i, '--stagger': `${stagger}ms`, '--appear-y': `${y}px` } as CSSProperties }
     : undefined;
 
-/** Картка товару (Figma: Product card C): фото зі знижкою, назва, ціна ("from" — якщо є дорожчі), мережа й "найнижча з N" */
-export function ProductCard({ card, motion }: { card: ProductCardData; motion?: ReturnType<typeof cascade> }) {
+/**
+ * Картка товару (Figma: Product card C): фото зі знижкою, назва, ціна ("from" — якщо є дорожчі), мережа й "найнижча з N".
+ * `bare` — без рамки, для білої сторінки каталогу (рамка лише при наведенні)
+ */
+export function ProductCard({ card, motion, bare }: { card: ProductCardData; motion?: ReturnType<typeof cascade>; bare?: boolean }) {
   const { price, oldPrice, currency, money } = card;
   const shown = price !== null ? formatShown(price, currency, money) : null;
   const discount = price !== null && oldPrice ? Math.round((1 - price / oldPrice) * 100) : 0;
@@ -42,7 +45,7 @@ export function ProductCard({ card, motion }: { card: ProductCardData; motion?: 
     <Link
       href={card.href}
       style={motion?.style}
-      className={`press-card flex flex-col items-center gap-2.5 rounded-xl border border-line-strong bg-surface px-2 pt-2 pb-3 text-center hover:border-fg-muted ${motion?.className ?? ''}`}
+      className={`press-card flex flex-col items-center gap-2.5 rounded-xl border bg-surface px-2 pt-2 pb-3 text-center ${bare ? 'border-transparent hover:border-line' : 'border-line-strong hover:border-fg-muted'} ${motion?.className ?? ''}`}
     >
       <div className="relative w-full p-2">
         <ProductImage src={card.imageUrl} className="h-31 w-full" />
