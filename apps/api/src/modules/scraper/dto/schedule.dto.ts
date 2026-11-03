@@ -1,6 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
-import { MAX_INTERVAL_HOURS, MIN_INTERVAL_HOURS } from '../services/schedule';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
+import {
+  MAX_INTERVAL_HOURS,
+  MIN_INTERVAL_HOURS,
+  START_TIME,
+  UTC_OFFSETS,
+} from '../services/schedule';
 
 export class ChainScheduleDto {
   @ApiProperty({ example: 'silpo' }) slug!: string;
@@ -18,6 +31,16 @@ export class ScheduleDto {
     description: 'Ручний запуск зараховується як плановий (таймер з нуля)',
   })
   manualResetsTimer!: boolean;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '03:00',
+    description:
+      'Обходи рівно о цій годині з кроком періоду; null — інтервал від останнього запуску',
+  })
+  startTime!: string | null;
+  @ApiProperty({ example: 2, description: 'Пояс часу, годин від UTC' })
+  utcOffset!: number;
   @ApiProperty({
     type: String,
     nullable: true,
@@ -44,6 +67,21 @@ export class UpdateScheduleDto {
   @IsOptional()
   @IsBoolean()
   manualResetsTimer?: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '03:00',
+    description: 'null — без часу, інтервал від останнього запуску',
+  })
+  @IsOptional()
+  @Matches(START_TIME, { message: 'Час у форматі ГГ:ХХ' })
+  startTime?: string | null;
+
+  @ApiPropertyOptional({ enum: UTC_OFFSETS })
+  @IsOptional()
+  @IsIn(UTC_OFFSETS)
+  utcOffset?: number;
 }
 
 export class RunAllResponseDto {

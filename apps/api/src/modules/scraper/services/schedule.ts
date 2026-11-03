@@ -12,6 +12,11 @@ const MIN_STALE_RUN_MS = 48 * HOUR;
 export const MIN_INTERVAL_HOURS = 1;
 export const MAX_INTERVAL_HOURS = 336;
 
+/** Часові пояси розкладу в адмінці, годин від UTC */
+export const UTC_OFFSETS = [0, 2];
+/** "HH:MM" */
+export const START_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 /** Налаштування планувальника (Redis `scraper:schedule`, змінює адмінка) */
 export interface ScheduleSettings {
   /** Чи ставить воркер обходи за розкладом */
@@ -23,7 +28,18 @@ export interface ScheduleSettings {
    * рахується від нього. false — плановий обхід однаково відбудеться у свій час.
    */
   manualResetsTimer: boolean;
+  /** Обходи рівно о цій годині "HH:MM" з кроком intervalHours; null — інтервал від останнього запуску */
+  startTime: string | null;
+  /** Пояс startTime, годин від UTC */
+  utcOffset: number;
+  /** Коли змінили час чи період (ISO): пропущене до цього не наздоганяємо */
+  startTimeSetAt: string | null;
 }
+
+export type ScheduleTime = Pick<
+  ScheduleSettings,
+  'startTime' | 'utcOffset' | 'startTimeSetAt'
+>;
 
 /** Без збережених налаштувань — з оточення (SCRAPE_SCHEDULE, SCRAPE_INTERVAL_HOURS) */
 export function defaultSettings(
@@ -34,6 +50,9 @@ export function defaultSettings(
     enabled: env.SCRAPE_SCHEDULE === 'true',
     intervalHours: Number.isFinite(hours) && hours > 0 ? hours : 24,
     manualResetsTimer: true,
+    startTime: null,
+    utcOffset: 2,
+    startTimeSetAt: null,
   };
 }
 
@@ -63,6 +82,21 @@ export function parseSettings(
       typeof saved.manualResetsTimer === 'boolean'
         ? saved.manualResetsTimer
         : defaults.manualResetsTimer,
+    startTime:
+      typeof saved.startTime === 'string' && START_TIME.test(saved.startTime)
+        ? saved.startTime
+        : saved.startTime === null
+          ? null
+          : defaults.startTime,
+    utcOffset:
+      typeof saved.utcOffset === 'number' &&
+      UTC_OFFSETS.includes(saved.utcOffset)
+        ? saved.utcOffset
+        : defaults.utcOffset,
+    startTimeSetAt:
+      typeof saved.startTimeSetAt === 'string'
+        ? saved.startTimeSetAt
+        : defaults.startTimeSetAt,
   };
 }
 
@@ -93,14 +127,44 @@ export function isActive(run: { status: string } | null): boolean {
 }
 
 /**
+ * Перший слот сітки "час + k × інтервал" не раніше за `after`. Сітка від фіксованої дати,
+ * тому за періоду, кратного добі чи її дільника, обхід щоразу припадає на обраний час.
+ */
+export function nextSlot(
+  startTime: string,
+  utcOffset: number,
+  intervalMs: number,
+  after: number,
+): number {
+  const [hours, minutes] = startTime.split(':').map(Number);
+  const anchor = Date.UTC(2000, 0, 1, hours - utcOffset, minutes);
+  return anchor + Math.ceil((after - anchor) / intervalMs) * intervalMs;
+}
+
+/**
  * Коли мережі пора на плановий обхід: через інтервал після базового запуску або на
  * першій щоденній межі після нього (scrapeHourUtc). Без запусків — одразу (епоха).
+ * Заданий час: найближчий слот після базового запуску й після зміни розкладу. Якщо
+ * ручний запуск замінює плановий (basis не задано), слот шукаємо щонайменше за пів
+ * інтервалу від нього, інакше обхід повторився б одразу після ручного.
  */
-export function nextDueAt(chain: ChainSchedule, intervalMs: number): Date {
+export function nextDueAt(
+  chain: ChainSchedule,
+  intervalMs: number,
+  time?: ScheduleTime,
+): Date {
   const basis = chain.basis === undefined ? chain.lastRun : chain.basis;
-  if (!basis) return new Date(0);
-  let next = basis.startedAt.getTime() + intervalMs;
-  if (chain.scrapeHourUtc != null) {
+  let next: number;
+  if (time?.startTime) {
+    const gap = chain.basis === undefined ? intervalMs / 2 : 1;
+    const after = Math.max(
+      basis ? basis.startedAt.getTime() + gap : 0,
+      time.startTimeSetAt ? Date.parse(time.startTimeSetAt) : 0,
+    );
+    next = nextSlot(time.startTime, time.utcOffset, intervalMs, after);
+  } else if (!basis) return new Date(0);
+  else next = basis.startedAt.getTime() + intervalMs;
+  if (basis && chain.scrapeHourUtc != null) {
     const daily = lastDailyBoundary(basis.startedAt, chain.scrapeHourUtc);
     daily.setUTCDate(daily.getUTCDate() + 1);
     next = Math.min(next, daily.getTime());
@@ -116,6 +180,7 @@ export function dueChains(
   chains: ChainSchedule[],
   now: Date,
   intervalMs: number,
+  time?: ScheduleTime,
 ): string[] {
   return chains
     .filter((chain) => {
@@ -124,7 +189,7 @@ export function dueChains(
         const age = now.getTime() - lastRun.startedAt.getTime();
         return age > Math.max(2 * intervalMs, MIN_STALE_RUN_MS);
       }
-      return nextDueAt(chain, intervalMs) <= now;
+      return nextDueAt(chain, intervalMs, time) <= now;
     })
     .map((chain) => chain.slug);
 }

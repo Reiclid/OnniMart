@@ -7,6 +7,7 @@ import {
   dueChains,
   lastDailyBoundary,
   nextDueAt,
+  nextSlot,
   parseSettings,
 } from './schedule';
 import { ScheduleService } from './schedule.service';
@@ -131,6 +132,62 @@ describe('ручний запуск і таймер (basis)', () => {
   });
 });
 
+describe('обхід у заданий час', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const time = { startTime: '03:00', utcOffset: 2, startTimeSetAt: null };
+  const at = (day: number, hour: number, minute = 0) =>
+    new Date(Date.UTC(2026, 10, day, hour, minute));
+  const chain = (startedAt: Date) => ({
+    slug: 'silpo',
+    lastRun: { startedAt, status: 'SUCCESS' },
+  });
+
+  it('час у вибраному поясі: 03:00 UTC+2 — це 01:00 UTC', () => {
+    const noon = at(3, 12).getTime();
+    expect(nextSlot('03:00', 2, DAY, noon)).toBe(at(4, 1).getTime());
+    expect(nextSlot('03:00', 0, DAY, noon)).toBe(at(4, 3).getTime());
+  });
+
+  it('період — крок від заданого часу', () => {
+    const noon = at(3, 12).getTime();
+    expect(nextSlot('03:00', 2, DAY / 2, noon)).toBe(at(3, 13).getTime());
+    // 48 год: сітка фіксована, час доби той самий
+    expect(new Date(nextSlot('03:00', 2, 2 * DAY, noon)).getUTCHours()).toBe(1);
+  });
+
+  it('плановий обхід — наступний слот, а не той самий', () => {
+    expect(nextDueAt(chain(at(3, 1, 1)), DAY, time)).toEqual(at(4, 1));
+  });
+
+  it('ручний запуск перед слотом замінює його', () => {
+    expect(nextDueAt(chain(at(3, 0, 50)), DAY, time)).toEqual(at(4, 1));
+  });
+
+  it('ручний запуск не скидає таймер (basis): слот залишається', () => {
+    const run = { ...chain(at(3, 0, 50)), basis: { startedAt: at(2, 1, 1) } };
+    expect(nextDueAt(run, DAY, time)).toEqual(at(3, 1));
+  });
+
+  it('новий час не запускає пропущений слот одразу', () => {
+    const set = { ...time, startTimeSetAt: at(3, 20).toISOString() };
+    const old = chain(at(2, 9));
+    expect(nextDueAt(old, DAY, set)).toEqual(at(4, 1));
+    expect(dueChains([old], at(3, 20, 1), DAY, set)).toEqual([]);
+    expect(dueChains([old], at(4, 1), DAY, set)).toEqual(['silpo']);
+  });
+
+  it('мережа без запусків чекає на заданий час', () => {
+    const set = { ...time, startTimeSetAt: at(3, 20).toISOString() };
+    const fresh = { slug: 'novus', lastRun: null };
+    expect(nextDueAt(fresh, DAY, set)).toEqual(at(4, 1));
+  });
+
+  it('щоденний обхід акцій лишається раніше за довгий період', () => {
+    const offers = { ...chain(at(3, 7)), scrapeHourUtc: 6 };
+    expect(nextDueAt(offers, 7 * DAY, time)).toEqual(at(4, 6));
+  });
+});
+
 describe('налаштування розкладу', () => {
   const defaults = defaultSettings({
     SCRAPE_SCHEDULE: 'true',
@@ -142,6 +199,9 @@ describe('налаштування розкладу', () => {
       enabled: true,
       intervalHours: 12,
       manualResetsTimer: true,
+      startTime: null,
+      utcOffset: 2,
+      startTimeSetAt: null,
     });
     expect(parseSettings(null, defaults)).toEqual(defaults);
     expect(parseSettings('{битий', defaults)).toEqual(defaults);
@@ -157,7 +217,13 @@ describe('налаштування розкладу', () => {
         }),
         defaults,
       ),
-    ).toEqual({ enabled: false, intervalHours: 12, manualResetsTimer: true });
+    ).toEqual({ ...defaults, enabled: false });
+    expect(
+      parseSettings('{"startTime":"25:00","utcOffset":5}', defaults),
+    ).toEqual(defaults);
+    expect(
+      parseSettings('{"startTime":"03:30","utcOffset":0}', defaults),
+    ).toMatchObject({ startTime: '03:30', utcOffset: 0 });
     expect(parseSettings('{"intervalHours":6}', defaults).intervalHours).toBe(
       6,
     );

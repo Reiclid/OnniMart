@@ -5,9 +5,16 @@
  * API для моніторингу цін та скрейпінгу
  * OpenAPI spec version: 1.0
  */
+import type { UpdateScheduleDtoUtcOffset } from './updateScheduleDtoUtcOffset';
 
 export interface UpdateScheduleDto {
   enabled?: boolean;
   intervalHours?: number;
   manualResetsTimer?: boolean;
+  /**
+     * null — без часу, інтервал від останнього запуску
+     * @nullable
+     */
+  startTime?: string | null;
+  utcOffset?: UpdateScheduleDtoUtcOffset;
 }

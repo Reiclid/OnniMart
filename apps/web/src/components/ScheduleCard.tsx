@@ -7,6 +7,7 @@ import type { ScheduleDto, UpdateScheduleDto } from '@/api/generated/model';
 import { formatCountdown, formatDateTime } from '@/lib/format';
 
 const PERIODS = [6, 12, 24, 48, 72];
+const OFFSETS = [0, 2] as const;
 
 /** Розклад обходів (Огляд): таймер до наступного, період, "Запустити зараз" і чи скидає він таймер */
 export function ScheduleCard({ schedule: fromServer }: { schedule: ScheduleDto }) {
@@ -24,6 +25,7 @@ export function ScheduleCard({ schedule: fromServer }: { schedule: ScheduleDto }
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [custom, setCustom] = useState(String(schedule.intervalHours));
+  const [time, setTime] = useState(schedule.startTime ?? '03:00');
   const [now, setNow] = useState<number | null>(null);
 
   const next = schedule.nextRunAt ? Date.parse(schedule.nextRunAt) : null;
@@ -160,6 +162,60 @@ export function ScheduleCard({ schedule: fromServer }: { schedule: ScheduleDto }
             Зберегти
           </button>
         </form>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-slate-500">Час обходу:</span>
+        <form
+          className="flex items-center gap-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save({ startTime: time });
+          }}
+        >
+          <input
+            type="time"
+            required
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            aria-label="Час обходу"
+            className="rounded border border-slate-300 px-2 py-1 tabular-nums"
+          />
+          <button
+            type="submit"
+            disabled={busy || !time || time === schedule.startTime}
+            className="rounded border border-slate-300 px-2 py-1 hover:border-blue-400 disabled:opacity-40"
+          >
+            Зберегти
+          </button>
+        </form>
+        {OFFSETS.map((offset) => (
+          <button
+            key={offset}
+            type="button"
+            disabled={busy}
+            onClick={() => save({ utcOffset: offset })}
+            aria-pressed={schedule.utcOffset === offset}
+            className="rounded-full border border-slate-300 px-3 py-1 tabular-nums hover:border-blue-400 aria-pressed:border-blue-600 aria-pressed:bg-blue-600 aria-pressed:text-white"
+          >
+            UTC+{offset}
+          </button>
+        ))}
+        {schedule.startTime && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => save({ startTime: null })}
+            className="text-slate-500 underline hover:text-slate-800"
+          >
+            Без часу
+          </button>
+        )}
+        <span className="w-full text-xs text-slate-500">
+          {schedule.startTime
+            ? `Обходи о ${schedule.startTime} UTC+${schedule.utcOffset} і далі кожні ${schedule.intervalHours} год.`
+            : `Час не задано: наступний обхід через ${schedule.intervalHours} год після попереднього.`}
+        </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-slate-100 pt-4">

@@ -13,6 +13,13 @@ export interface ScheduleDto {
   /** Ручний запуск зараховується як плановий (таймер з нуля) */
   manualResetsTimer: boolean;
   /**
+     * Обходи рівно о цій годині з кроком періоду; null — інтервал від останнього запуску
+     * @nullable
+     */
+  startTime: string | null;
+  /** Пояс часу, годин від UTC */
+  utcOffset: number;
+  /**
      * Найближчий плановий обхід; null — розклад вимкнено або немає мереж
      * @nullable
      */
