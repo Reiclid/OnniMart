@@ -61,6 +61,7 @@ export function ProductGrid({
   return (
     <>
       <ProductMasonry
+        bare
         items={items.map((product, i) => ({ card: productCard(product, t, money), motion: cascade(i - pageStart, { limit: 6, stagger: 20, y: 8 }) }))}
       />
       {hasMore && (

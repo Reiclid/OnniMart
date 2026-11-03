@@ -7,7 +7,7 @@ type Item = { card: ProductCardData; motion?: ReturnType<typeof cascade> };
  * Список карток: на телефоні — дві колонки без пустот під нижчими картками (як у Pinterest),
  * від sm — звичайна сітка. Колонки там `display: contents`, а `order` повертає порядок рангу.
  */
-export function ProductMasonry({ items }: { items: Item[] }) {
+export function ProductMasonry({ items, bare }: { items: Item[]; bare?: boolean }) {
   const columns = masonryColumns(items.map((item) => estimateCardHeight(item.card)));
   return (
     <div className="flex items-start gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-4">
@@ -15,7 +15,7 @@ export function ProductMasonry({ items }: { items: Item[] }) {
         <div key={c} className="flex min-w-0 flex-1 flex-col gap-3 sm:contents">
           {indexes.map((i) => (
             <div key={items[i].card.id} style={{ order: i }} className="flex flex-col *:flex-1">
-              <ProductCard card={items[i].card} motion={items[i].motion} />
+              <ProductCard card={items[i].card} motion={items[i].motion} bare={bare} />
             </div>
           ))}
         </div>
