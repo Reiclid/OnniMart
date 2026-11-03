@@ -80,8 +80,8 @@ body {
   color: var(--color-fg);
   font-family: var(--font-sans);
 }
-/* Каталог — на білому (Figma: 02 Search) */
-body:has([data-page='catalog']) {
+/* Головна, каталог і товар — на білому (Figma: 01 Home, 02 Search, 03 Product): картки там без рамки */
+body:has([data-white]) {
   background: var(--color-surface);
 }
 

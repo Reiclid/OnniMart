@@ -62,11 +62,11 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
   const heart = `press grid size-11 shrink-0 place-items-center rounded-full border border-line bg-surface ${favourite ? 'text-danger' : 'text-fg-muted hover:text-fg'}`;
 
   return (
-    <div className="space-y-8">
+    <div data-white className="space-y-8">
       <RecordView productId={product.id} />
       <div className="grid gap-6 md:grid-cols-2">
         <div className="relative md:sticky md:top-6 md:self-start">
-          <ProductImage src={product.imageUrl} preload className="aspect-square w-full border border-line" />
+          <ProductImage src={product.imageUrl} preload className="aspect-square w-full" />
           {/* На десктопі шлях назад — хлібні крихти (Figma: 06 Товар — десктоп) */}
           <BackButton fallback="/products" label={t('nav.back')} className="absolute top-3 left-3 md:hidden" />
         </div>
@@ -243,7 +243,7 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
       {similar.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-title-sm font-semibold">{t('product.similar')}</h2>
-          <ProductMasonry items={similar.map((p) => ({ card: productCard(p, t, money) }))} />
+          <ProductMasonry bare items={similar.map((p) => ({ card: productCard(p, t, money) }))} />
         </section>
       )}
     </div>
