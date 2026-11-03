@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import type { ListingSummaryDto, ProductSummaryDto } from '@/api/generated/model';
 import type { T } from '@/i18n';
 import type { Money } from '@/lib/country';
-import { formatShown } from '@/lib/format';
+import { formatShown, splitProductName } from '@/lib/format';
 import { ProductImage } from './ui';
 
 export interface ProductCardData {
@@ -11,6 +11,8 @@ export interface ProductCardData {
   href: string;
   imageUrl: string | null;
   name: string;
+  /** Тип продукту над назвою ("Напій газований"), коли назва мережі починається з нього (splitProductName) */
+  kind?: string | null;
   price: number | null;
   /** Перед ціною (перекладене): "from" — коли в мережах чи розмірах є дорожчі. Діапазон "min – max" змішував
    *  розміри (0,33 л і 1,75 л) і не влазив у рядок на телефоні */
@@ -49,7 +51,10 @@ export function ProductCard({ card, motion }: { card: ProductCardData; motion?: 
         )}
       </div>
       <div className="flex w-full flex-1 flex-col gap-2 px-1">
-        <span className="line-clamp-2 text-body font-medium">{card.name}</span>
+        <span className="flex flex-col">
+          {card.kind && <span className="truncate text-caption text-fg-muted first-letter:uppercase">{card.kind}</span>}
+          <span className="line-clamp-2 text-body font-medium">{card.name}</span>
+        </span>
         {shown && (
           <span className="mt-auto flex flex-wrap items-baseline justify-center gap-x-1.5 tabular-nums">
             {card.from && <span className="text-body-sm text-fg-muted">{card.from}</span>}
@@ -84,15 +89,19 @@ export const listingCard = (l: ListingSummaryDto, money?: Money): ProductCardDat
 });
 
 // Ціни в кількох валютах (UA, DE) — у картці лише перша, решта на сторінці товару
-export const productCard = (p: ProductSummaryDto, t: T, money?: Money): ProductCardData => ({
-  id: p.id,
-  href: `/products/${p.id}`,
-  imageUrl: p.imageUrl,
-  name: p.name,
-  price: p.prices[0]?.min ?? null,
-  from: (p.prices[0]?.max ?? 0) > (p.prices[0]?.min ?? 0) ? t('card.from') : undefined,
-  currency: p.prices[0]?.currency ?? 'UAH',
-  money,
-  caption: p.prices[0]?.minChain ?? '',
-  note: p.chainsCount > 1 ? t('card.lowestOf', { count: p.chainsCount }) : undefined,
-});
+export const productCard = (p: ProductSummaryDto, t: T, money?: Money): ProductCardData => {
+  const { kind, title } = splitProductName(p.name, p.brand);
+  return {
+    id: p.id,
+    href: `/products/${p.id}`,
+    imageUrl: p.imageUrl,
+    kind,
+    name: title,
+    price: p.prices[0]?.min ?? null,
+    from: (p.prices[0]?.max ?? 0) > (p.prices[0]?.min ?? 0) ? t('card.from') : undefined,
+    currency: p.prices[0]?.currency ?? 'UAH',
+    money,
+    caption: p.prices[0]?.minChain ?? '',
+    note: p.chainsCount > 1 ? t('card.lowestOf', { count: p.chainsCount }) : undefined,
+  };
+};

@@ -45,4 +45,9 @@ describe('splitProductName', () => {
     expect(splitProductName('Cola Light', 'ALDI')).toEqual({ kind: null, title: 'Cola Light' });
     expect(splitProductName('Хліб житній', null)).toEqual({ kind: null, title: 'Хліб житній' });
   });
+
+  it('набір (не лише слова перед брендом) — назва як є', () => {
+    expect(splitProductName('Карбонара + Coca-Cola Original', 'Coca-Cola')).toEqual({ kind: null, title: 'Карбонара + Coca-Cola Original' });
+    expect(splitProductName('2 x Coca-Cola 0,33 л', 'Coca-Cola')).toEqual({ kind: null, title: '2 x Coca-Cola 0,33 л' });
+  });
 });

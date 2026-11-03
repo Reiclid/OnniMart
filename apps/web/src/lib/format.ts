@@ -93,12 +93,14 @@ export function formatUnitPrice(
 /**
  * Заголовок товару: назва мережі починається з типу продукту ("Напій газований Coca-Cola Zero") — його
  * відокремлюємо, щоб заголовком був сам товар ("Coca-Cola Zero"), а тип ішов дрібно над ним.
- * Бренду в назві немає або він на початку — назва як є, тип порожній.
+ * Бренду в назві немає або він на початку — назва як є, тип порожній. Перед брендом не лише слова
+ * ("Карбонара + Coca-Cola", "2 x Coca-Cola") — це набір, а не тип: теж як є.
  */
 export function splitProductName(name: string, brand: string | null): { kind: string | null; title: string } {
   const at = brand ? name.toLocaleLowerCase().indexOf(brand.toLocaleLowerCase()) : -1;
-  if (at <= 0) return { kind: null, title: name };
-  return { kind: name.slice(0, at).trim(), title: name.slice(at) };
+  const kind = name.slice(0, Math.max(at, 0)).trim();
+  if (at <= 0 || !/^[\p{L}'’ -]+$/u.test(kind)) return { kind: null, title: name };
+  return { kind, title: name.slice(at) };
 }
 
 /** Підпис різновиду в лінійці ("Zero", "банан"); якщо він не унікальний — повна назва */
