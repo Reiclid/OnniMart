@@ -6,7 +6,7 @@
 //                            Швидко й без dev-кнопки Next; API (:3001) має бути запущено
 //   bun run share -- --dev   тунель до вже запущеного dev-сервера (:3000, PORT) — з гарячим оновленням
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +27,9 @@ process.on('SIGINT', () => stop());
 
 if (!dev) {
   console.log('Збираю production (next build)…');
+  // Типи, які колись лишив next dev, можуть посилатися на вже видалені сторінки — і next build падає на
+  // перевірці типів (tsconfig включає .next/dev/types). next dev створить їх заново
+  rmSync(join(web, '.next', 'dev', 'types'), { recursive: true, force: true });
   // --webpack, як і dev: Turbopack запускає PostCSS окремим процесом `node`, а тут лише bun
   if (spawnSync(process.execPath, next('build', '--webpack'), { cwd: web, stdio: 'inherit' }).status !== 0) stop(1);
   children.push(spawn(process.execPath, next('start', '--port', port), { cwd: web, stdio: 'inherit' }));
