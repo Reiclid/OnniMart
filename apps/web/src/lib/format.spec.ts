@@ -1,4 +1,4 @@
-import { formatCountdown, formatEta, relativeTime, targetProgress } from './format';
+import { formatCountdown, formatEta, relativeTime, splitProductName, targetProgress } from './format';
 
 describe('formatEta', () => {
   it('хвилини й години, округлено до хвилини', () => {
@@ -31,5 +31,18 @@ describe('targetProgress', () => {
   it('частка до цілі й залишок; ціль досягнута — повна смужка', () => {
     expect(targetProgress(28, 31.49)).toEqual({ progress: 28 / 31.49, left: 3.49 });
     expect(targetProgress(30, 29)).toEqual({ progress: 1, left: 0 });
+  });
+});
+
+describe('splitProductName', () => {
+  it('тип продукту перед брендом іде окремо', () => {
+    expect(splitProductName('Напій газований Coca-Cola Zero', 'Coca-Cola')).toEqual({ kind: 'Напій газований', title: 'Coca-Cola Zero' });
+    expect(splitProductName('Молоко ультрапастеризоване Галичина 2,5%', 'галичина')).toEqual({ kind: 'Молоко ультрапастеризоване', title: 'Галичина 2,5%' });
+  });
+
+  it('бренд на початку, відсутній у назві чи невідомий — назва як є', () => {
+    expect(splitProductName('Coca-Cola Original Taste', 'Coca-Cola')).toEqual({ kind: null, title: 'Coca-Cola Original Taste' });
+    expect(splitProductName('Cola Light', 'ALDI')).toEqual({ kind: null, title: 'Cola Light' });
+    expect(splitProductName('Хліб житній', null)).toEqual({ kind: null, title: 'Хліб житній' });
   });
 });

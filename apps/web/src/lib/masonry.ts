@@ -32,18 +32,11 @@ export function nameLines(name: string): number {
   return Math.min(2, lines);
 }
 
-/** Оцінка висоти картки, px: фото + назва (1–2 рядки) + ціна (діапазон на телефоні — 2 рядки) + мережа */
-export function estimateCardHeight(card: {
-  name: string;
-  price: number | null;
-  maxPrice?: number | null;
-  caption: string;
-  note?: string;
-}): number {
-  const range = card.price !== null && !!card.maxPrice && card.maxPrice > card.price;
+/** Оцінка висоти картки, px: фото + назва (1–2 рядки) + ціна + мережа */
+export function estimateCardHeight(card: { name: string; price: number | null; caption: string; note?: string }): number {
   return (
     20 + 140 + 10 + nameLines(card.name) * 21 +
-    (card.price !== null ? 8 + (range ? 44 : 22) : 0) +
+    (card.price !== null ? 8 + 22 : 0) +
     (card.caption || card.note ? 8 + 18 : 0)
   );
 }

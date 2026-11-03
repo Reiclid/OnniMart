@@ -52,6 +52,7 @@ export const en = {
     loadingMore: 'Loading more…',
   },
   card: {
+    from: 'from',
     lowestOf: 'lowest of {count}',
     cheapestAt: 'Cheapest at {chain}',
   },

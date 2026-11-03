@@ -53,6 +53,7 @@ export const uk: Catalog = {
     loadingMore: 'Завантажуємо ще…',
   },
   card: {
+    from: 'від',
     lowestOf: 'найнижча з {count}',
     cheapestAt: 'Найдешевше в {chain}',
   },
