@@ -1,6 +1,7 @@
 // Увесь OnniMart однією командою: `bun start` у корені або подвійний клік по start.cmd.
 //   1. Docker: запускає Docker Desktop, якщо вимкнений, → postgres, redis, meilisearch, scraper
 //   2. залежності (bun install), міграції бази (prisma migrate deploy — лише застосовує нові, нічого не стирає)
+//      і Prisma Client (prisma generate)
 //   3. API :3001 і worker; їхні логи — у logs/api.log, logs/worker.log. Уже запущений API не чіпаємо,
 //      другий worker сам вийде (WorkerLock)
 //   4. сайт (production) і тунель Cloudflare — apps/web/scripts/share.ts друкує публічну адресу в рамці
@@ -64,6 +65,8 @@ run('Контейнери: postgres, redis, meilisearch, scraper', 'docker', [
   'compose', 'up', '-d', '--wait', 'postgres', 'redis', 'meilisearch', 'scraper',
 ]);
 run('Міграції бази', 'bun', ['x', 'prisma', 'migrate', 'deploy'], api);
+// Клієнт не в git: після pull зі зміною схеми старий клієнт валить API і worker на нових таблицях
+run('Prisma Client', 'bun', ['x', 'prisma', 'generate'], api);
 run('Збірка пакетів (@repo/*)', 'bun', ['run', 'build:packages']);
 
 mkdirSync(logs, { recursive: true });
