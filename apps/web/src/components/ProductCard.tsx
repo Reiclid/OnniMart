@@ -10,6 +10,8 @@ export interface ProductCardData {
   id: string;
   href: string;
   imageUrl: string | null;
+  /** Запасні фото з інших карток товару */
+  images?: string[];
   name: string;
   price: number | null;
   /** Перед ціною (перекладене): "from" — коли в мережах чи розмірах є дорожчі. Діапазон "min – max" змішував
@@ -46,7 +48,7 @@ export function ProductCard({ card, motion, bare }: { card: ProductCardData; mot
       className={`press-card flex flex-col items-center gap-2.5 rounded-xl border bg-surface px-2 pt-2 pb-3 text-center ${bare ? 'border-transparent hover:border-line' : 'border-line-strong hover:border-fg-muted'} ${motion?.className ?? ''}`}
     >
       <div className="relative w-full p-2">
-        <ProductImage src={card.imageUrl} className="h-31 w-full" />
+        <ProductImage src={card.imageUrl} fallbacks={card.images} className="h-31 w-full" />
         {discount > 0 && (
           <span className="absolute top-1 right-1 text-body-sm font-semibold text-danger tabular-nums">−{discount}%</span>
         )}
@@ -92,6 +94,7 @@ export const productCard = (p: ProductSummaryDto, t: T, money?: Money): ProductC
     id: p.id,
     href: `/products/${p.id}`,
     imageUrl: p.imageUrl,
+    images: p.images,
     name: splitProductName(p.name, p.brand).title,
     price: p.prices[0]?.min ?? null,
     oldPrice: p.prices[0]?.minRegular,
