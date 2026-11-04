@@ -10,8 +10,14 @@ function fakeRedis(store: Map<string, string>) {
       return Promise.resolve('OK');
     },
     eval: (script: string, _n: number, key: string, id: string) => {
-      if (store.get(key) !== id) return Promise.resolve(0);
-      if (script.includes("'del'")) store.delete(key);
+      const owner = store.get(key);
+      if (script.includes("'del'")) {
+        if (owner !== id) return Promise.resolve(0);
+        store.delete(key);
+        return Promise.resolve(1);
+      }
+      if (owner !== undefined && owner !== id) return Promise.resolve(0);
+      store.set(key, id);
       return Promise.resolve(1);
     },
     disconnect: () => undefined,
@@ -26,6 +32,26 @@ function lock(store: Map<string, string>) {
 
 describe('WorkerLock', () => {
   beforeAll(() => Logger.overrideLogger(false));
+
+  it('замок протух, поки компʼютер спав: воркер забирає його назад', async () => {
+    const store = new Map<string, string>();
+    const worker = lock(store);
+    await worker.onModuleInit();
+    store.clear();
+    expect(await worker.renew()).toBe(true);
+    expect(store.size).toBe(1);
+    await worker.onModuleDestroy();
+  });
+
+  it('замок чужого воркера не перехоплює', async () => {
+    const store = new Map<string, string>();
+    const worker = lock(store);
+    await worker.onModuleInit();
+    store.set('worker:lock', 'other');
+    expect(await worker.renew()).toBe(false);
+    expect(store.get('worker:lock')).toBe('other');
+    await worker.onModuleDestroy();
+  });
 
   it('другий воркер не стартує, поки перший тримає замок', async () => {
     const store = new Map<string, string>();

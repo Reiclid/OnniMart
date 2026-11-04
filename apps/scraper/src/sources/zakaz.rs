@@ -66,8 +66,8 @@ fn product(item: &Value, store: &str, category: &Category, scraped_at: &str) -> 
     let text = |pointer: &str| item.pointer(pointer).and_then(Value::as_str);
     let number = |pointer: &str| item.pointer(pointer).and_then(Value::as_f64);
 
-    // Ціни в копійках
-    let price = number("/price")? / 100.0;
+    // Ціни в копійках; 0 — ціну ще не задали, такий товар черга все одно відкине
+    let price = number("/price").filter(|price| *price > 0.0)? / 100.0;
     let on_discount = item.pointer("/discount/status").and_then(Value::as_bool).unwrap_or(false);
     let weighted = text("/unit") == Some("kg");
     let size = if weighted {
@@ -124,6 +124,12 @@ mod tests {
             name: "Напої".into(),
             url: "https://novus.zakaz.ua/uk/categories/drinks/".into(),
         }
+    }
+
+    #[test]
+    fn skips_products_without_a_price() {
+        let item = serde_json::json!({ "sku": "1", "title": "Печиво", "price": 0 });
+        assert!(product(&item, "auchan", &category(), "2026-11-04T08:45:00Z").is_none());
     }
 
     #[test]

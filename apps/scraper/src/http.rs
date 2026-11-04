@@ -26,6 +26,8 @@ pub enum FetchError {
     Disallowed(String),
     /// Сайт відповів 403 — антибот-захист. Не обходимо його, а зупиняємо обхід.
     Blocked(String),
+    /// 404: сторінки немає
+    NotFound(String),
     /// 429/503 з Retry-After довшим за MAX_RETRY_AFTER_SECS — зупиняємо обхід
     RateLimited(String, u64),
 }
@@ -35,6 +37,7 @@ impl fmt::Display for FetchError {
         match self {
             Self::Disallowed(url) => write!(f, "robots.txt забороняє {url}"),
             Self::Blocked(url) => write!(f, "сайт заблокував запит (403): {url}"),
+            Self::NotFound(url) => write!(f, "{url} → HTTP 404 Not Found"),
             Self::RateLimited(url, secs) => {
                 write!(f, "сайт просить почекати {secs} с (Retry-After): {url}")
             }
@@ -123,6 +126,9 @@ impl Fetcher {
                 }
                 Ok(resp) if resp.status() == StatusCode::FORBIDDEN => {
                     return Err(FetchError::Blocked(url.into()).into());
+                }
+                Ok(resp) if resp.status() == StatusCode::NOT_FOUND => {
+                    return Err(FetchError::NotFound(url.into()).into());
                 }
                 Ok(resp)
                     if resp.status() == StatusCode::TOO_MANY_REQUESTS
