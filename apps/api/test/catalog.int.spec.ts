@@ -167,6 +167,7 @@ const COLA_EAN = '5449000000996';
     expect(urls).toContain(first.imageUrl);
     expect(urls).toContain(first.variants[0].imageUrl);
     expect(first.images[0]).toBe(first.imageUrl);
+    expect(first.variants[0].images[0]).toBe(first.variants[0].imageUrl);
     expect([...first.images].sort()).toEqual(urls);
 
     await matching.run();

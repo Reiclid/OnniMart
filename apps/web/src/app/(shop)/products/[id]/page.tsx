@@ -66,7 +66,13 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
       <RecordView productId={product.id} />
       <div className="grid gap-6 md:grid-cols-2">
         <div className="relative md:sticky md:top-6 md:self-start">
-          <ProductImage src={product.imageUrl} preload className="aspect-square w-full" />
+          {/* Обране фасування — його фото (PRD-34), інакше фото товару; решта — запасні */}
+          <ProductImage
+            src={(v && variant?.imageUrl) || product.imageUrl}
+            fallbacks={[...(variant?.images ?? []), ...product.images]}
+            preload
+            className="aspect-square w-full"
+          />
           {/* На десктопі шлях назад — хлібні крихти (Figma: 06 Товар — десктоп) */}
           <BackButton fallback="/products" label={t('nav.back')} className="absolute top-3 left-3 md:hidden" />
         </div>

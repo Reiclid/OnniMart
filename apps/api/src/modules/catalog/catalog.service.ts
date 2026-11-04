@@ -30,7 +30,13 @@ import {
   type FoodFactsRow,
 } from './food-facts';
 import { saveFoodFacts } from './food-facts.store';
-import { productImages } from './product-images';
+import {
+  CARD_IMAGES_LIMIT,
+  distinctImages,
+  imageKey,
+  productImageUrls,
+  variantImageUrls,
+} from './product-images';
 import {
   searchEnabled,
   searchFilter,
@@ -176,9 +182,11 @@ export class CatalogService {
         variants: {
           select: {
             id: true,
+            imageUrl: true,
             listings: {
               where: { delistedAt: null },
               select: {
+                imageUrl: true,
                 currentPrice: true,
                 regularPrice: true,
                 isOnPromo: true,
@@ -207,6 +215,11 @@ export class CatalogService {
           category: product.category?.slug ?? null,
           variantLabel: product.variantLabel,
           imageUrl: product.imageUrl,
+          images: distinctImages(
+            productImageUrls(product),
+            undefined,
+            CARD_IMAGES_LIMIT,
+          ),
           variantsCount: product.variants.length,
           chainsCount: chains.length,
           listingsCount: listings.length,
@@ -222,6 +235,19 @@ export class CatalogService {
           onPromo: available.some((l) => l.isOnPromo),
         };
       });
+  }
+
+  /** Відомі dHash цих фото: `imageKey` → хеш (ще не пораховані просто відсутні) */
+  private async imageHashes(
+    urls: (string | null)[],
+  ): Promise<Map<string, string>> {
+    const keys = [
+      ...new Set(urls.flatMap((url) => (url ? [imageKey(url)] : []))),
+    ];
+    const rows = await this.prisma.imageHash.findMany({
+      where: { key: { in: keys } },
+    });
+    return new Map(rows.map((row) => [row.key, row.hash]));
   }
 
   /**
@@ -309,6 +335,7 @@ export class CatalogService {
       },
     });
     if (!product) throw new NotFoundException(`Товар ${id} не знайдено`);
+    const hashes = await this.imageHashes(productImageUrls(product));
 
     return {
       id: product.id,
@@ -316,7 +343,7 @@ export class CatalogService {
       brand: product.brand?.name ?? null,
       variantLabel: product.variantLabel,
       imageUrl: product.imageUrl,
-      images: productImages(product),
+      images: distinctImages(productImageUrls(product), hashes),
       description: product.description,
       category: product.category,
       categoryLocked: product.categoryLocked,
@@ -335,6 +362,7 @@ export class CatalogService {
           barcodes: variant.barcodes.map((b) => b.gtin),
           packaging: variant.packaging,
           imageUrl: variant.imageUrl,
+          images: distinctImages(variantImageUrls(variant), hashes),
           // Ціни різних країн не порівнюємо напряму: групи за валютою
           // (₴, потім €), усередині — від найдешевшої за одиницю; немає в наявності — в кінці групи
           offers: variant.listings

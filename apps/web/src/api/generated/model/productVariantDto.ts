@@ -22,6 +22,8 @@ export interface ProductVariantDto {
      * @nullable
      */
   imageUrl: string | null;
+  /** Фото цього фасування без повторів (до 12): спершу основне */
+  images: string[];
   /** Пропозиції мереж, від найдешевшої за одиницю */
   offers: ListingSummaryDto[];
 }

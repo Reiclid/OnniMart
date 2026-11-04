@@ -233,7 +233,7 @@ function FactsSheet({
               const best = s.prices[0];
               return (
                 <Link key={s.id} href={`/products/${s.id}`} className="flex items-center gap-3 p-2.5 hover:bg-page">
-                  <ProductImage src={s.imageUrl} className="size-10 shrink-0" />
+                  <ProductImage src={s.imageUrl} fallbacks={s.images} className="size-10 shrink-0" />
                   <span className="min-w-0 flex-1">
                     <span className="line-clamp-1 text-body">{s.name}</span>
                     {best && <span className="text-caption text-fg-muted">{t('card.cheapestAt', { chain: best.minChain })}</span>}
