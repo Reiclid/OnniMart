@@ -108,6 +108,12 @@ export class ProductSummaryDto {
   })
   variantLabel!: string | null;
   @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+  @ApiProperty({
+    type: [String],
+    description:
+      'Основне фото й запасні з інших карток (до 4), якщо воно не завантажиться',
+  })
+  images!: string[];
   @ApiProperty({ description: 'Скільки фасувань' }) variantsCount!: number;
   @ApiProperty({ description: 'У скількох мережах продається' })
   chainsCount!: number;
@@ -138,6 +144,11 @@ export class ProductVariantDto {
     description: 'Фото фасування за замовчуванням (з його карток)',
   })
   imageUrl!: string | null;
+  @ApiProperty({
+    type: [String],
+    description: 'Фото цього фасування без повторів (до 12): спершу основне',
+  })
+  images!: string[];
   @ApiProperty({
     type: [ListingSummaryDto],
     description: 'Пропозиції мереж, від найдешевшої за одиницю',

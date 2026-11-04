@@ -506,6 +506,18 @@ model MatchKey {
   @@map("match_keys")
 }
 
+/// dHash фото (PRD-33): однакові за вмістом фото різних мереж у галереї товару показуємо раз.
+/// Ключ — адреса без домену-дзеркала (imageKey у product-images.ts), а не картка: хеш належить
+/// файлу, тож відв'язування картки його не чіпає. Заповнює bun run images:hash.
+model ImageHash {
+  key       String   @id
+  /// 64 біти, 16 hex-символів
+  hash      String
+  createdAt DateTime @default(now())
+
+  @@map("image_hashes")
+}
+
 enum PromoType {
   /// Звичайна знижка (закреслена стара ціна)
   DISCOUNT

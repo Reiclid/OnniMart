@@ -24,6 +24,8 @@ export interface ProductSummaryDto {
   variantLabel: string | null;
   /** @nullable */
   imageUrl: string | null;
+  /** Основне фото й запасні з інших карток (до 4), якщо воно не завантажиться */
+  images: string[];
   /** Скільки фасувань */
   variantsCount: number;
   /** У скількох мережах продається */

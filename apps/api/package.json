@@ -26,6 +26,7 @@
     "catalog:duplicates": "bun scripts/find-duplicates.ts",
     "quality:research": "bun scripts/quality-research.ts",
     "listings:reparse": "bun scripts/reparse-listings.ts",
+    "images:hash": "bun scripts/hash-images.ts",
     "catalog:reset": "bun scripts/reset-catalog.ts",
     "search:reindex": "bun scripts/reindex-search.ts",
     "search:evaluate": "bun scripts/evaluate-search.ts",
@@ -54,6 +55,7 @@
     "meilisearch": "^0.60.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "sharp": "^0.35.3",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
