@@ -63,6 +63,8 @@ export const de: Catalog = {
     lowestPrice: 'Bester Preis · {chain}',
     packSize: 'Packungsgröße',
     best: 'am günstigsten',
+    photos: 'Produktfotos',
+    photoOf: 'Foto {current} von {total}',
     flavour: 'Sorte',
     trackPrice: 'Preis beobachten',
     anyDiscount: 'Jeder Rabatt in jeder Kette',
