@@ -62,6 +62,8 @@ export const en = {
     lowestPrice: 'Lowest price · {chain}',
     packSize: 'Pack size',
     best: 'best',
+    photos: 'Product photos',
+    photoOf: 'Photo {current} of {total}',
     flavour: 'Flavour',
     trackPrice: 'Track price',
     anyDiscount: 'Any discount in any chain',

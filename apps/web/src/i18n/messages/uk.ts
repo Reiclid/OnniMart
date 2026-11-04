@@ -63,6 +63,8 @@ export const uk: Catalog = {
     lowestPrice: 'Найнижча ціна · {chain}',
     packSize: 'Фасування',
     best: 'найвигідніше',
+    photos: 'Фото товару',
+    photoOf: 'Фото {current} з {total}',
     flavour: 'Смак',
     trackPrice: 'Стежити за ціною',
     anyDiscount: 'Будь-яка знижка в будь-якій мережі',

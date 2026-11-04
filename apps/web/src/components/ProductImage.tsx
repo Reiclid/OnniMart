@@ -19,6 +19,8 @@ export function ProductImage({
   fallbacks = [],
   className = '',
   preload,
+  hero,
+  onFail,
 }: {
   src: string | null;
   /** Запасні фото цього товару з інших карток; перше, що відкрилось, замінює `src` */
@@ -26,6 +28,10 @@ export function ProductImage({
   className?: string;
   /** Головне фото сторінки (LCP) */
   preload?: boolean;
+  /** Більша копія без preload: решта фото галереї */
+  hero?: boolean;
+  /** Адреса не відкрилась */
+  onFail?: (url: string) => void;
 }) {
   const [failed, setFailed] = useState<readonly string[]>([]);
   const [ready, setReady] = useState<string | null>(null);
@@ -47,7 +53,7 @@ export function ProductImage({
                 fill
                 preload={preload}
                 unoptimized={!optimizable(url)}
-                loader={({ src }) => photoUrl(src, preload ? HERO_WIDTH : PHOTO_WIDTH)}
+                loader={({ src }) => photoUrl(src, preload || hero ? HERO_WIDTH : PHOTO_WIDTH)}
                 data-ready={url === ready || undefined}
                 // Фото з кешу могло завантажитись ще до гідратації — тоді onLoad уже не прийде
                 ref={(img) => {
@@ -55,7 +61,10 @@ export function ProductImage({
                 }}
                 onLoad={(e) => show(url, e.currentTarget)}
                 // Помилку до гідратації next/image повторює сам (перезадає src), коли є onError
-                onError={() => setFailed((list) => [...list, url])}
+                onError={() => {
+                  setFailed((list) => [...list, url]);
+                  onFail?.(url);
+                }}
                 className="photo bg-surface object-contain"
               />
             ),
