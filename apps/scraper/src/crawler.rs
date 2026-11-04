@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 
 use crate::http::{FetchError, Fetcher};
 use crate::model::ScrapedProduct;
-use crate::sources::Source;
+use crate::sources::{Category, Listing, Source};
 use crate::text::now_iso;
 use tracing::info;
 
@@ -77,17 +77,13 @@ async fn crawl_into<S: Sink>(
             let url = source.page_url(category, page);
             // Kaufland: усі акції на стартовій сторінці — не завантажуємо її вдруге
             let fetched = if url == start_url {
-                Ok(start_page.clone())
+                source
+                    .parse_page(&start_page, category, &now_iso())
+                    .map_err(|error| anyhow::anyhow!("{url}: {error}"))
             } else {
-                fetcher.get(&url).await.inspect(|_| stats.pages += 1)
+                fetch_listing(source, fetcher, stats, &url, category).await
             };
             let listing = match fetched {
-                Ok(html) => source
-                    .parse_page(&html, category, &now_iso())
-                    .map_err(|error| anyhow::anyhow!("{url}: {error}")),
-                Err(error) => Err(error),
-            };
-            let listing = match listing {
                 Ok(listing) => listing,
                 Err(error) => {
                     let kind = error.downcast_ref::<FetchError>();
@@ -96,6 +92,10 @@ async fn crawl_into<S: Sink>(
                         Some(FetchError::Blocked(_) | FetchError::RateLimited(..))
                     );
                     let disallowed = matches!(kind, Some(FetchError::Disallowed(_)));
+                    // Товарів поменшало, а лічильник ще старий: це кінець категорії, а не збій
+                    if page > 1 && matches!(kind, Some(FetchError::NotFound(_))) {
+                        break;
+                    }
                     stats.errors.push(error.to_string());
                     if stop {
                         break 'categories;
@@ -133,6 +133,26 @@ async fn crawl_into<S: Sink>(
         }
     }
     Ok(())
+}
+
+/// Сторінка категорії. Сайт інколи віддає сторінку без даних: один раз запитуємо її ще
+async fn fetch_listing(
+    source: &Source,
+    fetcher: &mut Fetcher,
+    stats: &mut CrawlStats,
+    url: &str,
+    category: &Category,
+) -> Result<Listing> {
+    let html = fetcher.get(url).await?;
+    stats.pages += 1;
+    if let Ok(listing) = source.parse_page(&html, category, &now_iso()) {
+        return Ok(listing);
+    }
+    let html = fetcher.get(url).await?;
+    stats.pages += 1;
+    source
+        .parse_page(&html, category, &now_iso())
+        .map_err(|error| anyhow::anyhow!("{url}: {error}"))
 }
 
 /// Помилки сторінок для журналу запуску: перші MAX_REPORTED_ERRORS і кількість решти

@@ -5,13 +5,14 @@ mod robots;
 mod sources;
 mod text;
 
+use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use redis::AsyncCommands;
-use redis::Direction;
 use redis::aio::MultiplexedConnection;
+use tokio::task::JoinHandle;
 
 use crate::crawler::{CrawlOptions, CrawlStats, Sink, crawl, summarize_errors};
 use crate::http::Fetcher;
@@ -25,6 +26,8 @@ use tracing::{Instrument, error, info, info_span};
 
 /// Мінімальна пауза між запитами до одного сайту (docs/01-data-sources.md, правило 3)
 const MIN_DELAY_MS: u64 = 3000;
+/// Як часто воркер дивиться в чергу завдань
+const POLL_EVERY: Duration = Duration::from_secs(2);
 
 const HELP: &str = "\
 OnniMart scraper
@@ -96,7 +99,11 @@ impl Sink for RedisSink {
 }
 
 async fn heartbeat(con: &mut MultiplexedConnection, run_id: &str) -> Result<()> {
-    let _: () = con.set_ex(HEARTBEAT_KEY, run_id, HEARTBEAT_TTL_SECS).await?;
+    let _: () = redis::pipe()
+        .set_ex(HEARTBEAT_KEY, run_id, HEARTBEAT_TTL_SECS)
+        .set_ex(format!("{HEARTBEAT_KEY}:{run_id}"), 1, HEARTBEAT_TTL_SECS)
+        .query_async(con)
+        .await?;
     Ok(())
 }
 
@@ -124,16 +131,26 @@ impl Sink for PrintSink {
     }
 }
 
+/// Сайт завдання: на один сайт ходить лише один обхід
+fn site_of(store: &str) -> String {
+    Source::for_store(store).map_or_else(|| store.to_string(), |source| source.site())
+}
+
+struct Running {
+    handle: JoinHandle<()>,
+    raw: String,
+}
+
 async fn run_worker() -> Result<()> {
     let url = redis_url();
     info!(redis = %redact(&url), "воркер запущено");
     let client = redis::Client::open(url)?;
     let mut con = client.get_multiplexed_async_connection().await?;
 
-    // Воркер упав посеред обходу: позначаємо той запуск як невдалий, а не перезапускаємо
+    // Воркер упав посеред обходів: позначаємо ті запуски як невдалі, а не перезапускаємо
     // (багатогодинний обхід, що падає, інакше крутився б нескінченно)
-    let unfinished: Option<String> = con.lindex(TASKS_PROCESSING, -1).await?;
-    if let Some(raw) = unfinished {
+    let unfinished: Vec<String> = con.lrange(TASKS_PROCESSING, 0, -1).await?;
+    for raw in unfinished {
         if let Ok(task) = serde_json::from_str::<ScraperTask>(&raw) {
             let event = RunEvent {
                 kind: "run_failed",
@@ -149,24 +166,58 @@ async fn run_worker() -> Result<()> {
         let _: () = con.lrem(TASKS_PROCESSING, -1, &raw).await?;
     }
 
+    // Обходи різних сайтів ідуть одночасно, кожен зі своєю паузою між запитами.
+    // Завдання зайнятого сайту чекає в черзі: так воно переживе перезапуск воркера
+    let mut running: HashMap<String, Running> = HashMap::new();
     loop {
-        // Завдання лишається в TASKS_PROCESSING, доки обхід не завершиться
-        let raw: Option<String> = con
-            .blmove(TASKS_QUEUE, TASKS_PROCESSING, Direction::Right, Direction::Left, 0.0)
-            .await?;
-        let Some(raw) = raw else { continue };
-        match serde_json::from_str::<ScraperTask>(&raw) {
-            Ok(task) => {
-                // Усі логи обходу несуть run_id і store — їх видно в кожному рядку
-                let run_id = task.run_id.clone().unwrap_or_default();
-                let span = info_span!("run", run_id, store = %task.store);
-                if let Err(error) = handle_task(&mut con, task).instrument(span).await {
-                    error!(%error, "помилка Redis");
-                }
+        let finished: Vec<String> = running
+            .iter()
+            .filter(|(_, run)| run.handle.is_finished())
+            .map(|(site, _)| site.clone())
+            .collect();
+        for site in finished {
+            if let Some(run) = running.remove(&site) {
+                let _: () = con.lrem(TASKS_PROCESSING, -1, &run.raw).await?;
             }
-            Err(error) => error!(%error, raw, "некоректне завдання"),
         }
-        let _: () = con.lrem(TASKS_PROCESSING, -1, &raw).await?;
+
+        // API додає завдання зліва, тож найстаріше — справа
+        let queue: Vec<String> = con.lrange(TASKS_QUEUE, 0, -1).await?;
+        for raw in queue.into_iter().rev() {
+            let task = match serde_json::from_str::<ScraperTask>(&raw) {
+                Ok(task) => task,
+                Err(error) => {
+                    error!(%error, raw, "некоректне завдання");
+                    let _: () = con.lrem(TASKS_QUEUE, -1, &raw).await?;
+                    continue;
+                }
+            };
+            let site = site_of(&task.store);
+            if running.contains_key(&site) {
+                continue;
+            }
+            // Завдання лишається в TASKS_PROCESSING, доки обхід не завершиться
+            let _: () = redis::pipe()
+                .atomic()
+                .lrem(TASKS_QUEUE, -1, &raw)
+                .lpush(TASKS_PROCESSING, &raw)
+                .query_async(&mut con)
+                .await?;
+            // Усі логи обходу несуть run_id і store — їх видно в кожному рядку
+            let run_id = task.run_id.clone().unwrap_or_default();
+            let span = info_span!("run", run_id, store = %task.store);
+            let mut task_con = con.clone();
+            let handle = tokio::spawn(
+                async move {
+                    if let Err(error) = handle_task(&mut task_con, task).await {
+                        error!(%error, "помилка Redis");
+                    }
+                }
+                .instrument(span),
+            );
+            running.insert(site, Running { handle, raw });
+        }
+        tokio::time::sleep(POLL_EVERY).await;
     }
 }
 

@@ -13,8 +13,12 @@ import { createRedis } from './redis';
 const TTL_SECONDS = 60;
 const RENEW_MS = 20_000;
 
-/** Продовжити / зняти замок, лише якщо він досі наш */
-const RENEW = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('expire', KEYS[1], ARGV[2]) else return 0 end`;
+/**
+ * Продовжити замок, якщо він наш або вже нічий: поки компʼютер спить, TTL спливає,
+ * а після пробудження воркер має забрати його назад, а не лаятися до перезапуску
+ */
+const RENEW = `local owner = redis.call('get', KEYS[1]) if owner and owner ~= ARGV[1] then return 0 end redis.call('set', KEYS[1], ARGV[1], 'EX', ARGV[2]) return 1`;
+/** Зняти замок, лише якщо він досі наш */
 const RELEASE = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`;
 
 /**

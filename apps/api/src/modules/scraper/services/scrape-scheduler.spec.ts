@@ -283,7 +283,7 @@ describe('ScrapeScheduler.tick', () => {
 describe('ScrapeScheduler.reapLostRuns', () => {
   beforeAll(() => Logger.overrideLogger(false));
 
-  function setup(heartbeat: string | null) {
+  function setup(heartbeat: string | null, running?: string) {
     const prisma = {
       scrapeRun: {
         findMany: jest.fn(() =>
@@ -300,7 +300,12 @@ describe('ScrapeScheduler.reapLostRuns', () => {
       {} as ScheduleService,
     );
     Object.assign(scheduler, {
-      redis: { get: jest.fn(() => Promise.resolve(heartbeat)) },
+      redis: {
+        get: jest.fn(() => Promise.resolve(heartbeat)),
+        exists: jest.fn((key: string) =>
+          Promise.resolve(key === `scraper:heartbeat:${running}` ? 1 : 0),
+        ),
+      },
     });
     return { scheduler, prisma };
   }
@@ -313,6 +318,12 @@ describe('ScrapeScheduler.reapLostRuns', () => {
         where: { id: { in: ['run-a'] }, status: 'RUNNING' },
       }),
     );
+  });
+
+  it('одночасні обходи: запуск із власним ключем живий', async () => {
+    const { scheduler, prisma } = setup('run-b', 'run-a');
+    await expect(scheduler.reapLostRuns(NOW)).resolves.toEqual([]);
+    expect(prisma.scrapeRun.updateMany).not.toHaveBeenCalled();
   });
 
   it('heartbeat немає — втрачені всі старі RUNNING', async () => {
