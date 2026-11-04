@@ -114,6 +114,9 @@ describe('rankedPoolKey', () => {
     expect(
       rankedPoolKey('s1', { q: 'cola', country: 'UA', category: 'drinks' }, 24),
     ).not.toBe(key);
+    expect(
+      rankedPoolKey('s1', { q: 'cola', country: 'UA', onPromo: true }, 24),
+    ).not.toBe(key);
     expect(rankedPoolKey('s2', { q: 'cola', country: 'UA' }, 24)).not.toBe(key);
     expect(rankedPoolKey('s1', { q: 'cola', country: 'UA' }, 48)).not.toBe(key);
   });

@@ -72,12 +72,13 @@ export class CatalogService {
   async findProductIds(
     query: Pick<
       ProductsQueryDto,
-      'q' | 'category' | 'chain' | 'country' | 'multiChain'
+      'q' | 'category' | 'chain' | 'country' | 'multiChain' | 'onPromo'
     >,
     offset: number,
     limit: number,
   ): Promise<{ ids: string[]; total: number; scores?: number[] }> {
     const minChains = isTrue(query.multiChain) ? 2 : 1;
+    const onPromo = isTrue(query.onPromo);
     const q = query.q?.trim();
     const gtin = q && /^\d{8,14}$/.test(q) ? normalizeGtin(q) : null;
     const countryFirst = q ? query.country : undefined;
@@ -92,6 +93,7 @@ export class CatalogService {
           chain: query.chain,
           country,
           minChains,
+          onPromo,
         }),
         offset,
         limit,
@@ -143,7 +145,15 @@ export class CatalogService {
     }
     const inCountry = (code: string) =>
       Prisma.sql`EXISTS (SELECT 1 FROM listings kl JOIN product_variants kv ON kv.id = kl."variantId" JOIN store_chains kc ON kc.id = kl."chainId" WHERE kv."productId" = p.id AND kl."delistedAt" IS NULL AND kc."countryCode" = ${code})`;
-    if (country) filters.push(inCountry(country));
+    if (country && !onPromo) filters.push(inCountry(country));
+    // Акція має бути саме там, де покупець дивиться: у вибраній мережі та країні
+    if (onPromo) {
+      filters.push(
+        Prisma.sql`EXISTS (SELECT 1 FROM listings pl JOIN product_variants pv ON pv.id = pl."variantId" JOIN store_chains pc ON pc.id = pl."chainId" WHERE pv."productId" = p.id AND pl."delistedAt" IS NULL AND pl."isOnPromo" AND pl."inStock"${
+          query.chain ? Prisma.sql` AND pc.slug = ${query.chain}` : Prisma.empty
+        }${country ? Prisma.sql` AND pc."countryCode" = ${country}` : Prisma.empty})`,
+      );
+    }
     filters.push(Prisma.sql`s.chains >= ${minChains}`);
 
     // Лічильники мереж і карток — готові (матеріалізоване подання product_stats,

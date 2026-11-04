@@ -228,6 +228,38 @@ const COLA_EAN = '5449000000996';
     ).toBe(1);
   });
 
+  it('фільтр акцій: лише акція в наявності й у вибраній мережі', async () => {
+    const cola = await prisma.listing.findFirstOrThrow({
+      where: { chain: { slug: 'novus' }, rawName: { contains: 'Coca-Cola' } },
+    });
+    const promo = () => catalog.getProducts({ onPromo: true });
+    expect((await promo()).total).toBe(0);
+    await prisma.listing.update({
+      where: { id: cola.id },
+      data: { isOnPromo: true },
+    });
+    expect((await promo()).total).toBe(1);
+    expect(
+      (await catalog.getProducts({ onPromo: true, chain: 'novus' })).total,
+    ).toBe(1);
+    // Товар є в Сільпо, але акція в Novus
+    expect(
+      (await catalog.getProducts({ onPromo: true, chain: 'silpo' })).total,
+    ).toBe(0);
+    expect(
+      (await catalog.getProducts({ onPromo: true, country: 'DE' })).total,
+    ).toBe(0);
+    await prisma.listing.update({
+      where: { id: cola.id },
+      data: { inStock: false },
+    });
+    expect((await promo()).total).toBe(0);
+    await prisma.listing.update({
+      where: { id: cola.id },
+      data: { isOnPromo: false, inStock: true },
+    });
+  });
+
   it('повторний пакет нічого не дублює', async () => {
     const runs = await prisma.matchRun.count();
     const report = await matching.run();

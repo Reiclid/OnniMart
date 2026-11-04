@@ -161,6 +161,63 @@ describe('searchFilter', () => {
       'chains = "a\\" OR id = \\"x"',
     ]);
   });
+
+  it('акції: будь-де, у вибраній мережі або в країні', () => {
+    expect(searchFilter({ onPromo: true })).toEqual([
+      'promoChains IS NOT EMPTY',
+    ]);
+    expect(searchFilter({ onPromo: true, chain: 'novus' })).toEqual([
+      'chains = "novus"',
+      'promoChains = "novus"',
+    ]);
+    expect(searchFilter({ onPromo: true, country: 'UA' })).toEqual([
+      'countries = "UA"',
+      'promoChains IS NOT EMPTY',
+      'promoCountries = "UA"',
+    ]);
+    expect(searchFilter({ onPromo: false, chain: 'novus' })).toEqual([
+      'chains = "novus"',
+    ]);
+  });
+});
+
+describe('toSearchDoc: акції', () => {
+  it('лише акції в наявності, окремо мережі й країни', () => {
+    const product = (
+      slug: string,
+      countryCode: string,
+      isOnPromo: boolean,
+      inStock = true,
+    ) => ({
+      currentPrice: 10,
+      isOnPromo,
+      inStock,
+      chain: { slug, currency: 'UAH', countryCode },
+    });
+    const doc = toSearchDoc(
+      {
+        id: 'p1',
+        name: 'Вода',
+        lineId: null,
+        brand: null,
+        category: null,
+        variants: [
+          {
+            label: '1 л',
+            barcodes: [],
+            listings: [
+              product('novus', 'UA', true),
+              product('silpo', 'UA', false),
+              product('lidl-de', 'DE', true, false),
+            ],
+          },
+        ],
+      },
+      1,
+    );
+    expect(doc.promoChains).toEqual(['novus']);
+    expect(doc.promoCountries).toEqual(['UA']);
+  });
 });
 
 describe('withoutBrand', () => {

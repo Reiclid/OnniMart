@@ -398,6 +398,7 @@ model Listing {
   regularPrice Decimal?  @db.Decimal(12, 2)
   /// Ціна за 1 кг / 1 л / 1 шт
   unitPrice    Decimal?  @db.Decimal(12, 2)
+  /// Фільтр "Акції" йде через частковий індекс listings_active_promo_idx (лише в міграції: Prisma їх не описує)
   isOnPromo    Boolean   @default(false)
   /// До якого дня діє поточна акція (з сайту); після нього воркер знімає акцію
   promoEndsAt  DateTime?
