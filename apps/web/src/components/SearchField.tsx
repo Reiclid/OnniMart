@@ -73,7 +73,7 @@ export function SearchField({ q, filters = {} }: { q?: string; filters?: Catalog
     return () => document.removeEventListener('pointerdown', outside);
   }, [open]);
 
-  const kept = Object.entries({ category: filters.category, chain: filters.chain, multiChain: filters.multiChain && 'true' }).filter(
+  const kept = Object.entries({ category: filters.category, chain: filters.chain, onPromo: filters.onPromo && 'true', multiChain: filters.multiChain && 'true' }).filter(
     (entry): entry is [string, string] => !!entry[1],
   );
   const search = (query: string) => catalogHref({ ...filters, q: query });

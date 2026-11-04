@@ -30,6 +30,9 @@ export interface SearchDoc {
   chains: string[];
   /** Країни мереж, де товар продається: ["UA", "DE"] — фільтр пошуку за країною */
   countries: string[];
+  /** Мережі й країни, де товар зараз в акції та в наявності: фільтр "Акції" */
+  promoChains: string[];
+  promoCountries: string[];
   chainsCount: number;
   barcodes: string[];
   minPrice: number | null;
@@ -80,6 +83,8 @@ export const INDEX_SETTINGS = {
     'concepts',
     'chains',
     'countries',
+    'promoChains',
+    'promoCountries',
     'chainsCount',
     'lineId',
     'indexedAt',
@@ -111,6 +116,7 @@ export interface IndexedProduct {
     barcodes: { gtin: string }[];
     listings: {
       currentPrice: unknown;
+      isOnPromo?: boolean;
       /** Немає в наявності — мережа лишається у фільтрі, але ціна не рахується */
       inStock?: boolean;
       chain: { slug: string; currency: string; countryCode: string };
@@ -133,6 +139,7 @@ export function toSearchDoc(
     .filter((l) => l.chain.currency === currency && l.inStock !== false)
     .map((l) => Number(l.currentPrice));
   const chains = [...new Set(listings.map((l) => l.chain.slug))];
+  const promos = listings.filter((l) => l.isOnPromo && l.inStock !== false);
   const concept = conceptOf(product.name, product.category?.slug);
   const terms = concept ? conceptTerms(concept) : { names: [], related: [] };
   return {
@@ -149,6 +156,8 @@ export function toSearchDoc(
     lineId: product.lineId,
     chains,
     countries: [...new Set(listings.map((l) => l.chain.countryCode))],
+    promoChains: [...new Set(promos.map((l) => l.chain.slug))],
+    promoCountries: [...new Set(promos.map((l) => l.chain.countryCode))],
     chainsCount: chains.length,
     barcodes: product.variants.flatMap((v) => v.barcodes.map((b) => b.gtin)),
     minPrice: prices.length ? Math.min(...prices) : null,
@@ -163,6 +172,7 @@ export function searchFilter(f: {
   chain?: string;
   country?: string;
   minChains?: number;
+  onPromo?: boolean;
   excludeId?: string;
   excludeLineId?: string | null;
 }): string[] {
@@ -172,6 +182,9 @@ export function searchFilter(f: {
     f.chain && `chains = ${q(f.chain)}`,
     f.country && `countries = ${q(f.country)}`,
     f.minChains && f.minChains > 1 && `chainsCount >= ${f.minChains}`,
+    f.onPromo &&
+      (f.chain ? `promoChains = ${q(f.chain)}` : 'promoChains IS NOT EMPTY'),
+    f.onPromo && f.country && `promoCountries = ${q(f.country)}`,
     f.excludeId && `id != ${q(f.excludeId)}`,
     f.excludeLineId && `lineId != ${q(f.excludeLineId)}`,
   ].filter((c): c is string => !!c);

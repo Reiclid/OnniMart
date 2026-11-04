@@ -16,6 +16,10 @@ q?: string;
  */
 multiChain?: boolean;
 /**
+ * Лише товари з акцією чи знижкою в наявності (у мережі chain і в країні country, якщо задані)
+ */
+onPromo?: boolean;
+/**
  * StoreChain.slug — лише товари цієї мережі
  */
 chain?: string;

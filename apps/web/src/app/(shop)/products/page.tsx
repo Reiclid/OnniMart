@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function SearchPage(props: PageProps<'/products'>) {
   const filters = parseCatalogFilters(await props.searchParams);
-  const { q, chain, category, multiChain } = filters;
+  const { q, chain, category, onPromo, multiChain } = filters;
 
   const [products, { data: chains }, { data: categories }, t, country] = await Promise.all([
     findProducts({ ...filters, page: 1, pageSize: PRODUCTS_PAGE_SIZE }),
@@ -39,7 +39,7 @@ export default async function SearchPage(props: PageProps<'/products'>) {
         <p className="py-10 text-center text-body text-fg-muted">{t('catalog.empty')}</p>
       ) : (
         // Новий запит або мережа — новий список з першої сторінки
-        <ProductGrid key={`${q}|${chain}|${category}|${multiChain}`} first={products.items} total={products.total} filters={filters} money={money} />
+        <ProductGrid key={`${q}|${chain}|${category}|${onPromo}|${multiChain}`} first={products.items} total={products.total} filters={filters} money={money} />
       )}
     </div>
   );

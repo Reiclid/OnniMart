@@ -34,6 +34,7 @@ export const en = {
     chains: 'Chains',
     allCategories: 'All categories',
     allChains: 'All chains',
+    onPromo: 'Deals',
     multiChain: 'In 2+ chains',
     clear: 'Clear',
     close: 'Close',

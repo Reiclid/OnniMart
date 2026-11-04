@@ -59,6 +59,13 @@ export class ProductsQueryDto {
   @IsBooleanString()
   multiChain?: boolean;
   @ApiPropertyOptional({
+    description:
+      'Лише товари з акцією чи знижкою в наявності (у мережі chain і в країні country, якщо задані)',
+  })
+  @IsOptional()
+  @IsBooleanString()
+  onPromo?: boolean;
+  @ApiPropertyOptional({
     description: 'StoreChain.slug — лише товари цієї мережі',
   })
   @IsOptional()

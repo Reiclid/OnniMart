@@ -94,6 +94,7 @@ export function rankedPoolKey(
   query: {
     q?: string;
     multiChain?: boolean;
+    onPromo?: boolean;
     chain?: string;
     country?: string;
     category?: string;
@@ -103,6 +104,7 @@ export function rankedPoolKey(
   const filters = [
     query.q?.trim().toLowerCase() ?? '',
     query.multiChain ? '1' : '',
+    query.onPromo ? '1' : '',
     query.chain ?? '',
     query.country ?? '',
     query.category ?? '',

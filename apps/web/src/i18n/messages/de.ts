@@ -35,6 +35,7 @@ export const de: Catalog = {
     chains: 'Ketten',
     allCategories: 'Alle Kategorien',
     allChains: 'Alle Ketten',
+    onPromo: 'Angebote',
     multiChain: 'In 2+ Ketten',
     clear: 'Zurücksetzen',
     close: 'Schließen',

@@ -35,6 +35,7 @@ export const uk: Catalog = {
     chains: 'Мережі',
     allCategories: 'Усі категорії',
     allChains: 'Усі мережі',
+    onPromo: 'Акції',
     multiChain: 'У 2+ мережах',
     clear: 'Скинути',
     close: 'Закрити',

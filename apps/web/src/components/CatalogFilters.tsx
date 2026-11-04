@@ -15,7 +15,7 @@ const pill = (selected: boolean) =>
 
 /**
  * Фільтри каталогу одним рядком: категорія й мережа відкривають список (на телефоні — шторка
- * знизу, на десктопі — під кнопкою), "У 2+ мережах" — перемикач. Пошуковий запит зберігається.
+ * знизу, на десктопі — під кнопкою), "Акції" і "У 2+ мережах" — перемикачі. Пошуковий запит зберігається.
  */
 export function CatalogFilters({ filters, categories, chains }: { filters: Filters; categories: Option[]; chains: Option[] }) {
   const t = useT();
@@ -33,7 +33,7 @@ export function CatalogFilters({ filters, categories, chains }: { filters: Filte
   };
   const label = (param: 'category' | 'chain') =>
     lists[param].options.find((o) => o.value === filters[param])?.label ?? lists[param].title;
-  const active = !!(filters.category || filters.chain || filters.multiChain);
+  const active = !!(filters.category || filters.chain || filters.onPromo || filters.multiChain);
   const list = open && lists[open];
 
   return (
@@ -52,15 +52,18 @@ export function CatalogFilters({ filters, categories, chains }: { filters: Filte
             <ChevronDownIcon width={16} height={16} className={`transition-transform duration-(--duration-fast) ${open === param ? 'rotate-180' : ''}`} />
           </button>
         ))}
-        <Link
-          href={catalogHref({ ...filters, multiChain: !filters.multiChain })}
-          scroll={false}
-          aria-pressed={!!filters.multiChain}
-          className={`${pill(!!filters.multiChain)} pr-3.5`}
-        >
-          {filters.multiChain && <CheckIcon width={16} height={16} />}
-          {t('filters.multiChain')}
-        </Link>
+        {([['onPromo', t('filters.onPromo')], ['multiChain', t('filters.multiChain')]] as const).map(([param, title]) => (
+          <Link
+            key={param}
+            href={catalogHref({ ...filters, [param]: !filters[param] })}
+            scroll={false}
+            aria-pressed={!!filters[param]}
+            className={`${pill(!!filters[param])} pr-3.5`}
+          >
+            {filters[param] && <CheckIcon width={16} height={16} />}
+            {title}
+          </Link>
+        ))}
         {active && (
           <Link href={catalogHref({ q: filters.q })} scroll={false} className="shrink-0 px-2 text-body-sm font-semibold text-brand">
             {t('filters.clear')}
