@@ -8,10 +8,11 @@ import { ProductMasonry } from '@/components/ProductMasonry';
 import { BackButton } from '@/components/BackButton';
 import { ChainPriceRow } from '@/components/ChainPriceRow';
 import { PriceChart } from '@/components/PriceChart';
+import { ProductGallery } from '@/components/ProductGallery';
 import { RecordView } from '@/components/RecordView';
 import { RollingNumber } from '@/components/RollingNumber';
 import { SlidingPill } from '@/components/SlidingPill';
-import { buttonStyles, Chip, HeartIcon, ProductImage } from '@/components/ui';
+import { buttonStyles, Chip, HeartIcon } from '@/components/ui';
 import { currencySymbol, formatMoney, formatShown, formatUnitPrice, lineChipLabel, splitProductName } from '@/lib/format';
 import { productView } from '@/lib/offers';
 import { getI18n } from '@/i18n/server';
@@ -66,13 +67,8 @@ export default async function ProductPage(props: PageProps<'/products/[id]'>) {
       <RecordView productId={product.id} />
       <div className="grid gap-6 md:grid-cols-2">
         <div className="relative md:sticky md:top-6 md:self-start">
-          {/* Обране фасування — його фото (PRD-34), інакше фото товару; решта — запасні */}
-          <ProductImage
-            src={(v && variant?.imageUrl) || product.imageUrl}
-            fallbacks={[...(variant?.images ?? []), ...product.images]}
-            preload
-            className="aspect-square w-full"
-          />
+          {/* Обране фасування — лише його фото (PRD-34), без вибору — фото всіх мереж (PRD-33) */}
+          <ProductGallery images={v && variant?.images.length ? variant.images : product.images} fallback={product.images} />
           {/* На десктопі шлях назад — хлібні крихти (Figma: 06 Товар — десктоп) */}
           <BackButton fallback="/products" label={t('nav.back')} className="absolute top-3 left-3 md:hidden" />
         </div>
