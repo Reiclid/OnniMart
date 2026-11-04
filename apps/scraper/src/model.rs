@@ -2,9 +2,10 @@ use serde::{Deserialize, Serialize};
 
 /// Черга завдань від API
 pub const TASKS_QUEUE: &str = "scraper:tasks";
-/// Завдання, яке воркер зараз виконує; видаляється після run_finished / run_failed
+/// Завдання, які воркер зараз виконує; кожне видаляється після run_finished / run_failed
 pub const TASKS_PROCESSING: &str = "scraper:tasks:processing";
-/// Ознака життя воркера: run_id поточного запуску з TTL (див. ScrapeScheduler в API)
+/// Ознака життя воркера: run_id останнього активного запуску з TTL.
+/// Кожен запуск ще має власний ключ `scraper:heartbeat:<run_id>` (див. ScrapeScheduler в API)
 pub const HEARTBEAT_KEY: &str = "scraper:heartbeat";
 pub const HEARTBEAT_TTL_SECS: u64 = 900;
 /// Черга результатів для API: товари та події запуску в одному списку,

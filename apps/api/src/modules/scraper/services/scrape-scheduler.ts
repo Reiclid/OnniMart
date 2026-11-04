@@ -5,7 +5,7 @@ import {
   OnApplicationBootstrap,
   OnModuleDestroy,
 } from '@nestjs/common';
-import { SCRAPER_HEARTBEAT_KEY } from '@repo/contracts';
+import { SCRAPER_HEARTBEAT_KEY, scraperRunHeartbeatKey } from '@repo/contracts';
 import { AlertsChecker } from '../../accounts/alerts.checker';
 import { retentionCutoff } from '../../activity/activity';
 import { ruleHitsCutoff } from '../../catalog/matching/rule-hits';
@@ -112,8 +112,14 @@ export class ScrapeScheduler
         select: { id: true },
       });
       if (runs.length === 0) return [];
-      const alive = await this.redis.get(SCRAPER_HEARTBEAT_KEY);
-      const lost = runs.map((r) => r.id).filter((id) => id !== alive);
+      // Спільний ключ лишаємо для образу парсера без ключів на запуск
+      const latest = await this.redis.get(SCRAPER_HEARTBEAT_KEY);
+      const beats = await Promise.all(
+        runs.map((r) => this.redis.exists(scraperRunHeartbeatKey(r.id))),
+      );
+      const lost = runs
+        .filter((r, i) => r.id !== latest && beats[i] === 0)
+        .map((r) => r.id);
       if (lost.length === 0) return [];
       await this.prisma.scrapeRun.updateMany({
         where: { id: { in: lost }, status: 'RUNNING' },

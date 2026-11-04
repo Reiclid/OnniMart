@@ -61,8 +61,9 @@ if (!dockerReady()) {
 
 // Після git pull могли додатися залежності; без змін — секунда
 run('Залежності (bun install)', 'bun', ['install']);
+// --build: після pull контейнер парсера інакше лишився б на старому коді; без змін — кілька секунд
 run('Контейнери: postgres, redis, meilisearch, scraper', 'docker', [
-  'compose', 'up', '-d', '--wait', 'postgres', 'redis', 'meilisearch', 'scraper',
+  'compose', 'up', '-d', '--build', '--wait', 'postgres', 'redis', 'meilisearch', 'scraper',
 ]);
 run('Міграції бази', 'bun', ['x', 'prisma', 'migrate', 'deploy'], api);
 // Клієнт не в git: після pull зі зміною схеми старий клієнт валить API і worker на нових таблицях

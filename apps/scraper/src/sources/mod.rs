@@ -94,6 +94,15 @@ impl Source {
         Some(Self { store: store.to_string(), kind })
     }
 
+    /// Сайт для правила "один запит за раз": усі піддомени одного домену, як вітрини
+    /// zakaz.ua, це один сайт. Різні сайти можна обходити одночасно
+    pub fn site(&self) -> String {
+        let url = self.start_url();
+        let host = url.split('/').nth(2).unwrap_or(&url);
+        let labels: Vec<&str> = host.split('.').collect();
+        labels[labels.len().saturating_sub(2)..].join(".")
+    }
+
     /// Сторінка, з якої беремо список категорій
     pub fn start_url(&self) -> String {
         match self.kind {
@@ -176,6 +185,15 @@ fn base_product(store: &str, category: &Category, scraped_at: &str) -> ScrapedPr
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn storefronts_of_one_domain_are_one_site() {
+        let site = |store| Source::for_store(store).unwrap().site();
+        assert_eq!(site("novus"), "zakaz.ua");
+        assert_eq!(site("metro-ua"), site("eko"));
+        assert_eq!(site("globus-de"), "globus.de");
+        assert_ne!(site("aldi-sued"), site("aldi-nord"));
+    }
 
     #[test]
     fn maps_store_slugs_to_sources() {
