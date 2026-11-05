@@ -9,7 +9,7 @@ const valid = {
   exp: now.getTime() / 1000 + 300,
   nonce: 'n1',
   sub: '1234567890',
-  email: 'olena.k@gmail.com',
+  email: 'olena.k@example.com',
   email_verified: true,
   name: 'Olena K',
 };
@@ -19,7 +19,7 @@ describe('googleIdentity', () => {
   it('читає sub, email й ім’я з правильного токена', () => {
     expect(googleIdentity(token(valid), expected)).toEqual({
       sub: '1234567890',
-      email: 'olena.k@gmail.com',
+      email: 'olena.k@example.com',
       name: 'Olena K',
     });
   });

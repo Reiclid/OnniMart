@@ -10,7 +10,7 @@ const idToken = (claims: object) =>
       exp: Date.now() / 1000 + 300,
       nonce: 'n1',
       sub: 'g-1',
-      email: 'Olena.K@gmail.com',
+      email: 'Olena.K@example.com',
       email_verified: true,
       name: 'Olena',
       ...claims,
@@ -19,7 +19,7 @@ const idToken = (claims: object) =>
 
 const user = (fields: object) => ({
   id: 'u1',
-  email: 'olena.k@gmail.com',
+  email: 'olena.k@example.com',
   name: null,
   googleSub: null,
   countryCode: 'UA',
@@ -74,7 +74,7 @@ describe('AccountsService.google', () => {
     expect(session.created).toBe(true);
     expect(prisma.user.create).toHaveBeenCalledWith({
       data: {
-        email: 'olena.k@gmail.com',
+        email: 'olena.k@example.com',
         name: 'Olena',
         googleSub: 'g-1',
         countryCode: 'UA',

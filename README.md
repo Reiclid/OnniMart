@@ -1,5 +1,28 @@
 # OnniMart
 
+Price monitoring platform for grocery chains. OnniMart collects prices from 14 chains in Ukraine and Germany and recognizes the same product across stores and countries. This is my diploma project and it's in active development.
+
+## What it does
+
+- **Collects prices:** a Rust scraper covers 14 retail chains. It identifies itself as a bot and follows robots.txt and `Crawl-delay`.
+- **Matches products:** the engine in `packages/matching` uses barcodes, fuzzy name similarity with IDF weights and product attributes. Uncertain pairs go to manual moderation.
+- **Serves shoppers:** the Next.js storefront has search, barcode scanning, per-liter prices, price history and price alerts.
+- **Supports staff:** the admin panel covers scraper runs, the catalog and the moderation queue.
+
+## Architecture
+
+Three processes share work through Redis lists: a NestJS REST API, a NestJS background worker and the Rust scraper. Messages leave Redis only after they are written to PostgreSQL, and failed ones go to a dead-letter list.
+
+**Stack:** TypeScript, Next.js 16, Tailwind CSS 4, NestJS 11, Prisma 7, PostgreSQL 16, Redis, Meilisearch, Rust (tokio, reqwest), Bun, Turborepo, Docker Compose.
+
+## Numbers
+
+From the matching evaluation on 12 October 2026: 10,157 store listings from 14 chains, with 97% recall against barcode pairs. See [docs/02-database.md](docs/02-database.md).
+
+The detailed documentation below is in Ukrainian. Scraped price data is not included in this repository.
+
+---
+
 **Вебсистема моніторингу, агрегації та аналізу цін на споживчі товари.** Дипломний проєкт.
 
 OnniMart збирає ціни із сайтів продуктових мереж і **розпізнає один і той самий товар у різних мережах і країнах**. Для будь-якої картки товару система має знати:
