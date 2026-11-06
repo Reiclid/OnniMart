@@ -160,6 +160,35 @@ const ORIGIN = 'http://localhost:3000';
     expect(await redis.llen(MATCHING_REQUESTS_QUEUE)).toBe(1);
   });
 
+  it('зміни адмінки без токена — 401, до БД запит не доходить', async () => {
+    const id = '00000000-0000-4000-8000-000000000000';
+    const routes = [
+      ['PATCH', `/api/v1/products/${id}`],
+      ['PATCH', `/api/v1/variants/${id}`],
+      ['POST', `/api/v1/variants/${id}/barcodes`],
+      ['DELETE', `/api/v1/variants/${id}/barcodes/4820000000000`],
+      ['POST', `/api/v1/matching/candidates/${id}/accept`],
+      ['POST', `/api/v1/matching/listings/${id}/reject`],
+      ['POST', `/api/v1/matching/listings/${id}/unlink`],
+      ['POST', `/api/v1/matching/decisions/${id}/undo`],
+      ['POST', `/api/v1/matching/barcode-candidates/${id}/accept`],
+      ['POST', `/api/v1/matching/variants/${id}/barcode-candidates/reject`],
+      ['PUT', '/api/v1/matching/rules/barcode'],
+      ['PUT', '/api/v1/variations/smak'],
+      ['DELETE', '/api/v1/variations/smak'],
+      ['PATCH', `/api/v1/brands/${id}`],
+      ['POST', `/api/v1/brands/${id}/merge`],
+      ['PUT', '/api/v1/scraper/schedule'],
+      ['POST', '/api/v1/scraper/run-all'],
+    ];
+    for (const [method, path] of routes) {
+      const response = await fetch(`${base}${path}`, { method });
+      expect(`${method} ${path} ${response.status}`).toBe(
+        `${method} ${path} 401`,
+      );
+    }
+  });
+
   it('x-request-id: свій або згенерований — для звʼязування з логом', async () => {
     const own = await get('/api/v1/stats', { 'x-request-id': 'req-42' });
     expect(own.headers.get('x-request-id')).toBe('req-42');
