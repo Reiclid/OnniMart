@@ -32,10 +32,10 @@ if (!dev) {
   rmSync(join(web, '.next', 'dev', 'types'), { recursive: true, force: true });
   // --webpack, як і dev: Turbopack запускає PostCSS окремим процесом `node`, а тут лише bun
   if (spawnSync(process.execPath, next('build', '--webpack'), { cwd: web, stdio: 'inherit' }).status !== 0) stop(1);
-  children.push(spawn(process.execPath, next('start', '--port', port), { cwd: web, stdio: 'inherit' }));
+  children.push(spawn(process.execPath, next('start', '--hostname', '127.0.0.1', '--port', port), { cwd: web, stdio: 'inherit' }));
   // Тунель — коли сайт уже відповідає, інакше перші відвідувачі побачать помилку Cloudflare
   for (let i = 0; ; i++) {
-    if (await fetch(`http://localhost:${port}`, { redirect: 'manual' }).then(() => true, () => false)) break;
+    if (await fetch(`http://127.0.0.1:${port}`, { redirect: 'manual' }).then(() => true, () => false)) break;
     if (i > 60) {
       console.error(`next start не відповідає на :${port}`);
       stop(1);
@@ -46,7 +46,7 @@ if (!dev) {
 
 // Лог cloudflared ховаємо: з нього потрібна лише адреса — її друкуємо великою рамкою й кладемо в буфер обміну.
 // Якщо тунель впав до появи адреси — показуємо весь лог
-const tunnel = spawn(bin, ['tunnel', '--no-autoupdate', '--url', `http://localhost:${port}`], {
+const tunnel = spawn(bin, ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${port}`], {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 children.push(tunnel);
