@@ -24,6 +24,7 @@ import {
   prepareListings,
   productFeatures,
   quantityKey,
+  unmatchedVariation,
   variationGroup,
 } from '@repo/matching';
 
@@ -58,6 +59,7 @@ async function main() {
   const wanted = Number(option('pairs') ?? 60);
   const seed = option('seed') ?? '1';
   const out = option('out');
+  const rules = option('rules')?.split(',') as MatchRule[] | undefined;
 
   const rows = await prisma.listing.findMany({
     select: {
@@ -94,24 +96,23 @@ async function main() {
   for (const [country, docs] of vocabulary) {
     index.setIdf(country, buildIdf(docs));
   }
-  index.setVariations(
-    applyOverrides(
-      learnVariations(
-        rows
-          .filter((r) => r.delistedAt === null)
-          .map((r) => {
-            const l = inputs.get(r.id)!;
-            return {
-              chainId: l.chainId,
-              group: variationGroup(brandKey(r.rawBrand), l.quantity),
-              tokens: l.features.tokens.map((t) => t.norm),
-              barcodes: l.barcodes,
-            };
-          }),
-      ),
-      await prisma.variationOverride.findMany(),
+  const variations = applyOverrides(
+    learnVariations(
+      rows
+        .filter((r) => r.delistedAt === null)
+        .map((r) => {
+          const l = inputs.get(r.id)!;
+          return {
+            chainId: l.chainId,
+            group: variationGroup(brandKey(r.rawBrand), l.quantity),
+            tokens: l.features.tokens.map((t) => t.norm),
+            barcodes: l.barcodes,
+          };
+        }),
     ),
+    await prisma.variationOverride.findMany(),
   );
+  index.setVariations(variations);
 
   // Каталог — як у воркері: товар, фасування, штрихкоди, назви зіставлених карток
   const variants = await prisma.productVariant.findMany({
@@ -128,7 +129,7 @@ async function main() {
     },
   });
   const variantById = new Map(variants.map((v) => [v.id, v]));
-  const listingOf = new Map<string, string>();
+  const listingOf = new Map<string, { name: string; tokens: string[] }>();
   for (const r of rows) {
     if (!r.variantId || r.delistedAt !== null) continue;
     const variant = variantById.get(r.variantId);
@@ -146,7 +147,12 @@ async function main() {
     );
     for (const { gtin } of variant.barcodes) index.addBarcode(variant.id, gtin);
     index.addName(variant.id, input.features, input.country, r.chainId);
-    if (!listingOf.has(variant.id)) listingOf.set(variant.id, r.rawName);
+    if (!listingOf.has(variant.id)) {
+      listingOf.set(variant.id, {
+        name: r.rawName,
+        tokens: input.features.tokens.map((t) => t.norm),
+      });
+    }
   }
   const productName = new Map(
     variants.map((v) => [v.productId, v.product.name]),
@@ -156,14 +162,14 @@ async function main() {
   if (out) {
     writeFileSync(
       out,
-      'rule\tverdict\tscore\tchain\tlisting\tcandidate_product\tcandidate_listing\n',
+      'rule\tverdict\tscore\tmine\ttheirs\tchain\tlisting\tcandidate_product\tcandidate_listing\n',
     );
   }
   console.log(
     '| Правило | Карток (новий товар) | Перевірено | Зʼявилась пара | Той самий GTIN | Різні GTIN | Без відповіді |',
   );
   console.log('|---|---|---|---|---|---|---|');
-  for (const rule of RULES) {
+  for (const rule of rules ?? RULES) {
     const hits = await prisma.matchRuleHit.findMany({
       where: { rule, decision: 'product' },
       select: { listingId: true },
@@ -211,14 +217,23 @@ async function main() {
             : 'different';
       tally.pairs++;
       tally[verdict]++;
+      // Слова-варіації, які відрізняють назви: з кожного боку або лише з одного
+      const words = listing.features.tokens.map((t) => t.norm);
+      const candidate = after.variantId ? listingOf.get(after.variantId) : null;
       const line = [
         rule,
         verdict,
         after.score.toFixed(3),
+        (candidate &&
+          unmatchedVariation(words, candidate.tokens, variations)) ??
+          '',
+        (candidate &&
+          unmatchedVariation(candidate.tokens, words, variations)) ??
+          '',
         byId.get(id)!.chain.slug,
         byId.get(id)!.rawName,
         productName.get(productId) ?? '',
-        after.variantId ? (listingOf.get(after.variantId) ?? '') : '',
+        candidate?.name ?? '',
       ].join('\t');
       if (out) appendFileSync(out, line + '\n');
     }

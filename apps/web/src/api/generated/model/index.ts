@@ -20,6 +20,7 @@ export * from './brandRefDto';
 export * from './candidateOfferDto';
 export * from './categoryDto';
 export * from './categoryRefDto';
+export * from './chainFreshnessDto';
 export * from './chainScheduleDto';
 export * from './chainSummaryDto';
 export * from './chainSummaryDtoOnlinePrices';

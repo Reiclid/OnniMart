@@ -102,6 +102,25 @@ describe('attributeConflict', () => {
     );
   });
 
+  it('близькі відсотки — округлення етикетки, а не інший товар', () => {
+    expect(
+      attributeConflict({ percent: '38' }, { percent: '37.5' }),
+    ).toBeNull();
+    expect(
+      attributeConflict({ percent: '3.8' }, { percent: '3.7' }),
+    ).toBeNull();
+    expect(attributeConflict({ percent: '1.5' }, { percent: '2' })).toBe(
+      'percent',
+    );
+    expect(attributeConflict({ percent: '70' }, { percent: '72.1' })).toBe(
+      'percent',
+    );
+    // Кілька значень у назві не порівнюємо
+    expect(attributeConflict({ percent: '2.5,3.2' }, { percent: '2.5' })).toBe(
+      'percent',
+    );
+  });
+
   it('газованість і відсоток можуть бути не вказані в одній з назв', () => {
     expect(attributeConflict({ gas: 'sparkling' }, {})).toBeNull();
     expect(attributeConflict({ percent: '2.5' }, {})).toBeNull();
@@ -118,7 +137,9 @@ describe('scorePair на реальних назвах', () => {
   });
 
   it('лише бренд з обох боків — той самий товар', () => {
-    expect(score(['Coca-Cola 0,5л', 'Coca-Cola'], ['Coca-Cola 0,5 л', 'Coca-Cola'])).toBe(1);
+    expect(
+      score(['Coca-Cola 0,5л', 'Coca-Cola'], ['Coca-Cola 0,5 л', 'Coca-Cola']),
+    ).toBe(1);
   });
 
   it('Сільпо і Ашан: та сама вода', () => {

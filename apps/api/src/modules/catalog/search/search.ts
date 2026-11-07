@@ -1,3 +1,4 @@
+import { freshOrAll } from '../../quality/freshness';
 import {
   conceptOf,
   conceptPath,
@@ -119,6 +120,8 @@ export interface IndexedProduct {
       isOnPromo?: boolean;
       /** Немає в наявності — мережа лишається у фільтрі, але ціна не рахується */
       inStock?: boolean;
+      /** Давно не бачена ціна не бере участі в мінімальній, якщо є свіжіші */
+      lastSeenAt?: Date;
       chain: { slug: string; currency: string; countryCode: string };
     }[];
   }[];
@@ -135,9 +138,12 @@ export function toSearchDoc(
   const currency = listings.some((l) => l.chain.currency === 'UAH')
     ? 'UAH'
     : (listings[0]?.chain.currency ?? null);
-  const prices = listings
-    .filter((l) => l.chain.currency === currency && l.inStock !== false)
-    .map((l) => Number(l.currentPrice));
+  const prices = freshOrAll(
+    listings.filter(
+      (l) => l.chain.currency === currency && l.inStock !== false,
+    ),
+    new Date(indexedAt),
+  ).map((l) => Number(l.currentPrice));
   const chains = [...new Set(listings.map((l) => l.chain.slug))];
   const promos = listings.filter((l) => l.isOnPromo && l.inStock !== false);
   const concept = conceptOf(product.name, product.category?.slug);

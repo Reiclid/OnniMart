@@ -163,6 +163,32 @@ describe('decideAlert', () => {
   });
 });
 
+describe('decideAlert: стара ціна', () => {
+  it('не сповіщає про картку, яку давно не бачили', () => {
+    const now = new Date('2026-11-07T00:00:00Z');
+    const stale = {
+      ...offer('silpo', 50),
+      lastSeenAt: new Date('2026-10-01T00:00:00Z'),
+    };
+    const subscription = {
+      id: 'sub',
+      targetPrice: 60,
+      notifyOnPromo: false,
+      chainIds: [],
+    };
+    expect(decideAlert(subscription, [stale], 0, undefined, now)).toBeNull();
+    expect(
+      decideAlert(
+        subscription,
+        [{ ...stale, lastSeenAt: now }],
+        0,
+        undefined,
+        now,
+      ),
+    ).not.toBeNull();
+  });
+});
+
 describe('notificationParams', () => {
   it('нове сповіщення — дані для тексту мовою покупця', () => {
     expect(

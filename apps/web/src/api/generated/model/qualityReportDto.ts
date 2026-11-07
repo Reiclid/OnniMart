@@ -5,6 +5,7 @@
  * API для моніторингу цін та скрейпінгу
  * OpenAPI spec version: 1.0
  */
+import type { ChainFreshnessDto } from './chainFreshnessDto';
 import type { CompletenessDto } from './completenessDto';
 import type { DiscountSectionDto } from './discountSectionDto';
 import type { DuplicateDto } from './duplicateDto';
@@ -28,4 +29,5 @@ export interface QualityReportDto {
   completeness: CompletenessDto[];
   jumps: PriceJumpDto[];
   duplicates: DuplicateDto[];
+  freshness: ChainFreshnessDto[];
 }

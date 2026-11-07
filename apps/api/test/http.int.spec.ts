@@ -84,7 +84,7 @@ const ORIGIN = 'http://localhost:3000';
       brand: 'Coca-Cola',
       barcodes: ['5449000000996'],
       price: 29.9,
-      scraper_at: '2026-10-19T08:00:00Z',
+      scraper_at: new Date().toISOString(), // картка старша за 14 днів не дає сповіщень
       in_stock: true,
     });
     await matching.run();

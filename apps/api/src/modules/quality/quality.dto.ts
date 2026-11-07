@@ -133,6 +133,25 @@ export class QualityChainDto {
   @ApiProperty() country!: string;
 }
 
+export class ChainFreshnessDto {
+  @ApiProperty() chain!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() country!: string;
+  @ApiProperty() active!: number;
+  @ApiProperty() older2d!: number;
+  @ApiProperty() older7d!: number;
+  @ApiProperty() stale!: number;
+  @ApiProperty({ type: String, nullable: true }) lastRunAt!: string | null;
+  @ApiProperty({ type: String, nullable: true }) lastRunStatus!: string | null;
+  @ApiProperty({ type: String, nullable: true }) lastFullAt!: string | null;
+  @ApiProperty({ type: Number, nullable: true }) lastFullSeen!: number | null;
+  @ApiProperty({
+    type: [String],
+    description: 'Що не так; порожньо — усе гаразд',
+  })
+  problems!: string[];
+}
+
 export class QualityReportDto {
   @ApiProperty() generatedAt!: string;
   @ApiProperty({ description: 'Активних карток у наявності з ціною' })
@@ -147,4 +166,5 @@ export class QualityReportDto {
   @ApiProperty({ type: [CompletenessDto] }) completeness!: CompletenessDto[];
   @ApiProperty({ type: [PriceJumpDto] }) jumps!: PriceJumpDto[];
   @ApiProperty({ type: [DuplicateDto] }) duplicates!: DuplicateDto[];
+  @ApiProperty({ type: [ChainFreshnessDto] }) freshness!: ChainFreshnessDto[];
 }

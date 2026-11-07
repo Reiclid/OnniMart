@@ -5,6 +5,8 @@ services:
   postgres:
     image: postgres:16.15-alpine
     container_name: onnimart-postgres
+    # Паралельні запити до повного каталогу не вміщаються в типові 64 МБ
+    shm_size: 512mb
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}

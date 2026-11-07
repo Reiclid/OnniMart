@@ -73,6 +73,34 @@ describe('toSearchDoc', () => {
     expect(doc).toMatchObject({ minPrice: 25, chains: ['eko', 'novus'] });
   });
 
+  it('стара ціна не стає мінімальною, поки є свіжіша', () => {
+    const at = new Date('2026-11-07T00:00:00Z');
+    const doc = toSearchDoc(
+      {
+        id: 'p',
+        name: 'Cola',
+        lineId: null,
+        brand: null,
+        category: null,
+        variants: [
+          {
+            label: '1 л',
+            barcodes: [],
+            listings: [
+              {
+                ...listing('eko', 'UAH', 19),
+                lastSeenAt: new Date('2026-10-01T00:00:00Z'),
+              },
+              { ...listing('novus', 'UAH', 25), lastSeenAt: at },
+            ],
+          },
+        ],
+      },
+      at.getTime(),
+    );
+    expect(doc).toMatchObject({ minPrice: 25, chains: ['eko', 'novus'] });
+  });
+
   it('лише німецькі мережі — ціна в євро; без цін — null', () => {
     const base = {
       id: 'p',
