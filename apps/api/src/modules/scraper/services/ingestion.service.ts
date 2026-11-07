@@ -61,18 +61,60 @@ export class IngestionService {
     private readonly matching: MatchingService,
   ) {}
 
+  /** Одна картка — окремий випадок пакета (так її обробляє повтор після збою) */
   async ingest(item: ScrapedProductMessage): Promise<IngestResult> {
+    return (await this.ingestBatch([item]))[0];
+  }
+
+  /**
+   * Пакет карток: один запит на наявні картки, одна транзакція на запис (із одним
+   * INSERT історії цін і одним оновленням itemsChanged на запуск), один запит на
+   * власників штрихкодів. Некоректна картка чи невідома мережа дають 'skipped' і не
+   * зачіпають решту пакета. Результати йдуть у порядку вхідного масиву.
+   */
+  async ingestBatch(items: ScrapedProductMessage[]): Promise<IngestResult[]> {
+    const results = items.map((): IngestResult => 'skipped');
+    const prepared: Prepared[] = [];
+    for (const [index, item] of items.entries()) {
+      const entry = await this.prepare(item, index);
+      if (entry) prepared.push(entry);
+    }
+    // Дві версії однієї картки в пакеті пишемо по черзі: друга бачить результат першої
+    for (const group of uniqueKeyGroups(prepared)) {
+      const changed = await this.writeGroup(group);
+      for (const [i, entry] of group.entries()) {
+        results[entry.index] = changed[i] ? 'changed' : 'unchanged';
+        if (entry.runId) {
+          this.progress.set(
+            entry.runId,
+            (this.progress.get(entry.runId) ?? 0) + 1,
+          );
+        }
+      }
+    }
+    if (
+      this.progress.size > 0 &&
+      Date.now() - this.progressFlushedAt > PROGRESS_FLUSH_MS
+    ) {
+      await this.flushProgress();
+    }
+    return results;
+  }
+
+  private async prepare(
+    item: ScrapedProductMessage,
+    index: number,
+  ): Promise<Prepared | null> {
     if (!isValid(item)) {
       this.logger.warn(
         `Некоректне повідомлення від парсера: ${JSON.stringify(item)}`,
       );
-      return 'skipped';
+      return null;
     }
-
     const chain = await this.chainBySlug(item.store);
     if (!chain) {
       this.logger.warn(`Невідома мережа "${item.store}" — додайте її в seed`);
-      return 'skipped';
+      return null;
     }
 
     const quantity = resolveQuantity(item);
@@ -90,105 +132,154 @@ export class IngestionService {
       : null;
     const seenAt = parseDate(item.scraper_at);
     const runId = await this.existingRun(item.run_id);
-    if (runId) {
-      this.progress.set(runId, (this.progress.get(runId) ?? 0) + 1);
-      if (Date.now() - this.progressFlushedAt > PROGRESS_FLUSH_MS)
-        await this.flushProgress();
-    }
 
-    const key = { chainId: chain.id, externalId: item.external };
-    const existing = await this.prisma.listing.findUnique({
-      where: { chainId_externalId: key },
-    });
-
-    const changed =
-      !existing ||
-      Number(existing.currentPrice) !== price ||
-      toNumberOrNull(existing.regularPrice) !== regularPrice ||
-      existing.isOnPromo !== isOnPromo ||
-      existing.inStock !== inStock;
-
-    // Назва чи бренд змінились — слова назви для IDF порахує воркер заново
-    const renamed =
-      !existing ||
-      existing.rawName !== item.name ||
-      existing.rawBrand !== (item.brand ?? null);
-
-    const fields = {
-      ...(renamed && { tokenizedAt: null }),
-      url: item.url ?? null,
-      rawName: item.name,
-      rawBrand: item.brand ?? null,
-      rawCategory: item.category ?? null,
-      imageUrl: item.image_url ?? null,
-      barcodes,
-      rawData: item as unknown as Prisma.InputJsonValue,
-      measure: quantity?.measure ?? null,
-      netQuantity: quantity?.netQuantity ?? null,
-      packCount: quantity?.packCount ?? null,
-      isWeighted: quantity?.isWeighted ?? false,
-      currentPrice: price,
+    return {
+      index,
+      key: { chainId: chain.id, externalId: item.external },
+      price,
       regularPrice,
-      unitPrice,
       isOnPromo,
-      promoEndsAt,
       inStock,
-      lastSeenAt: seenAt,
-      // Картку знову бачимо на сайті
-      delistedAt: null,
-      ...(runId && { lastRunId: runId }),
+      seenAt,
+      runId,
+      barcodes,
+      fields: {
+        url: item.url ?? null,
+        rawName: item.name,
+        rawBrand: item.brand ?? null,
+        rawCategory: item.category ?? null,
+        imageUrl: item.image_url ?? null,
+        barcodes,
+        rawData: item as unknown as Prisma.InputJsonValue,
+        measure: quantity?.measure ?? null,
+        netQuantity: quantity?.netQuantity ?? null,
+        packCount: quantity?.packCount ?? null,
+        isWeighted: quantity?.isWeighted ?? false,
+        currentPrice: price,
+        regularPrice,
+        unitPrice,
+        isOnPromo,
+        promoEndsAt,
+        inStock,
+        lastSeenAt: seenAt,
+        // Картку знову бачимо на сайті
+        delistedAt: null,
+        ...(runId && { lastRunId: runId }),
+      },
+      snapshot: {
+        price,
+        regularPrice,
+        unitPrice,
+        promoType: promoTypeOf(regularPrice, item.promo_label),
+        promoLabel: item.promo_label ?? null,
+        promoEndsAt,
+        inStock,
+        capturedAt: seenAt,
+        scrapeRunId: runId,
+      },
     };
-
-    // Ціна й наявність ті самі (більшість щоденного обходу) — один запит без транзакції
-    const listing =
-      existing && !changed
-        ? await this.prisma.listing.update({
-            where: { id: existing.id },
-            data: fields,
-          })
-        : await this.save(key, fields, seenAt, {
-            price,
-            regularPrice,
-            unitPrice,
-            promoType: promoTypeOf(regularPrice, item.promo_label),
-            promoLabel: item.promo_label ?? null,
-            promoEndsAt,
-            inStock,
-            capturedAt: seenAt,
-            scrapeRunId: runId,
-          });
-
-    if (!listing.variantId && barcodes.length > 0) {
-      await this.matchByBarcode(listing.id, barcodes);
-    }
-
-    return changed ? 'changed' : 'unchanged';
   }
 
-  /** Нова або змінена картка: збереження + запис історії цін в одній транзакції */
-  private save(
-    key: { chainId: string; externalId: string },
-    fields: Omit<Prisma.ListingUncheckedCreateInput, 'chainId' | 'externalId'>,
-    seenAt: Date,
-    snapshot: Omit<Prisma.PriceSnapshotUncheckedCreateInput, 'listingId'>,
-  ) {
-    return this.prisma.$transaction(async (tx) => {
-      const saved = await tx.listing.upsert({
-        where: { chainId_externalId: key },
-        create: { ...key, ...fields, firstSeenAt: seenAt },
-        update: fields,
-      });
-      await tx.priceSnapshot.create({
-        data: { ...snapshot, listingId: saved.id },
-      });
-      if (snapshot.scrapeRunId) {
-        await tx.scrapeRun.update({
-          where: { id: snapshot.scrapeRunId },
-          data: { itemsChanged: { increment: 1 } },
-        });
-      }
-      return saved;
+  /**
+   * Записує картки з різними ключами; повертає для кожної, чи змінилась ціна, акція
+   * чи наявність. Збій відкочує всю транзакцію — повідомлення лишаються в черзі.
+   */
+  private async writeGroup(group: Prepared[]): Promise<boolean[]> {
+    const byChain = new Map<string, string[]>();
+    for (const { key } of group) {
+      const ids = byChain.get(key.chainId) ?? [];
+      ids.push(key.externalId);
+      byChain.set(key.chainId, ids);
+    }
+    const found = await this.prisma.listing.findMany({
+      where: {
+        OR: [...byChain].map(([chainId, ids]) => ({
+          chainId,
+          externalId: { in: ids },
+        })),
+      },
     });
+    const existingByKey = new Map(
+      found.map((l) => [keyOf(l.chainId, l.externalId), l]),
+    );
+
+    const states = group.map((entry) => {
+      const existing = existingByKey.get(
+        keyOf(entry.key.chainId, entry.key.externalId),
+      );
+      const changed =
+        !existing ||
+        Number(existing.currentPrice) !== entry.price ||
+        toNumberOrNull(existing.regularPrice) !== entry.regularPrice ||
+        existing.isOnPromo !== entry.isOnPromo ||
+        existing.inStock !== entry.inStock;
+      // Назва чи бренд змінились — слова назви для IDF порахує воркер заново
+      const renamed =
+        !existing ||
+        existing.rawName !== entry.fields.rawName ||
+        existing.rawBrand !== entry.fields.rawBrand;
+      return { existing, changed, renamed };
+    });
+
+    const saved = await this.prisma.$transaction(
+      async (tx) => {
+        const listings: { id: string; variantId: string | null }[] = [];
+        const snapshots: Prisma.PriceSnapshotCreateManyInput[] = [];
+        const changedPerRun = new Map<string, number>();
+        for (const [i, entry] of group.entries()) {
+          const { existing, changed, renamed } = states[i];
+          const fields = {
+            ...entry.fields,
+            ...(renamed && { tokenizedAt: null }),
+          };
+          // Ціна й наявність ті самі (більшість щоденного обходу) — лише UPDATE
+          const listing =
+            existing && !changed
+              ? await tx.listing.update({
+                  where: { id: existing.id },
+                  data: fields,
+                })
+              : await tx.listing.upsert({
+                  where: { chainId_externalId: entry.key },
+                  create: {
+                    ...entry.key,
+                    ...fields,
+                    firstSeenAt: entry.seenAt,
+                  },
+                  update: fields,
+                });
+          listings.push(listing);
+          if (!changed) continue;
+          snapshots.push({ ...entry.snapshot, listingId: listing.id });
+          if (entry.runId) {
+            changedPerRun.set(
+              entry.runId,
+              (changedPerRun.get(entry.runId) ?? 0) + 1,
+            );
+          }
+        }
+        if (snapshots.length > 0) {
+          await tx.priceSnapshot.createMany({ data: snapshots });
+        }
+        for (const [id, n] of changedPerRun) {
+          await tx.scrapeRun.update({
+            where: { id },
+            data: { itemsChanged: { increment: n } },
+          });
+        }
+        return listings;
+      },
+      { timeout: 30_000 },
+    );
+
+    await this.matchByBarcodes(
+      group.flatMap((entry, i) =>
+        !saved[i].variantId && entry.barcodes.length > 0
+          ? [{ listingId: saved[i].id, gtins: entry.barcodes }]
+          : [],
+      ),
+    );
+    return states.map((s) => s.changed);
   }
 
   /** Записує накопичені лічильники прогресу (itemsSeen += n) */
@@ -418,42 +509,54 @@ export class IngestionService {
     return exists ? runId : null;
   }
 
-  /** Етап 1 зіставлення: точний збіг штрихкоду з уже відомим варіантом. */
-  private async matchByBarcode(listingId: string, gtins: string[]) {
+  /**
+   * Етап 1 зіставлення: точний збіг штрихкоду з уже відомим варіантом.
+   * Власників штрихкодів усього пакета шукаємо одним запитом.
+   */
+  private async matchByBarcodes(
+    entries: { listingId: string; gtins: string[] }[],
+  ) {
+    if (entries.length === 0) return;
     const owners = await this.prisma.barcode.findMany({
-      where: { gtin: { in: gtins } },
+      where: { gtin: { in: [...new Set(entries.flatMap((e) => e.gtins))] } },
       select: { gtin: true, variantId: true },
     });
-    const variants = [...new Set(owners.map((o) => o.variantId))];
-    if (variants.length === 0) return;
-    if (variants.length > 1) {
-      // Штрихкоди картки належать різним фасуванням — схоже на дубль у каталозі;
-      // не вгадуємо, картку розгляне пакетне зіставлення
-      this.logger.warn(
-        `Картка ${listingId}: штрихкоди ведуть до різних фасувань (${owners
-          .map((o) => `${o.gtin}→${o.variantId}`)
-          .join(', ')})`,
-      );
-      return;
-    }
-    // Правило вимкнене на /admin/rules — картку зіставить пакет за назвою
-    if (!(await this.barcodeRuleOn())) return;
+    if (owners.length === 0) return;
+    const hits: Prisma.MatchRuleHitCreateManyInput[] = [];
+    for (const { listingId, gtins } of entries) {
+      const own = owners.filter((o) => gtins.includes(o.gtin));
+      const variants = [...new Set(own.map((o) => o.variantId))];
+      if (variants.length === 0) continue;
+      if (variants.length > 1) {
+        // Штрихкоди картки належать різним фасуванням — схоже на дубль у каталозі;
+        // не вгадуємо, картку розгляне пакетне зіставлення
+        this.logger.warn(
+          `Картка ${listingId}: штрихкоди ведуть до різних фасувань (${own
+            .map((o) => `${o.gtin}→${o.variantId}`)
+            .join(', ')})`,
+        );
+        continue;
+      }
+      // Правило вимкнене на /admin/rules — картки зіставить пакет за назвою
+      if (!(await this.barcodeRuleOn())) break;
 
-    // Лише якщо картку тим часом не зіставили (пакет зіставлення, модератор)
-    const { count } = await this.prisma.listing.updateMany({
-      where: { id: listingId, variantId: null },
-      data: {
-        variantId: variants[0],
-        matchStatus: 'AUTO_MATCHED',
-        matchMethod: 'BARCODE',
-        matchScore: 1,
-        matchedAt: new Date(),
-      },
-    });
-    if (count > 0) {
-      await this.prisma.matchRuleHit.create({
-        data: { rule: 'barcode', listingId, decision: 'barcode' },
+      // Лише якщо картку тим часом не зіставили (пакет зіставлення, модератор)
+      const { count } = await this.prisma.listing.updateMany({
+        where: { id: listingId, variantId: null },
+        data: {
+          variantId: variants[0],
+          matchStatus: 'AUTO_MATCHED',
+          matchMethod: 'BARCODE',
+          matchScore: 1,
+          matchedAt: new Date(),
+        },
       });
+      if (count > 0) {
+        hits.push({ rule: 'barcode', listingId, decision: 'barcode' });
+      }
+    }
+    if (hits.length > 0) {
+      await this.prisma.matchRuleHit.createMany({ data: hits });
     }
   }
 
@@ -467,6 +570,41 @@ export class IngestionService {
     }
     return this.barcodeRule.on;
   }
+}
+
+/** Картка, готова до запису */
+interface Prepared {
+  /** Позиція в пакеті, щоб повернути результат у тому ж порядку */
+  index: number;
+  key: { chainId: string; externalId: string };
+  price: number;
+  regularPrice: number | null;
+  isOnPromo: boolean;
+  inStock: boolean;
+  seenAt: Date;
+  runId: string | null;
+  barcodes: string[];
+  fields: Omit<Prisma.ListingUncheckedCreateInput, 'chainId' | 'externalId'>;
+  snapshot: Omit<Prisma.PriceSnapshotUncheckedCreateInput, 'listingId'>;
+}
+
+const keyOf = (chainId: string, externalId: string) =>
+  `${chainId}\0${externalId}`;
+
+/** Ділить пакет на групи з унікальними ключами; порядок записів зберігається */
+function uniqueKeyGroups(list: Prepared[]): Prepared[][] {
+  const groups: Prepared[][] = [];
+  let seen = new Set<string>();
+  for (const entry of list) {
+    const key = keyOf(entry.key.chainId, entry.key.externalId);
+    if (groups.length === 0 || seen.has(key)) {
+      groups.push([]);
+      seen = new Set();
+    }
+    seen.add(key);
+    groups[groups.length - 1].push(entry);
+  }
+  return groups;
 }
 
 function isValid(item: ScrapedProductMessage): boolean {
