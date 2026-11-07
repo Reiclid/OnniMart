@@ -81,7 +81,7 @@ function oneSided(a: NameFeatures, b: NameFeatures): boolean {
 /** Частина складеного слова: лише літери, від 4 («Erdbeere» не стає «erd beere») */
 const PART = /^\p{L}{4,}$/u;
 
-/** «mehrkornbrot» → [mehr, korn, brot], якщо кожна частина є окремим словом словника */
+/** «mehrkornbrot» → [mehr, kornbrot], якщо обидві половини розрізу є словами словника; кожна половина ділиться далі */
 function split(word: string, lexicon: ReadonlySet<string>): string[] {
   for (let at = 4; at <= word.length - 4; at++) {
     const left = word.slice(0, at);
@@ -116,6 +116,10 @@ export function splitCompounds(
   });
 }
 
+/**
+ * Спершу всі `add` / `addWords`, потім запити: блоки й ключі дублікатів будуються за повним словником
+ * при першому `candidates` / `vocabulary`, а кожен наступний `add` скидає їх на повну перебудову.
+ */
 export class OffIndex {
   /** `${країна}|${gtin}` → запис */
   private readonly entries = new Map<string, Entry>();

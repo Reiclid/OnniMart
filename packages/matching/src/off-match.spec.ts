@@ -273,4 +273,25 @@ describe('OffIndex: складені слова (PRD-27, ітерація 3)', (
     expect(norms('Einudeln', ['nudeln'])).toEqual(['einudeln']);
     expect(norms('Erdbeere', ['erd', 'beere'])).toEqual(['erdbeere']);
   });
+
+  it('слово, додане після запиту, змінює рішення; словники країн окремі', () => {
+    const index = new OffIndex();
+    index.add(off('04006237010041', 'Langkornreis', ['Wurzener'], '500 g'));
+    const card = listing('Langkorn-Reis 500 g', 'Wurzener');
+    expect(index.decide(card, idf).kind).toBe('none');
+    // Лексикон іншої країни слово не ділить
+    index.addWords('UA', [['langkorn', 'reis']]);
+    expect(index.decide(card, idf).kind).toBe('none');
+    index.addWords('DE', [['langkorn', 'reis']]);
+    expect(index.decide(card, idf).kind).toBe('match');
+  });
+
+  it('різні товари зі спільною складовою не стають збігом', () => {
+    const index = new OffIndex();
+    index.add(off('04000000000011', 'Pennenudeln', ['Barilla'], '500 g'));
+    index.addWords('DE', [['spaghettinudeln'], ['nudeln']]);
+    expect(
+      index.decide(listing('Spaghettinudeln 500 g', 'Barilla'), idf).kind,
+    ).not.toBe('match');
+  });
 });
