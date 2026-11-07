@@ -120,8 +120,9 @@ type Pattern = { word: string; prefix: boolean };
  */
 const ALCOHOL_FREE =
   /безалкогольн|alkoholfrei|alcohol[- ]free|(?<![\d,.])0[,.]0\s*%/iu;
+// Короткі слова — лише цілі: "gin" є в "Ginger", "вино" у "виноград". Решта — префікси ("Weizenbier", "ромовий напій")
 const ALCOHOL_DRINK =
-  /(?<![\p{L}])(пиво|вино|джин|ром|сидр|бренді|віскі|лікер|bier|wein|sekt|gin|rum|cider|helles|pils|radler|weizen)/iu;
+  /(?<![\p{L}])(?:(?:вино|джин|ром|wein|gin|rum)(?![\p{L}])|пиво|ромов|сидр|бренді|віскі|лікер|bier|sekt|cider|helles|pils|radler|weizen)/iu;
 
 const RULES = ATTRIBUTE_RULES.flatMap((rule) =>
   rule.phrases.map((phrase) => ({

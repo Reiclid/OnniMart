@@ -155,6 +155,60 @@ describe('scorePair: безалкогольні напої', () => {
       ).conflict,
     ).toBeUndefined();
   });
+
+  it('коротке слово всередині іншого — не алкоголь', () => {
+    expect(
+      score(
+        'Напій Double Dutch Ginger Ale безалкогольний газований',
+        'Напій Double Dutch Ginger Ale газований',
+        'Double Dutch',
+      ).conflict,
+    ).toBeUndefined();
+    expect(
+      score(
+        'Напій соковмісний «Соковинка» виноград білий безалкогольний',
+        'Напій соковмісний «Соковинка» виноград білий',
+        'Соковинка',
+      ).conflict,
+    ).toBeUndefined();
+    expect(
+      score(
+        'Напій енергетичний N-Gine «Класік» V12 безалкогольний з/б',
+        'Напій енергетичний N-Gine «Класік» V12 з/б',
+        'N-Gine',
+      ).conflict,
+    ).toBeUndefined();
+  });
+
+  it('межа слова не ламає справжній алкоголь', () => {
+    expect(
+      score(
+        "Джин Gordon's безалкогольний 0,7л",
+        "Джин Gordon's 0,7л",
+        'Gordons',
+      ).conflict,
+    ).toBe('alcohol');
+    expect(
+      score(
+        "Джин-тонік Gordon's безалкогольний 0,25л",
+        "Джин-тонік Gordon's 0,25л",
+        'Gordons',
+      ).conflict,
+    ).toBe('alcohol');
+    expect(
+      score('Weizenbier alkoholfrei', 'Weizenbier', 'Erdinger').conflict,
+    ).toBe('alcohol');
+    expect(
+      score('Pilsener alkoholfrei', 'Pilsener', 'Krombacher').conflict,
+    ).toBe('alcohol');
+    expect(
+      score(
+        'Ромовий напій Captain Morgan Spiced Gold безалкогольний 0,7л',
+        'Ромовий напій Captain Morgan Spiced Gold 35% 0,7л',
+        'Captain Morgan',
+      ).conflict,
+    ).toBe('alcohol');
+  });
 });
 
 describe('scorePair на реальних назвах', () => {
