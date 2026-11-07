@@ -4,8 +4,8 @@
 // сервері Next.js: кнопки викликають ці серверні дії, а не API напряму з браузера.
 import {
   acceptBarcodeCandidate,
-  getMatchingStatus,
   acceptCandidate,
+  getMatchingStatus,
   rejectBarcodeCandidates,
   undoDecision,
   rejectCandidates,

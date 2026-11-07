@@ -13,15 +13,31 @@ export function AutoRefresh({
   signature,
   probe,
   intervalMs = 15000,
+  settleMs = 35000,
 }: {
   active: boolean;
   signature: string;
   /** Поточний відбиток або null, якщо його не вдалося дізнатися */
   probe: () => Promise<string | null>;
   intervalMs?: number;
+  /** Скільки чекати після кінця запуску, щоб кеш API (30 с) оновився й сторінка показала підсумок */
+  settleMs?: number;
 }) {
   const router = useRouter();
   const busy = useRef(false);
+  const wasActive = useRef(false);
+
+  // Запуск скінчився: останній refresh міг узяти лічильники з кешу API, тож оновлюємо ще раз
+  useEffect(() => {
+    if (active) {
+      wasActive.current = true;
+      return;
+    }
+    if (!wasActive.current) return;
+    wasActive.current = false;
+    const id = setTimeout(() => router.refresh(), settleMs);
+    return () => clearTimeout(id);
+  }, [active, settleMs, router]);
 
   useEffect(() => {
     if (!active) return;
