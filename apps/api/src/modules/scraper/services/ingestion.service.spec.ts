@@ -18,8 +18,8 @@ function createPrismaMock() {
       ),
     },
     listing: {
-      findUnique: jest.fn((_args: Args): Promise<unknown> =>
-        Promise.resolve(null),
+      findMany: jest.fn((_args: Args): Promise<unknown[]> =>
+        Promise.resolve([]),
       ),
       upsert: jest.fn((_args: Args) =>
         Promise.resolve({ id: 'listing-1', variantId: null as string | null }),
@@ -27,13 +27,18 @@ function createPrismaMock() {
       update: jest.fn((_args: Args) => Promise.resolve({})),
       updateMany: jest.fn((_args: Args) => Promise.resolve({ count: 1 })),
     },
-    priceSnapshot: { create: jest.fn((_args: Args) => Promise.resolve({})) },
+    priceSnapshot: {
+      create: jest.fn((_args: Args) => Promise.resolve({})),
+      createMany: jest.fn((_args: Args) => Promise.resolve({ count: 1 })),
+    },
     matchingRule: {
       findUnique: jest.fn((_args: Args): Promise<unknown> =>
         Promise.resolve(null),
       ),
     },
-    matchRuleHit: { create: jest.fn((_args: Args) => Promise.resolve({})) },
+    matchRuleHit: {
+      createMany: jest.fn((_args: Args) => Promise.resolve({ count: 1 })),
+    },
     barcode: {
       findMany: jest.fn((_args: Args): Promise<unknown[]> =>
         Promise.resolve([]),
@@ -48,8 +53,9 @@ function createPrismaMock() {
   };
   return {
     ...delegates,
-    $transaction: jest.fn((fn: (tx: typeof delegates) => Promise<unknown>) =>
-      fn(delegates),
+    $transaction: jest.fn(
+      (fn: (tx: typeof delegates) => Promise<unknown>, _options?: unknown) =>
+        fn(delegates),
     ),
   };
 }
@@ -57,6 +63,8 @@ function createPrismaMock() {
 /** Картка, що вже є в базі з ціною 25 без акції */
 const EXISTING = {
   id: 'listing-1',
+  chainId: ATB.id,
+  externalId: '12345',
   currentPrice: '25.00',
   regularPrice: null,
   isOnPromo: false,
@@ -140,8 +148,8 @@ describe('IngestionService', () => {
       isOnPromo: false,
     });
 
-    const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
-    expect(snapshot.data).toMatchObject({
+    const snapshot = prisma.priceSnapshot.createMany.mock.calls[0][0];
+    expect(snapshot.data[0]).toMatchObject({
       listingId: 'listing-1',
       price: 25,
       regularPrice: null,
@@ -153,29 +161,29 @@ describe('IngestionService', () => {
   });
 
   it('не дублює історію, якщо ціна не змінилась', async () => {
-    prisma.listing.findUnique.mockResolvedValue(EXISTING);
+    prisma.listing.findMany.mockResolvedValue([EXISTING]);
 
     await expect(service.ingest(product())).resolves.toBe('unchanged');
-    // Один UPDATE без транзакції — оновлює lastSeenAt, назву тощо
+    // Лише UPDATE: lastSeenAt, назва тощо; без upsert і без запису в історію
     expect(prisma.listing.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'listing-1' } }),
     );
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-    expect(prisma.priceSnapshot.create).not.toHaveBeenCalled();
+    expect(prisma.listing.upsert).not.toHaveBeenCalled();
+    expect(prisma.priceSnapshot.createMany).not.toHaveBeenCalled();
   });
 
   it('ціна з трьома знаками не дає нового запису на кожному обході', async () => {
     // У БД DECIMAL(12,2): 24.999 зберігається як 25.00
-    prisma.listing.findUnique.mockResolvedValue(EXISTING);
+    prisma.listing.findMany.mockResolvedValue([EXISTING]);
 
     await expect(service.ingest(product({ price: 24.999 }))).resolves.toBe(
       'unchanged',
     );
-    expect(prisma.priceSnapshot.create).not.toHaveBeenCalled();
+    expect(prisma.priceSnapshot.createMany).not.toHaveBeenCalled();
   });
 
   it('записує знижку і дату закінчення акції', async () => {
-    prisma.listing.findUnique.mockResolvedValue(EXISTING);
+    prisma.listing.findMany.mockResolvedValue([EXISTING]);
 
     await expect(
       service.ingest(
@@ -188,8 +196,8 @@ describe('IngestionService', () => {
       ),
     ).resolves.toBe('changed');
 
-    const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
-    expect(snapshot.data).toMatchObject({
+    const snapshot = prisma.priceSnapshot.createMany.mock.calls[0][0];
+    expect(snapshot.data[0]).toMatchObject({
       price: 19.9,
       regularPrice: 25,
       promoType: 'DISCOUNT',
@@ -204,16 +212,16 @@ describe('IngestionService', () => {
     await service.ingest(
       product({ old_price: 29, promo_label: 'Ціна з карткою лояльності' }),
     );
-    const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
-    expect(snapshot.data.promoType).toBe('LOYALTY');
+    const snapshot = prisma.priceSnapshot.createMany.mock.calls[0][0];
+    expect(snapshot.data[0].promoType).toBe('LOYALTY');
   });
 
   it.each(['Kaufland Card -44%', 'PENNY App 0.99'])(
     'вважає "%s" ціною для учасників програми лояльності',
     async (label) => {
       await service.ingest(product({ promo_label: label }));
-      const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
-      expect(snapshot.data.promoType).toBe('LOYALTY');
+      const snapshot = prisma.priceSnapshot.createMany.mock.calls[0][0];
+      expect(snapshot.data[0].promoType).toBe('LOYALTY');
     },
   );
 
@@ -251,8 +259,8 @@ describe('IngestionService', () => {
     await service.ingest(product({ run_id: RUN_ID }));
     await service.ingest(product({ run_id: RUN_ID, external: '777' }));
 
-    const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
-    expect(snapshot.data.scrapeRunId).toBe(RUN_ID);
+    const snapshot = prisma.priceSnapshot.createMany.mock.calls[0][0];
+    expect(snapshot.data[0].scrapeRunId).toBe(RUN_ID);
     expect(prisma.scrapeRun.update).toHaveBeenCalledWith({
       where: { id: RUN_ID },
       data: { itemsChanged: { increment: 1 } },
@@ -279,8 +287,8 @@ describe('IngestionService', () => {
 
   it('ігнорує run_id, якого немає в базі', async () => {
     await service.ingest(product({ run_id: 'missing' }));
-    const snapshot = prisma.priceSnapshot.create.mock.calls[0][0];
-    expect(snapshot.data.scrapeRunId).toBeNull();
+    const snapshot = prisma.priceSnapshot.createMany.mock.calls[0][0];
+    expect(snapshot.data[0].scrapeRunId).toBeNull();
     expect(prisma.scrapeRun.update).not.toHaveBeenCalled();
   });
 
@@ -308,8 +316,8 @@ describe('IngestionService', () => {
         matchScore: 1,
       }),
     });
-    expect(prisma.matchRuleHit.create).toHaveBeenCalledWith({
-      data: { rule: 'barcode', listingId: 'listing-1', decision: 'barcode' },
+    expect(prisma.matchRuleHit.createMany).toHaveBeenCalledWith({
+      data: [{ rule: 'barcode', listingId: 'listing-1', decision: 'barcode' }],
     });
   });
 
@@ -322,7 +330,7 @@ describe('IngestionService', () => {
     await service.ingest(product({ barcodes: ['5449000132499'] }));
 
     expect(prisma.listing.updateMany).not.toHaveBeenCalled();
-    expect(prisma.matchRuleHit.create).not.toHaveBeenCalled();
+    expect(prisma.matchRuleHit.createMany).not.toHaveBeenCalled();
   });
 
   it('не шукає штрихкод, якщо картка вже зіставлена', async () => {
@@ -338,12 +346,145 @@ describe('IngestionService', () => {
   it('штрихкоди ведуть до різних фасувань — не вгадує', async () => {
     prisma.barcode.findMany.mockResolvedValue([
       { gtin: '05449000132499', variantId: 'variant-a' },
-      { gtin: '04820001234560', variantId: 'variant-b' },
+      { gtin: '04820001234565', variantId: 'variant-b' },
     ]);
     await service.ingest(
-      product({ barcodes: ['5449000132499', '4820001234560'] }),
+      product({ barcodes: ['5449000132499', '4820001234565'] }),
     );
     expect(prisma.listing.updateMany).not.toHaveBeenCalled();
+  });
+
+  describe('ingestBatch', () => {
+    it('пакет: один запит на наявні картки, одна транзакція, одна вставка історії', async () => {
+      let n = 0;
+      prisma.listing.upsert.mockImplementation(() =>
+        Promise.resolve({ id: `listing-${++n}`, variantId: null }),
+      );
+      const items = ['1', '2', '3'].map((external) =>
+        product({ external, run_id: RUN_ID }),
+      );
+
+      await expect(service.ingestBatch(items)).resolves.toEqual([
+        'changed',
+        'changed',
+        'changed',
+      ]);
+
+      expect(prisma.listing.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.priceSnapshot.createMany).toHaveBeenCalledTimes(1);
+      const snapshots = prisma.priceSnapshot.createMany.mock.calls[0][0]
+        .data as Args[];
+      expect(snapshots.map((d) => d.listingId)).toEqual([
+        'listing-1',
+        'listing-2',
+        'listing-3',
+      ]);
+      // itemsChanged — одним оновленням на запуск, а не по одному на картку
+      const changedUpdates = prisma.scrapeRun.update.mock.calls.filter(
+        (c) => c[0].data.itemsChanged,
+      );
+      expect(changedUpdates).toHaveLength(1);
+      expect(changedUpdates[0][0].data).toEqual({
+        itemsChanged: { increment: 3 },
+      });
+    });
+
+    it('змінені й незмінені картки в одному пакеті; результати в порядку входу', async () => {
+      prisma.listing.findMany.mockResolvedValue([
+        EXISTING,
+        { ...EXISTING, id: 'listing-2', externalId: '2' },
+      ]);
+      const results = await service.ingestBatch([
+        product({ price: 25 }),
+        product({ external: '2', price: 30 }),
+      ]);
+      expect(results).toEqual(['unchanged', 'changed']);
+      expect(prisma.listing.update).toHaveBeenCalledTimes(1);
+      expect(prisma.listing.upsert).toHaveBeenCalledTimes(1);
+      expect(
+        prisma.priceSnapshot.createMany.mock.calls[0][0].data,
+      ).toHaveLength(1);
+    });
+
+    it('некоректна картка чи невідома мережа не губить решту пакета', async () => {
+      const results = await service.ingestBatch([
+        product({ external: '1' }),
+        product({ external: '2', price: 0 }),
+        product({ external: '3', store: 'unknown' }),
+        product({ external: '4' }),
+      ]);
+      expect(results).toEqual(['changed', 'skipped', 'skipped', 'changed']);
+      expect(prisma.listing.upsert).toHaveBeenCalledTimes(2);
+    });
+
+    it('пакет без придатних карток нічого не пише', async () => {
+      await expect(
+        service.ingestBatch([product({ price: 0 })]),
+      ).resolves.toEqual(['skipped']);
+      expect(prisma.listing.findMany).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('дві версії однієї картки в пакеті пишуться по черзі', async () => {
+      const results = await service.ingestBatch([
+        product({ price: 25 }),
+        product({ price: 30 }),
+      ]);
+      expect(results).toEqual(['changed', 'changed']);
+      // Друга версія читає базу вже після запису першої
+      expect(prisma.listing.findMany).toHaveBeenCalledTimes(2);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+      expect(
+        prisma.listing.upsert.mock.calls.map((c) => c[0].update.currentPrice),
+      ).toEqual([25, 30]);
+    });
+
+    it('штрихкоди всього пакета шукає одним запитом', async () => {
+      let n = 0;
+      prisma.listing.upsert.mockImplementation(() =>
+        Promise.resolve({ id: `listing-${++n}`, variantId: null }),
+      );
+      prisma.barcode.findMany.mockResolvedValue([
+        { gtin: '05449000132499', variantId: 'variant-fanta' },
+        { gtin: '04820001234565', variantId: 'variant-b' },
+      ]);
+
+      await service.ingestBatch([
+        product({ external: '1', barcodes: ['5449000132499'] }),
+        product({ external: '2', barcodes: ['4820001234565'] }),
+        product({ external: '3', barcodes: ['5449000132499'] }),
+      ]);
+
+      expect(prisma.barcode.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.barcode.findMany.mock.calls[0][0].where.gtin.in).toEqual([
+        '05449000132499',
+        '04820001234565',
+      ]);
+      expect(
+        prisma.listing.updateMany.mock.calls.map((c) => [
+          c[0].where.id,
+          c[0].data.variantId,
+        ]),
+      ).toEqual([
+        ['listing-1', 'variant-fanta'],
+        ['listing-2', 'variant-b'],
+        ['listing-3', 'variant-fanta'],
+      ]);
+      expect(prisma.matchRuleHit.createMany).toHaveBeenCalledTimes(1);
+      expect(prisma.matchRuleHit.createMany.mock.calls[0][0].data).toHaveLength(
+        3,
+      );
+    });
+
+    it('збій запису відкочує пакет і не рахує прогрес', async () => {
+      prisma.listing.upsert.mockRejectedValueOnce(new Error('db down'));
+      await expect(
+        service.ingestBatch([product({ run_id: RUN_ID })]),
+      ).rejects.toThrow('db down');
+      await service.flushProgress();
+      expect(prisma.scrapeRun.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleRunEvent', () => {
