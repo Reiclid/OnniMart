@@ -1,7 +1,8 @@
 import type { ListingInput } from './catalog-index';
 import { extractFeatures } from './features';
 import { parseQuantity } from './normalization/quantity';
-import { OffIndex, type OffProduct } from './off-match';
+import { tokenize } from './normalization/text';
+import { OffIndex, splitCompounds, type OffProduct } from './off-match';
 import { buildIdf } from './similarity';
 
 const idf = buildIdf([]);
@@ -167,6 +168,34 @@ describe('OffIndex: дублікати й ознаки (PRD-27, ітерація
     expect(index.imageOf('0')).toBeNull();
   });
 
+  it('товар OFF з двома країнами — кандидат в обох, hasIn лише там, де він продається', () => {
+    const index = new OffIndex();
+    const product = off(
+      '04820000000035',
+      'Вафлі Артек смак шоколаду',
+      ['Світоч'],
+      '80 г',
+    );
+    expect(index.add({ ...product, country: 'DE' })).toBe(true);
+    expect(index.add({ ...product, country: 'UA' })).toBe(true);
+    expect(index.add({ ...product, country: 'UA' })).toBe(false);
+    expect(index.size).toBe(1);
+    const decide = (country: string) =>
+      index.decide(
+        listing('Вафлі СВІТОЧ Артек смак шоколаду 80г', 'Світоч', country),
+        idf,
+      );
+    expect(decide('UA')).toEqual({
+      kind: 'match',
+      gtins: ['04820000000035'],
+      score: 1,
+    });
+    expect(decide('DE').kind).toBe('match');
+    expect(index.hasIn('UA', '04820000000035')).toBe(true);
+    expect(index.hasIn('AT', '04820000000035')).toBe(false);
+    expect(index.has('04820000000035')).toBe(true);
+  });
+
   it('газованість названа лише з одного боку — не збіг', () => {
     const index = new OffIndex();
     index.add(
@@ -183,5 +212,86 @@ describe('OffIndex: дублікати й ознаки (PRD-27, ітерація
         idf,
       ).kind,
     ).toBe('none');
+  });
+});
+
+describe('OffIndex: складені слова (PRD-27, ітерація 3)', () => {
+  it('«Langkorn-Reis» у картці — той самий товар, що «Langkornreis» в OFF', () => {
+    const index = new OffIndex();
+    index.add(off('04006237010041', 'Langkornreis', ['Wurzener'], '500 g'));
+    index.add(
+      off(
+        '04006237010058',
+        'Paraboild Reis Spitzenlangkornreis',
+        ['Wurzener'],
+        '500 g',
+      ),
+    );
+    // Слова карток: «Langkorn» у словнику є лише з картки, у OFF — «Langkornreis»
+    index.addWords('DE', [['langkorn', 'reis']]);
+    expect(
+      index.decide(listing('Langkorn-Reis 500 g', 'Wurzener'), idf),
+    ).toEqual({ kind: 'match', gtins: ['04006237010041'], score: 1 });
+  });
+
+  it('поділ з боку картки: «Reine Butter Milch» в OFF = картка «Reine Buttermilch»', () => {
+    const index = new OffIndex();
+    index.add(off('04025500181401', 'Reine Butter Milch', ['Müller'], '500 g'));
+    // Слова карток (prepareListings().vocabulary) — разом зі словами OFF
+    index.addWords('DE', [['reine', 'buttermilch']]);
+    expect(
+      index.decide(listing('Reine Buttermilch 500 g', 'Müller'), idf),
+    ).toEqual({ kind: 'match', gtins: ['04025500181401'], score: 1 });
+  });
+
+  it('словник поповнюють і слова карток: «Wildfond» з іншої мережі ділиться на «Wild-Fond» з OFF', () => {
+    const index = new OffIndex();
+    index.add(off('04009337000019', 'Wild-Fond', ['Lacroix'], '400 ml'));
+    index.addWords('DE', [['wildfond']]);
+    expect(index.decide(listing('Wildfond 400 ml', 'Lacroix'), idf)).toEqual({
+      kind: 'match',
+      gtins: ['04009337000019'],
+      score: 1,
+    });
+    expect(index.vocabulary.get('DE')).toEqual([
+      ['wild', 'fond'],
+      ['wild', 'fond'],
+    ]);
+  });
+
+  it('складене слово ділиться, лише якщо обидві частини є окремими словами словника', () => {
+    const norms = (name: string, lexicon: string[]) =>
+      splitCompounds(tokenize(name), new Set(lexicon)).map((t) => t.norm);
+    // Обидві частини в словнику: «Langkornreis» і «Langkorn-Reis» стають однаковими
+    expect(norms('Langkornreis', ['langkorn', 'reis'])).toEqual([
+      'langkorn',
+      'reis',
+    ]);
+    // Однієї частини немає в словнику — слово лишається цілим
+    expect(norms('Biomilch', ['milch'])).toEqual(['biomilch']);
+    // Частина коротша за 4 літери не відділяється
+    expect(norms('Einudeln', ['nudeln'])).toEqual(['einudeln']);
+    expect(norms('Erdbeere', ['erd', 'beere'])).toEqual(['erdbeere']);
+  });
+
+  it('слово, додане після запиту, змінює рішення; словники країн окремі', () => {
+    const index = new OffIndex();
+    index.add(off('04006237010041', 'Langkornreis', ['Wurzener'], '500 g'));
+    const card = listing('Langkorn-Reis 500 g', 'Wurzener');
+    expect(index.decide(card, idf).kind).toBe('none');
+    // Лексикон іншої країни слово не ділить
+    index.addWords('UA', [['langkorn', 'reis']]);
+    expect(index.decide(card, idf).kind).toBe('none');
+    index.addWords('DE', [['langkorn', 'reis']]);
+    expect(index.decide(card, idf).kind).toBe('match');
+  });
+
+  it('різні товари зі спільною складовою не стають збігом', () => {
+    const index = new OffIndex();
+    index.add(off('04000000000011', 'Pennenudeln', ['Barilla'], '500 g'));
+    index.addWords('DE', [['spaghettinudeln'], ['nudeln']]);
+    expect(
+      index.decide(listing('Spaghettinudeln 500 g', 'Barilla'), idf).kind,
+    ).not.toBe('match');
   });
 });
