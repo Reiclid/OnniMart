@@ -209,6 +209,26 @@ describe('scorePair: безалкогольні напої', () => {
       ).conflict,
     ).toBe('alcohol');
   });
+
+  it.each(['Weißbier', 'Rotwein', 'Hefeweizen', 'Naturradler'])(
+    'складене слово лишається напоєм: %s',
+    (drink) => {
+      expect(score(`${drink} alkoholfrei`, drink, 'Erdinger').conflict).toBe(
+        'alcohol',
+      );
+    },
+  );
+
+  it.each([
+    ['Erdbeere alkoholfrei', 'Erdbeere'],
+    [
+      'Напій Double Dutch Ginger Beer безалкогольний газований',
+      'Напій Double Dutch Ginger Beer газований',
+    ],
+    ['Buchweizen 0,0 %', 'Buchweizen'],
+  ])('корінь усередині іншого слова — не напій: %s', (a, b) => {
+    expect(score(a, b, 'Double Dutch').conflict).toBeUndefined();
+  });
 });
 
 describe('scorePair на реальних назвах', () => {

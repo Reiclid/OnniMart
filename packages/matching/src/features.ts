@@ -120,9 +120,11 @@ type Pattern = { word: string; prefix: boolean };
  */
 const ALCOHOL_FREE =
   /безалкогольн|alkoholfrei|alcohol[- ]free|(?<![\d,.])0[,.]0\s*%/iu;
-// Короткі слова — лише цілі: "gin" є в "Ginger", "вино" у "виноград". Решта — префікси ("Weizenbier", "ромовий напій")
+// Короткі слова — лише цілі: "gin" є в "Ginger", "вино" у "виноград". Корені wein, bier, radler
+// діють і в кінці складеного слова ("Rotwein", "Weißbier"), а weizen ні ("Buchweizen").
+// Решта — префікси ("Weizenbier", "ромовий напій")
 const ALCOHOL_DRINK =
-  /(?<![\p{L}])(?:(?:вино|джин|ром|wein|gin|rum)(?![\p{L}])|пиво|ромов|сидр|бренді|віскі|лікер|bier|sekt|cider|helles|pils|radler|weizen)/iu;
+  /(?<![\p{L}])(?:(?:вино|джин|ром|gin|rum|\p{L}*wein)(?![\p{L}])|\p{L}*(?:bier|radler)|(?:hefe)?weizen|пиво|ромов|сидр|бренді|віскі|лікер|helles|sekt|cider|pils)/iu;
 
 const RULES = ATTRIBUTE_RULES.flatMap((rule) =>
   rule.phrases.map((phrase) => ({
