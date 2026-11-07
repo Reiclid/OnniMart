@@ -124,15 +124,13 @@ async function main() {
     `OFF: ${index.size} товарів з фасуванням у країнах ${[...countryOf.values()].join(', ')} за ${Math.round((Date.now() - started) / 1000)} с`,
   );
 
-  // IDF — за словами карток і товарів OFF кожної країни
+  // Слова карток — у словник складених слів індексу; IDF — за злитими словами карток і OFF
+  for (const [country, docs] of vocabulary) index.addWords(country, docs);
   const idfs = new Map<string, Idf>();
   const idf = (country: string) => {
     let value = idfs.get(country);
     if (!value) {
-      value = buildIdf([
-        ...(vocabulary.get(country) ?? []),
-        ...(index.vocabulary.get(country) ?? []),
-      ]);
+      value = buildIdf(index.vocabulary.get(country) ?? []);
       idfs.set(country, value);
     }
     return value;
@@ -160,6 +158,14 @@ async function main() {
       );
     }
   }
+
+  if (process.argv.includes('--misses'))
+    reportMisses(
+      listings.filter((r) => r.barcodes.length).map((r) => inputs.get(r.id)!),
+      index,
+      candidatesOf,
+      new Map(rows.map((r) => [r.id, r.rawName])),
+    );
 
   // Картки без штрихкоду: рішення за поточними порогами, групою по фасуванню
   // Штрихкоди з мереж — уже відомий товар; власні попередні збіги не заважають дописати дублікати
@@ -266,6 +272,47 @@ async function main() {
   await prisma.$disconnect();
 }
 
+/** Чому картки, чий GTIN є в OFF своєї країни, не отримали збігу: причини з прикладами (--misses) */
+function reportMisses(
+  evaluated: ListingInput[],
+  index: OffIndex,
+  candidatesOf: (l: ListingInput) => OffCandidate[],
+  names: Map<string, string>,
+) {
+  const reasons = new Map<string, string[]>();
+  const add = (reason: string, line: string) =>
+    reasons.set(reason, [...(reasons.get(reason) ?? []), line]);
+  for (const l of evaluated) {
+    const truth = l.barcodes.find((g) => index.hasIn(l.country, g));
+    if (!truth) continue;
+    const d = offDecision(candidatesOf(l), THRESHOLDS);
+    if (d.kind === 'match' && d.gtins.some((g) => l.barcodes.includes(g)))
+      continue;
+    const cands = candidatesOf(l);
+    const hit = cands.find((c) => l.barcodes.includes(c.gtin));
+    const best = cands[0];
+    let reason: string;
+    if (d.kind === 'match') reason = 'хибний збіг';
+    else if (!l.features.brand) reason = 'картка без бренду';
+    else if (!hit) reason = 'правильного немає серед кандидатів';
+    else if (hit.score < THRESHOLDS.review) reason = 'схожість < review';
+    else if (hit.score < THRESHOLDS.auto) reason = 'review ≤ схожість < auto';
+    else reason = 'схожість ≥ auto, але є рівний/кращий інший';
+    add(
+      reason,
+      `  ${names.get(l.id)} [${l.features.brand}]  |  OFF: ${index.labelOf(truth)}  |  правильний ${hit?.score.toFixed(2) ?? '—'}, найкращий ${best ? `${best.score.toFixed(2)} ${index.labelOf(best.gtin)}` : '—'}`,
+    );
+  }
+  for (const [reason, lines] of [...reasons].sort(
+    (a, b) => b[1].length - a[1].length,
+  )) {
+    console.log(`\n## ${reason}: ${lines.length}`);
+    // Вибірка з кроком, щоб побачити різні випадки, а не початок списку
+    const step = Math.max(1, Math.floor(lines.length / 25));
+    for (let i = 0; i < lines.length; i += step) console.log(lines[i]);
+  }
+}
+
 /** Еталон — картки зі штрихкодом; той самий алгоритм, штрихкод схований */
 function evaluate(
   evaluated: ListingInput[],
@@ -273,9 +320,15 @@ function evaluate(
   candidatesOf: (l: ListingInput) => OffCandidate[],
 ): { listing: ListingInput; gtin: string }[] {
   const errors: { listing: ListingInput; gtin: string }[] = [];
-  const inOff = evaluated.filter((l) => l.barcodes.some((g) => index.has(g)));
+  const own = (l: ListingInput) =>
+    l.barcodes.some((g) => index.hasIn(l.country, g));
+  const inOff = evaluated.filter(own);
+  // GTIN лише в OFF іншої країни: між країнами не зіставляємо, тож у знаменник не йде
+  const foreign = evaluated.filter(
+    (l) => !own(l) && l.barcodes.some((g) => index.has(g)),
+  );
   console.log(
-    `\nКарток зі штрихкодом: ${evaluated.length}, з них GTIN є в OFF своєї країни: ${inOff.length}`,
+    `\nКарток зі штрихкодом: ${evaluated.length}, з них GTIN є в OFF своєї країни: ${inOff.length}, лише в OFF іншої країни: ${foreign.length}`,
   );
   // Precision — на картках, чий GTIN є в OFF: лише там правильну відповідь видно.
   // Поза OFF приписаний GTIN — або інший штрихкод того самого товару, або помилка: їх лише рахуємо
@@ -293,7 +346,7 @@ function evaluate(
       if (d.kind === 'review') review++;
       if (d.kind !== 'match') continue;
       matched++;
-      if (l.barcodes.some((g) => index.has(g))) decidable++;
+      if (own(l)) decidable++;
       if (d.gtins.some((g) => l.barcodes.includes(g))) correct++;
       else if (auto === THRESHOLDS.auto)
         errors.push({ listing: l, gtin: d.gtins[0] });
