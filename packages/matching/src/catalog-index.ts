@@ -69,21 +69,22 @@ export interface CandidateScore extends PairScore {
   foreign?: boolean;
 }
 
-export type MatchDecision = /** Штрихкод уже відомий */
-(
-  | { kind: 'barcode'; variantId: string }
-  /** Висока схожість з наявним фасуванням */
-  | { kind: 'fuzzy'; variantId: string; score: number }
-  /** Середня схожість — у чергу модерації */
-  | { kind: 'review'; candidates: CandidateScore[] }
-  /** Той самий товар, але іншого фасування — нове фасування наявного товару */
-  | { kind: 'variant'; productId: string; score: number }
-  /** Схожого немає — новий товар */
-  | { kind: 'product' }
-) & {
-  /** Правила, що вплинули на рішення (/admin/rules) */
-  rules?: MatchRule[];
-};
+export type MatchDecision =
+  /** Штрихкод уже відомий */
+  (
+    | { kind: 'barcode'; variantId: string }
+    /** Висока схожість з наявним фасуванням */
+    | { kind: 'fuzzy'; variantId: string; score: number }
+    /** Середня схожість — у чергу модерації */
+    | { kind: 'review'; candidates: CandidateScore[] }
+    /** Той самий товар, але іншого фасування — нове фасування наявного товару */
+    | { kind: 'variant'; productId: string; score: number }
+    /** Схожого немає — новий товар */
+    | { kind: 'product' }
+  ) & {
+    /** Правила, що вплинули на рішення (/admin/rules) */
+    rules?: MatchRule[];
+  };
 
 interface VariantEntry {
   id: string;
@@ -352,6 +353,18 @@ export class CatalogIndex {
           score: best.score,
         });
       }
+      // Назви збіглися повністю в кількох: це дублікати товару в каталозі, а не вибір для
+      // людини (на еталоні черги 118 зі 118 правильні). Беремо найпоширеніше фасування.
+      if (best.score >= 1) {
+        const tied = domestic.filter((c) => c.score >= 1 && !c.barcodeMismatch);
+        if (tied.length === domestic.filter((c) => c.score >= 1).length) {
+          return decided({
+            kind: 'fuzzy',
+            variantId: this.widest(tied),
+            score: best.score,
+          });
+        }
+      }
     }
     if (best && best.score >= this.thresholds.review) {
       return decided({
@@ -385,6 +398,13 @@ export class CatalogIndex {
       return decided({ kind: 'variant', ...product });
     }
     return decided({ kind: 'product' });
+  }
+
+  /** Фасування, яке продає найбільше мереж */
+  private widest(candidates: CandidateScore[]): string {
+    const reach = (c: CandidateScore) =>
+      this.variants.get(c.variantId)?.chains.size ?? 0;
+    return candidates.reduce((a, b) => (reach(b) > reach(a) ? b : a)).variantId;
   }
 
   /** Той самий товар (бренд + назва) без такого фасування */
