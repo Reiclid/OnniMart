@@ -128,6 +128,109 @@ describe('attributeConflict', () => {
   });
 });
 
+describe('scorePair: безалкогольні напої', () => {
+  const idf = buildIdf([]);
+  const score = (a: string, b: string, brand: string) =>
+    scorePair(extractFeatures(a, brand), extractFeatures(b, brand), idf);
+
+  it('безалкогольне пиво — інший товар', () => {
+    expect(
+      score(
+        'Пиво Budweiser світле 0,5л',
+        'Пиво Budweiser світле безалкогольне 0,5л',
+        'Budweiser',
+      ).conflict,
+    ).toBe('alcohol');
+    expect(
+      score('Helles Pülleken 0,0%', 'Helles Pülleken', 'Veltins').conflict,
+    ).toBe('alcohol');
+  });
+
+  it('у звичайному напої це лише слово з етикетки', () => {
+    expect(
+      score(
+        'Напій Coca-Cola безалкогольний 0,5л',
+        'Напій Coca-Cola 0,5л',
+        'Coca-Cola',
+      ).conflict,
+    ).toBeUndefined();
+  });
+
+  it('коротке слово всередині іншого — не алкоголь', () => {
+    expect(
+      score(
+        'Напій Double Dutch Ginger Ale безалкогольний газований',
+        'Напій Double Dutch Ginger Ale газований',
+        'Double Dutch',
+      ).conflict,
+    ).toBeUndefined();
+    expect(
+      score(
+        'Напій соковмісний «Соковинка» виноград білий безалкогольний',
+        'Напій соковмісний «Соковинка» виноград білий',
+        'Соковинка',
+      ).conflict,
+    ).toBeUndefined();
+    expect(
+      score(
+        'Напій енергетичний N-Gine «Класік» V12 безалкогольний з/б',
+        'Напій енергетичний N-Gine «Класік» V12 з/б',
+        'N-Gine',
+      ).conflict,
+    ).toBeUndefined();
+  });
+
+  it('межа слова не ламає справжній алкоголь', () => {
+    expect(
+      score(
+        "Джин Gordon's безалкогольний 0,7л",
+        "Джин Gordon's 0,7л",
+        'Gordons',
+      ).conflict,
+    ).toBe('alcohol');
+    expect(
+      score(
+        "Джин-тонік Gordon's безалкогольний 0,25л",
+        "Джин-тонік Gordon's 0,25л",
+        'Gordons',
+      ).conflict,
+    ).toBe('alcohol');
+    expect(
+      score('Weizenbier alkoholfrei', 'Weizenbier', 'Erdinger').conflict,
+    ).toBe('alcohol');
+    expect(
+      score('Pilsener alkoholfrei', 'Pilsener', 'Krombacher').conflict,
+    ).toBe('alcohol');
+    expect(
+      score(
+        'Ромовий напій Captain Morgan Spiced Gold безалкогольний 0,7л',
+        'Ромовий напій Captain Morgan Spiced Gold 35% 0,7л',
+        'Captain Morgan',
+      ).conflict,
+    ).toBe('alcohol');
+  });
+
+  it.each(['Weißbier', 'Rotwein', 'Hefeweizen', 'Naturradler'])(
+    'складене слово лишається напоєм: %s',
+    (drink) => {
+      expect(score(`${drink} alkoholfrei`, drink, 'Erdinger').conflict).toBe(
+        'alcohol',
+      );
+    },
+  );
+
+  it.each([
+    ['Erdbeere alkoholfrei', 'Erdbeere'],
+    [
+      'Напій Double Dutch Ginger Beer безалкогольний газований',
+      'Напій Double Dutch Ginger Beer газований',
+    ],
+    ['Buchweizen 0,0 %', 'Buchweizen'],
+  ])('корінь усередині іншого слова — не напій: %s', (a, b) => {
+    expect(score(a, b, 'Double Dutch').conflict).toBeUndefined();
+  });
+});
+
 describe('scorePair на реальних назвах', () => {
   const score = (a: [string, string?], b: [string, string?]) =>
     scorePair(extractFeatures(...a), extractFeatures(...b), flat).score;

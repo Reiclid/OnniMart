@@ -6,7 +6,13 @@ import { isRuleOn, RuleSwitches } from './rules';
 export type Idf = (token: string) => number;
 
 /** Ознаки, відсутність яких з одного боку теж означає інший товар: Coca-Cola ≠ Coca-Cola Zero */
-const STRICT_GROUPS = new Set(['sugar', 'caffeine', 'lactose', 'organic']);
+const STRICT_GROUPS = new Set([
+  'sugar',
+  'caffeine',
+  'lactose',
+  'organic',
+  'alcohol',
+]);
 
 /** Будує IDF за назвами (кожна назва — набір слів): log((N + 1) / (df + 1)) + 1 */
 export function buildIdf(documents: Iterable<string[]>): Idf {

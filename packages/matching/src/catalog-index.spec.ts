@@ -133,8 +133,9 @@ describe('CatalogIndex.decide', () => {
     index.addVariant('v2', 'p2', quantityKey(twin.quantity));
     index.addName('v2', twin.features, 'UA', 'eko');
 
+    // Неповний збіг із обома: нічию вирішує модератор
     const decision = index.decide(
-      listing('Вода мінеральна Моршинська негазована 1,5л', 'Моршинська', {
+      listing('Вода мінеральна Моршинська негазована преміум', 'Моршинська', {
         chainId: 'silpo',
       }),
     );
@@ -182,6 +183,80 @@ describe('CatalogIndex.decide', () => {
     // Zero — інший товар; часткові збіги між мовами на модерацію не йдуть
     expect(index.decide(de('Cola Zero 1,25 l')).kind).toBe('product');
     expect(index.decide(de('Cola Mix 1,25 l')).kind).toBe('product');
+  });
+});
+
+describe('CatalogIndex.decide: нічия з повним збігом назви', () => {
+  function withDuplicates(barcodes: string[] = []) {
+    const index = new CatalogIndex();
+    const name = 'Сік Galicia яблучно-грушевий 1,5л';
+    const seed = listing(name, 'Galicia');
+    index.addProduct('p1', seed.features, 'UA');
+    index.addVariant('v1', 'p1', quantityKey(seed.quantity));
+    index.addName('v1', seed.features, 'UA', 'auchan');
+    index.addProduct('p2', seed.features, 'UA');
+    index.addVariant('v2', 'p2', quantityKey(seed.quantity));
+    index.addName('v2', seed.features, 'UA', 'metro-ua');
+    index.addName('v2', seed.features, 'UA', 'eko');
+    for (const gtin of barcodes) index.addBarcode('v2', gtin);
+    return { index, seed };
+  }
+
+  it('дублікати каталогу: бере фасування, що продається ширше', () => {
+    const { index, seed } = withDuplicates();
+    expect(index.decide({ ...seed, chainId: 'silpo' })).toMatchObject({
+      kind: 'fuzzy',
+      variantId: 'v2',
+    });
+  });
+
+  it('різні штрихкоди лишають пару модератору', () => {
+    const { index, seed } = withDuplicates(['04820209560374']);
+    const decision = index.decide({
+      ...seed,
+      chainId: 'silpo',
+      barcodes: ['04820209560121'],
+    });
+    expect(decision.kind).toBe('review');
+  });
+
+  it('один повний збіг і близький сусід у межах margin: бере повний збіг', () => {
+    const index = new CatalogIndex();
+    const exact = listing(
+      'Вода мінеральна Моршинська лікувально-столова негазована 1,5л',
+      'Моршинська',
+    );
+    const near = listing(
+      'Вода мінеральний Моршинська лікувально-столова негазована 1,5л',
+      'Моршинська',
+    );
+    index.addProduct('p1', exact.features, 'UA');
+    index.addVariant('v1', 'p1', quantityKey(exact.quantity));
+    index.addName('v1', exact.features, 'UA', 'auchan');
+    index.addProduct('p2', near.features, 'UA');
+    index.addVariant('v2', 'p2', quantityKey(near.quantity));
+    index.addName('v2', near.features, 'UA', 'metro-ua');
+
+    const card = { ...exact, chainId: 'silpo' };
+    const [full, neighbour] = index.scoreCandidates(card);
+    expect(full.score).toBe(1);
+    expect(neighbour.score).toBeGreaterThan(0.95);
+    expect(neighbour.score).toBeLessThan(1);
+    expect(index.decide(card)).toMatchObject({
+      kind: 'fuzzy',
+      variantId: 'v1',
+      score: 1,
+    });
+  });
+
+  it('вимкнене правило лишає нічию модератору, увімкнене записано в рішенні', () => {
+    const { index, seed } = withDuplicates();
+    const card = { ...seed, chainId: 'silpo' };
+    const decision = index.decide(card);
+    expect(decision.kind).toBe('fuzzy');
+    expect(decision.rules).toContain('fullName');
+    index.setRules({ fullName: false });
+    expect(index.decide(card).kind).toBe('review');
   });
 });
 

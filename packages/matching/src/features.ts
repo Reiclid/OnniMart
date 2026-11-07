@@ -114,6 +114,18 @@ const ATTRIBUTE_RULES: AttributeRule[] = [
 ];
 
 type Pattern = { word: string; prefix: boolean };
+/**
+ * "Безалкогольне" у пиві чи вині — інший товар, а в газованій воді просто слово з етикетки,
+ * тому ознака діє лише разом зі словом алкогольного напою (AUD-02, еталон черги).
+ */
+const ALCOHOL_FREE =
+  /безалкогольн|alkoholfrei|alcohol[- ]free|(?<![\d,.])0[,.]0\s*%/iu;
+// Короткі слова — лише цілі: "gin" є в "Ginger", "вино" у "виноград". Корені wein, bier, radler
+// діють і в кінці складеного слова ("Rotwein", "Weißbier"), а weizen ні ("Buchweizen").
+// Решта — префікси ("Weizenbier", "ромовий напій")
+const ALCOHOL_DRINK =
+  /(?<![\p{L}])(?:(?:вино|джин|ром|gin|rum|\p{L}*wein)(?![\p{L}])|\p{L}*(?:bier|radler)|(?:hefe)?weizen|пиво|ромов|сидр|бренді|віскі|лікер|helles|sekt|cider|pils)/iu;
+
 const RULES = ATTRIBUTE_RULES.flatMap((rule) =>
   rule.phrases.map((phrase) => ({
     group: rule.group,
@@ -382,6 +394,9 @@ export function extractFeatures(
   );
   // Бренд теж може нести ознаку: "GUT BIO" — органічна власна марка ALDI
   if (rawBrand) takeAttributes(tokenize(rawBrand), attributes, []);
+  if (ALCOHOL_FREE.test(name) && ALCOHOL_DRINK.test(name)) {
+    attributes.alcohol = 'free';
+  }
   const pieces = PIECES.exec(name);
   if (pieces && Number(pieces[1]) > 1)
     attributes.pieces = String(Number(pieces[1]));

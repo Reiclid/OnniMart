@@ -16,6 +16,7 @@ export const MatchingRuleDtoKey = {
   variations: 'variations',
   rangeOffers: 'rangeOffers',
   barcodeMismatch: 'barcodeMismatch',
+  fullName: 'fullName',
   crossCountry: 'crossCountry',
   newVariant: 'newVariant',
 } as const;
