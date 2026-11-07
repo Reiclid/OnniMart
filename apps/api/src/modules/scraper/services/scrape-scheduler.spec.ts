@@ -1,6 +1,7 @@
 import type { AlertsChecker } from '../../accounts/alerts.checker';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { CHAINS } from '../../../../prisma/data/chains';
 import { ScrapeScheduler } from './scrape-scheduler';
 import {
   defaultSettings,
@@ -8,6 +9,7 @@ import {
   nextBoundaryAfter,
   nextDueAt,
   nextSlot,
+  OFFER_WEEKDAYS,
   parseSettings,
 } from './schedule';
 import { ScheduleService } from './schedule.service';
@@ -401,6 +403,38 @@ describe('ScrapeScheduler.reapLostRuns', () => {
     await expect(scheduler.reapLostRuns(NOW)).resolves.toEqual([
       'run-a',
       'run-b',
+    ]);
+  });
+});
+
+describe('дні тижня мереж з акціями (OFFER_WEEKDAYS)', () => {
+  it('кожен ключ — мережа з scrapeHourUtc у реєстрі мереж', () => {
+    for (const slug of Object.keys(OFFER_WEEKDAYS)) {
+      const chain = CHAINS.find((c) => c.slug === slug);
+      expect(chain?.scrapeHourUtc).toBeDefined();
+    }
+  });
+
+  it('ScheduleService.chains передає дні тижня: Kaufland — Пн і Чт, PENNY — щодня', async () => {
+    const prisma = {
+      storeChain: {
+        findMany: async () => [
+          { slug: 'kaufland-de', scrapeHourUtc: 4, scrapeRuns: [] },
+          { slug: 'penny-de', scrapeHourUtc: 4, scrapeRuns: [] },
+        ],
+      },
+    };
+    const service = new ScheduleService(
+      prisma as unknown as PrismaService,
+      {} as ScraperService,
+    );
+    const chains = await service.chains(
+      defaultSettings({ SCRAPE_SCHEDULE: 'true' }),
+    );
+    service.onModuleDestroy();
+    expect(chains.map((c) => [c.slug, c.scrapeWeekdays])).toEqual([
+      ['kaufland-de', [1, 4]],
+      ['penny-de', null],
     ]);
   });
 });
