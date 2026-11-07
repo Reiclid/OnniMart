@@ -111,15 +111,41 @@ export interface ChainSchedule {
   basis?: { startedAt: Date } | null;
   /** Щоденний обхід після цієї години UTC (мережі лише з акціями); null — лише інтервал */
   scrapeHourUtc?: number | null;
+  /** Дні тижня UTC для scrapeHourUtc; null чи порожньо — щодня */
+  scrapeWeekdays?: number[] | null;
 }
 
-/** Остання щоденна межа `hour`:00 UTC, що вже настала */
-export function lastDailyBoundary(now: Date, hour: number): Date {
-  const boundary = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour),
-  );
-  if (boundary > now) boundary.setUTCDate(boundary.getUTCDate() - 1);
-  return boundary;
+/**
+ * Дні тижня UTC (0 — неділя … 6 — субота), коли мережа лише з акціями отримує нові акції.
+ * Мережа з scrapeHourUtc, якої тут немає, обходиться щодня. Щоб обмежити іншу мережу,
+ * достатньо додати рядок.
+ */
+export const OFFER_WEEKDAYS: Record<string, number[]> = {
+  'kaufland-de': [1, 4],
+};
+
+/** Перша межа `hour`:00 UTC строго після `after` у дозволений день тижня (порожньо — щодня) */
+export function nextBoundaryAfter(
+  after: Date,
+  hour: number,
+  weekdays?: number[] | null,
+): Date {
+  for (let day = 0; day <= 7; day++) {
+    const boundary = new Date(
+      Date.UTC(
+        after.getUTCFullYear(),
+        after.getUTCMonth(),
+        after.getUTCDate() + day,
+        hour,
+      ),
+    );
+    if (
+      boundary > after &&
+      (!weekdays?.length || weekdays.includes(boundary.getUTCDay()))
+    )
+      return boundary;
+  }
+  throw new Error(`Немає дозволеного дня тижня: ${weekdays?.join(',')}`);
 }
 
 export function isActive(run: { status: string } | null): boolean {
@@ -143,7 +169,9 @@ export function nextSlot(
 
 /**
  * Коли мережі пора на плановий обхід: через інтервал після базового запуску або на
- * першій щоденній межі після нього (scrapeHourUtc). Без запусків — одразу (епоха).
+ * першій щоденній межі після нього (scrapeHourUtc). Якщо задано й дні тижня — лише на
+ * межі в ці дні, інтервал не діє, окрім невдалого запуску: його повторюємо через інтервал.
+ * Без запусків — одразу (епоха).
  * Заданий час: найближчий слот після базового запуску й після зміни розкладу. Якщо
  * ручний запуск замінює плановий (basis не задано), слот шукаємо щонайменше за пів
  * інтервалу від нього, інакше обхід повторився б одразу після ручного.
@@ -155,6 +183,17 @@ export function nextDueAt(
 ): Date {
   const basis = chain.basis === undefined ? chain.lastRun : chain.basis;
   let next: number;
+  if (chain.scrapeHourUtc != null && chain.scrapeWeekdays?.length) {
+    if (!basis) return new Date(0);
+    next = nextBoundaryAfter(
+      basis.startedAt,
+      chain.scrapeHourUtc,
+      chain.scrapeWeekdays,
+    ).getTime();
+    if (chain.lastRun?.status === 'FAILED')
+      next = Math.min(next, chain.lastRun.startedAt.getTime() + intervalMs);
+    return new Date(next);
+  }
   if (time?.startTime) {
     const gap = chain.basis === undefined ? intervalMs / 2 : 1;
     const after = Math.max(
@@ -165,8 +204,7 @@ export function nextDueAt(
   } else if (!basis) return new Date(0);
   else next = basis.startedAt.getTime() + intervalMs;
   if (basis && chain.scrapeHourUtc != null) {
-    const daily = lastDailyBoundary(basis.startedAt, chain.scrapeHourUtc);
-    daily.setUTCDate(daily.getUTCDate() + 1);
+    const daily = nextBoundaryAfter(basis.startedAt, chain.scrapeHourUtc);
     next = Math.min(next, daily.getTime());
   }
   return new Date(next);

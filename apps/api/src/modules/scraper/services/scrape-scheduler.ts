@@ -29,7 +29,7 @@ export const LOST_RUN_MS = 20 * 60 * 1000;
 /**
  * Планувальник збору: раз на intervalHours ставить повний обхід кожної увімкненої мережі
  * в чергу парсера; мережі з scrapeHourUtc (лише акції: Kaufland, PENNY, NORMA) — ще й
- * щодня одразу після цієї години. Увімкнення й інтервал змінює адмінка (ScheduleService,
+ * щодня одразу після цієї години (Kaufland — лише в понеділок і четвер, OFFER_WEEKDAYS). Увімкнення й інтервал змінює адмінка (ScheduleService,
  * Redis `scraper:schedule`); без збережених налаштувань — SCRAPE_SCHEDULE / SCRAPE_INTERVAL_HOURS.
  */
 @Injectable()

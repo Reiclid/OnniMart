@@ -5,7 +5,7 @@ import { ScrapeScheduler } from './scrape-scheduler';
 import {
   defaultSettings,
   dueChains,
-  lastDailyBoundary,
+  nextBoundaryAfter,
   nextDueAt,
   nextSlot,
   parseSettings,
@@ -67,13 +67,83 @@ describe('dueChains', () => {
 });
 
 describe('щоденний обхід мереж з акціями (scrapeHourUtc)', () => {
-  it('остання межа: сьогодні, якщо година вже настала, інакше вчора', () => {
-    expect(lastDailyBoundary(NOW, 2).toISOString()).toBe(
-      '2026-10-12T02:00:00.000Z',
+  it('перша межа після моменту: сьогодні, якщо година ще не настала, інакше завтра', () => {
+    expect(nextBoundaryAfter(NOW, 4).toISOString()).toBe(
+      '2026-10-12T04:00:00.000Z',
     );
-    expect(lastDailyBoundary(NOW, 4).toISOString()).toBe(
-      '2026-10-11T04:00:00.000Z',
+    expect(nextBoundaryAfter(NOW, 2).toISOString()).toBe(
+      '2026-10-13T02:00:00.000Z',
     );
+    // рівно на межі — строго після неї
+    expect(nextBoundaryAfter(new Date('2026-10-12T04:00:00Z'), 4)).toEqual(
+      new Date('2026-10-13T04:00:00Z'),
+    );
+  });
+
+  it('межа з днями тижня: пн+чт, перехід через тиждень, година ще не настала', () => {
+    const next = (iso: string) =>
+      nextBoundaryAfter(new Date(iso), 4, [1, 4]).toISOString();
+    // 12.10.2026 — понеділок
+    expect(next('2026-10-12T03:00:00Z')).toBe('2026-10-12T04:00:00.000Z');
+    expect(next('2026-10-12T05:00:00Z')).toBe('2026-10-15T04:00:00.000Z');
+    expect(next('2026-10-15T05:00:00Z')).toBe('2026-10-19T04:00:00.000Z');
+    expect(next('2026-10-17T12:00:00Z')).toBe('2026-10-19T04:00:00.000Z');
+  });
+
+  describe('Kaufland: лише понеділок і четвер', () => {
+    const kaufland = (startedAt: string, status = 'SUCCESS') => ({
+      slug: 'kaufland-de',
+      scrapeHourUtc: 4,
+      scrapeWeekdays: [1, 4],
+      lastRun: { startedAt: new Date(startedAt), status },
+    });
+    const due = (c: ReturnType<typeof kaufland>, at: string) =>
+      dueChains([c], new Date(at), DAY).length === 1;
+
+    it('після запуску в понеділок у вівторок не пора, у четвер — пора', () => {
+      const c = kaufland('2026-10-12T05:00:00Z');
+      expect(due(c, '2026-10-13T12:00:00Z')).toBe(false);
+      expect(due(c, '2026-10-15T03:00:00Z')).toBe(false);
+      expect(due(c, '2026-10-15T04:00:00Z')).toBe(true);
+    });
+
+    it('після запуску в четвер наступний — понеділок', () => {
+      const c = kaufland('2026-10-15T05:00:00Z');
+      expect(due(c, '2026-10-18T12:00:00Z')).toBe(false);
+      expect(due(c, '2026-10-19T04:00:00Z')).toBe(true);
+    });
+
+    it('довга перерва: пора одразу', () => {
+      expect(
+        due(kaufland('2026-09-01T05:00:00Z'), '2026-10-13T12:00:00Z'),
+      ).toBe(true);
+    });
+
+    it('невдалий запуск повторюється через інтервал', () => {
+      const c = kaufland('2026-10-12T05:00:00Z', 'FAILED');
+      expect(due(c, '2026-10-13T04:00:00Z')).toBe(false);
+      expect(due(c, '2026-10-13T05:00:00Z')).toBe(true);
+    });
+
+    it('без запусків — одразу', () => {
+      expect(
+        nextDueAt({ ...kaufland('2026-10-12T05:00:00Z'), lastRun: null }, DAY),
+      ).toEqual(new Date(0));
+    });
+
+    it('PENNY без днів тижня лишається щоденним', () => {
+      const penny = {
+        slug: 'penny-de',
+        scrapeHourUtc: 4,
+        lastRun: {
+          startedAt: new Date('2026-10-12T05:00:00Z'),
+          status: 'SUCCESS',
+        },
+      };
+      expect(nextDueAt(penny, 7 * DAY)).toEqual(
+        new Date('2026-10-13T04:00:00Z'),
+      );
+    });
   });
 
   it('запуск до межі → пора, хоч інтервал ще не минув; після межі — ні', () => {
