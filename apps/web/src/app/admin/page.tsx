@@ -6,10 +6,12 @@ import {
   getScrapeRuns,
   getStats,
 } from '@/api/generated/monitoring/monitoring';
+import { overviewSignatureAction } from '@/app/actions';
 import { AutoRefresh } from '@/components/AutoRefresh';
 import { RunProgress } from '@/components/RunProgress';
 import { ScheduleCard } from '@/components/ScheduleCard';
 import { getSchedule } from '@/api/generated/scraper/scraper';
+import { overviewSignature } from '@/lib/poll-signature';
 import { StatusBadge } from '@/components/StatusBadge';
 import { TriggerButton } from '@/components/TriggerButton';
 import {
@@ -60,7 +62,12 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Огляд</h1>
-        <AutoRefresh active={active} intervalMs={5000} />
+        <AutoRefresh
+          active={active}
+          signature={overviewSignature(runs, health)}
+          probe={overviewSignatureAction}
+          intervalMs={5000}
+        />
       </div>
 
       {health && !health.worker && (

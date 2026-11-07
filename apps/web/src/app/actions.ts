@@ -4,6 +4,7 @@
 // сервері Next.js: кнопки викликають ці серверні дії, а не API напряму з браузера.
 import {
   acceptBarcodeCandidate,
+  getMatchingStatus,
   acceptCandidate,
   rejectBarcodeCandidates,
   undoDecision,
@@ -24,9 +25,12 @@ import {
   updateVariant,
 } from '@/api/generated/catalog/catalog';
 import type { ScheduleDto, UpdateProductDto, UpdateScheduleDto, UpdateVariantDto } from '@/api/generated/model';
+import { getHealth } from '@/api/generated/health/health';
+import { getScrapeRuns } from '@/api/generated/monitoring/monitoring';
 import { runAllScrapes, triggerScrape, updateSchedule } from '@/api/generated/scraper/scraper';
 import { SESSION_COOKIE } from '@/api/custom-fetch';
 import { adminGate, sessionIsAdmin } from '@/lib/admin-access';
+import { matchingSignature, overviewSignature } from '@/lib/poll-signature';
 import { revalidatePath } from 'next/cache';
 import { cookies, headers } from 'next/headers';
 
@@ -146,4 +150,27 @@ export async function mergeBrandAction(id: string, into: string) {
     }
     await mergeBrand(id, { into: target });
   });
+}
+
+// Легке опитування для AutoRefresh: відбиток замість повного набору запитів сторінки.
+// Збій чи відсутність доступу дають null — сторінка просто не перезавантажується.
+export async function overviewSignatureAction(): Promise<string | null> {
+  const out: { value: string | null } = { value: null };
+  await run(async () => {
+    const [{ data: runs }, health] = await Promise.all([
+      getScrapeRuns({ limit: 15 }),
+      getHealth().then((r) => r.data, () => null),
+    ]);
+    out.value = overviewSignature(runs, health);
+  });
+  return out.value;
+}
+
+export async function matchingSignatureAction(): Promise<string | null> {
+  const out: { value: string | null } = { value: null };
+  await run(async () => {
+    const { data: status } = await getMatchingStatus();
+    out.value = matchingSignature(status);
+  });
+  return out.value;
 }
