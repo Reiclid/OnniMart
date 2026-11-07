@@ -219,6 +219,35 @@ describe('CatalogIndex.decide: нічия з повним збігом назв�
     });
     expect(decision.kind).toBe('review');
   });
+
+  it('один повний збіг і близький сусід у межах margin: бере повний збіг', () => {
+    const index = new CatalogIndex();
+    const exact = listing(
+      'Вода мінеральна Моршинська лікувально-столова негазована 1,5л',
+      'Моршинська',
+    );
+    const near = listing(
+      'Вода мінеральний Моршинська лікувально-столова негазована 1,5л',
+      'Моршинська',
+    );
+    index.addProduct('p1', exact.features, 'UA');
+    index.addVariant('v1', 'p1', quantityKey(exact.quantity));
+    index.addName('v1', exact.features, 'UA', 'auchan');
+    index.addProduct('p2', near.features, 'UA');
+    index.addVariant('v2', 'p2', quantityKey(near.quantity));
+    index.addName('v2', near.features, 'UA', 'metro-ua');
+
+    const card = { ...exact, chainId: 'silpo' };
+    const [full, neighbour] = index.scoreCandidates(card);
+    expect(full.score).toBe(1);
+    expect(neighbour.score).toBeGreaterThan(0.95);
+    expect(neighbour.score).toBeLessThan(1);
+    expect(index.decide(card)).toMatchObject({
+      kind: 'fuzzy',
+      variantId: 'v1',
+      score: 1,
+    });
+  });
 });
 
 describe('CatalogIndex: правила (/admin/rules)', () => {
