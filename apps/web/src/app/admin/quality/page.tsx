@@ -248,34 +248,36 @@ export default async function QualityPage(props: PageProps<'/admin/quality'>) {
         count={report.freshness.filter((c) => c.problems.length).length}
         about="Коли мережу обходили й скільки її карток давно не бачили на сайті. Картки, старші за 14 днів, не беруть участі в «найдешевше» (якщо в товару є свіжіші) і сповіщеннях. У мереж з Open Prices дата картки — дата чека."
       >
-        <table className="w-full text-sm">
-          <thead className="text-left text-slate-500">
-            <tr>
-              <th className="py-1 font-normal">Мережа</th>
-              <th className="text-right font-normal">Активних</th>
-              <th className="text-right font-normal">Старші 2 / 7 / 14 дн.</th>
-              <th className="pl-3 text-right font-normal">Повний обхід</th>
-              <th className="pl-3 font-normal">Зауваження</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.freshness.map((c) => (
-              <tr key={c.chain} className="border-t border-slate-100 align-top">
-                <td className="py-1">
-                  {c.name} <span className="text-slate-500">({c.country})</span>
-                </td>
-                <td className="text-right tabular-nums">{formatNumber(c.active)}</td>
-                <td className="text-right tabular-nums">
-                  {formatNumber(c.older2d)} / {formatNumber(c.older7d)} / {formatNumber(c.stale)}
-                </td>
-                <td className="pl-3 text-right text-slate-500">
-                  {c.lastFullAt ? formatDateTime(c.lastFullAt) : 'ніколи'}
-                </td>
-                <td className="pl-3 text-red-600">{c.problems.join('; ')}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-slate-500">
+              <tr>
+                <th className="py-1 font-normal">Мережа</th>
+                <th className="text-right font-normal">Активних</th>
+                <th className="text-right font-normal">Старші 2 / 7 / 14 дн.</th>
+                <th className="pl-3 text-right font-normal">Повний обхід</th>
+                <th className="pl-3 font-normal">Зауваження</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {report.freshness.map((c) => (
+                <tr key={c.chain} className="border-t border-slate-100 align-top">
+                  <td className="py-1">
+                    {c.name} <span className="text-slate-500">({c.country})</span>
+                  </td>
+                  <td className="text-right tabular-nums">{formatNumber(c.active)}</td>
+                  <td className="text-right tabular-nums">
+                    {formatNumber(c.older2d)} / {formatNumber(c.older7d)} / {formatNumber(c.stale)}
+                  </td>
+                  <td className="pl-3 text-right text-slate-500">
+                    {c.lastFullAt ? formatDateTime(c.lastFullAt) : 'ніколи'}
+                  </td>
+                  <td className="pl-3 text-red-600">{c.problems.join('; ')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Section>
     </div>
   );
