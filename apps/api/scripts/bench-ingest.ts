@@ -28,8 +28,8 @@ const servicePath = resolve(arg('service', `${dir}/ingestion.service`));
 const workerPath = resolve(arg('worker', `${dir}/ingestion.worker`));
 
 async function main() {
-  if (!/bench/.test(process.env.DATABASE_URL ?? '')) {
-    throw new Error('DATABASE_URL має вказувати на базу з "bench" у назві');
+  if (!new URL(process.env.DATABASE_URL ?? 'x:').pathname.endsWith('_bench')) {
+    throw new Error('DATABASE_URL має вказувати на базу з назвою …_bench');
   }
   if (!/\/(1[0-9]|[2-9])$/.test(process.env.REDIS_URL ?? '')) {
     throw new Error('REDIS_URL має вказувати на окрему базу Redis (…/14)');

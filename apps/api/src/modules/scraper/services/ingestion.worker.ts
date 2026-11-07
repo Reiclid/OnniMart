@@ -127,10 +127,9 @@ export class IngestionWorker
       if (!this.running) return 0;
       const reason = errorText(error);
       this.attempts++;
-      if (this.attempts >= MAX_ATTEMPTS) {
-        await this.deadLetter(this.failing ?? batch[0], reason).catch(
-          () => undefined,
-        );
+      // Без винного повідомлення (збій Redis) в dead-letter нічого не йде: лише пауза
+      if (this.attempts >= MAX_ATTEMPTS && this.failing) {
+        await this.deadLetter(this.failing, reason).catch(() => undefined);
         return 0;
       }
       const delay = Math.min(1000 * 2 ** this.attempts, MAX_BACKOFF_MS);
@@ -185,7 +184,6 @@ export class IngestionWorker
     if (products.length === 0) return;
     try {
       await this.ingestion.ingestBatch(products.map((p) => p.message));
-      await this.ack(products.map((p) => p.raw));
     } catch (error) {
       this.logger.warn(
         `Збій пакета з ${products.length} товарів, обробляємо по одному: ${errorText(error)}`,
@@ -195,7 +193,10 @@ export class IngestionWorker
         await this.ingestion.ingest(message);
         await this.ack([raw]);
       }
+      return;
     }
+    // Збій Redis тут не повторює запис пакета по одному: БД уже відпрацювала
+    await this.ack(products.map((p) => p.raw));
   }
 
   /** Оброблені повідомлення зникають з processing */
