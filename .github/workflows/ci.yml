@@ -1,9 +1,9 @@
-# Перевірки на кожен push і pull request: типи, лінтери й тести TypeScript і Rust.
+# Перевірки на push у develop і main та на кожен pull request: типи, лінтери й тести TypeScript і Rust.
 name: CI
 
 on:
   push:
-    branches: ['**']
+    branches: [develop, main]
   pull_request:
 
 concurrency:
