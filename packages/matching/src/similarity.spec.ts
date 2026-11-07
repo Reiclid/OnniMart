@@ -128,6 +128,35 @@ describe('attributeConflict', () => {
   });
 });
 
+describe('scorePair: безалкогольні напої', () => {
+  const idf = buildIdf([]);
+  const score = (a: string, b: string, brand: string) =>
+    scorePair(extractFeatures(a, brand), extractFeatures(b, brand), idf);
+
+  it('безалкогольне пиво — інший товар', () => {
+    expect(
+      score(
+        'Пиво Budweiser світле 0,5л',
+        'Пиво Budweiser світле безалкогольне 0,5л',
+        'Budweiser',
+      ).conflict,
+    ).toBe('alcohol');
+    expect(
+      score('Helles Pülleken 0,0%', 'Helles Pülleken', 'Veltins').conflict,
+    ).toBe('alcohol');
+  });
+
+  it('у звичайному напої це лише слово з етикетки', () => {
+    expect(
+      score(
+        'Напій Coca-Cola безалкогольний 0,5л',
+        'Напій Coca-Cola 0,5л',
+        'Coca-Cola',
+      ).conflict,
+    ).toBeUndefined();
+  });
+});
+
 describe('scorePair на реальних назвах', () => {
   const score = (a: [string, string?], b: [string, string?]) =>
     scorePair(extractFeatures(...a), extractFeatures(...b), flat).score;
