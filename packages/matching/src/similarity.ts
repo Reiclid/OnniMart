@@ -117,6 +117,16 @@ export function brandSimilarity(a: string | null, b: string | null): number {
   return 0;
 }
 
+/**
+ * Мережі по-різному округлюють етикетку: "Philadelphia 38%" і "37,5%", Kozel 3,8% і 3,7%.
+ * Близькі значення — той самий товар, але 1,5% і 2% — уже різні (AUD-02).
+ */
+function samePercent(a: string, b: string): boolean {
+  const left = Number(a);
+  const right = Number(b);
+  return Math.abs(left - right) <= Math.max(0.1, Math.max(left, right) * 0.02);
+}
+
 /** Група ознак, за якою товари точно різні, або null */
 export function attributeConflict(
   a: Record<string, string>,
@@ -125,7 +135,10 @@ export function attributeConflict(
   for (const group of new Set([...Object.keys(a), ...Object.keys(b)])) {
     const left = a[group];
     const right = b[group];
-    if (left && right && left !== right) return group;
+    if (left && right && left !== right) {
+      if (group === 'percent' && samePercent(left, right)) continue;
+      return group;
+    }
     if (
       (left === undefined) !== (right === undefined) &&
       STRICT_GROUPS.has(group)
