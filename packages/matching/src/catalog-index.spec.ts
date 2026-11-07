@@ -248,6 +248,16 @@ describe('CatalogIndex.decide: нічия з повним збігом назв�
       score: 1,
     });
   });
+
+  it('вимкнене правило лишає нічию модератору, увімкнене записано в рішенні', () => {
+    const { index, seed } = withDuplicates();
+    const card = { ...seed, chainId: 'silpo' };
+    const decision = index.decide(card);
+    expect(decision.kind).toBe('fuzzy');
+    expect(decision.rules).toContain('fullName');
+    index.setRules({ fullName: false });
+    expect(index.decide(card).kind).toBe('review');
+  });
 });
 
 describe('CatalogIndex: правила (/admin/rules)', () => {

@@ -357,9 +357,11 @@ export class CatalogIndex {
       // дублікати товару в каталозі, а не вибір для людини (на еталоні черги 118 зі 118
       // правильні): беремо найпоширеніше фасування. Один повний збіг беремо попри близького
       // сусіда. Інший штрихкод у будь-якого з повних збігів лишає пару модератору.
-      if (best.score >= 1) {
-        const tied = domestic.filter((c) => c.score >= 1 && !c.barcodeMismatch);
-        if (tied.length === domestic.filter((c) => c.score >= 1).length) {
+      if (this.on('fullName') && best.score >= 1) {
+        const full = domestic.filter((c) => c.score >= 1);
+        const tied = full.filter((c) => !c.barcodeMismatch);
+        if (tied.length === full.length) {
+          fired.add('fullName');
           return decided({
             kind: 'fuzzy',
             variantId: this.widest(tied),
