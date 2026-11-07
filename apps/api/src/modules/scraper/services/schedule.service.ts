@@ -9,6 +9,7 @@ import {
 } from '../dto/schedule.dto';
 import {
   ChainSchedule,
+  OFFER_WEEKDAYS,
   defaultSettings,
   isActive,
   nextDueAt,
@@ -95,6 +96,7 @@ export class ScheduleService implements OnModuleDestroy {
         slug: chain.slug,
         name: chain.name,
         scrapeHourUtc: chain.scrapeHourUtc,
+        scrapeWeekdays: OFFER_WEEKDAYS[chain.slug] ?? null,
         lastRun: chain.scrapeRuns[0] ?? null,
         ...(cron && { basis: started ? { startedAt: started } : null }),
       };
