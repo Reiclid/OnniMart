@@ -4,10 +4,12 @@ import {
   getReviewQueue,
 } from '@/api/generated/matching/matching';
 import type { ReviewItemDto } from '@/api/generated/model';
+import { matchingSignatureAction } from '@/app/actions';
 import { AutoRefresh } from '@/components/AutoRefresh';
 import { CompareRow, Highlight, Thumb, Verdict } from '@/components/Compare';
 import { MatchingAction } from '@/components/MatchingAction';
 import { sameValue } from '@/lib/compare';
+import { matchingSignature } from '@/lib/poll-signature';
 import {
   formatDateTime,
   formatDuration,
@@ -52,7 +54,11 @@ export default async function MatchingPage(props: PageProps<'/admin/matching'>) 
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <AutoRefresh active={status.running} />
+          <AutoRefresh
+            active={status.running}
+            signature={matchingSignature(status)}
+            probe={matchingSignatureAction}
+          />
           <MatchingAction
             action={{ kind: 'run' }}
             label={status.running ? 'Зіставлення йде…' : 'Зіставити зараз'}

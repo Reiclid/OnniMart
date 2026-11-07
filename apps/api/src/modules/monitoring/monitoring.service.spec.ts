@@ -207,3 +207,77 @@ describe('buildWhere', () => {
     ]);
   });
 });
+
+describe('MonitoringService: кеш важких підрахунків', () => {
+  const chain = {
+    id: 'c1',
+    slug: 'silpo',
+    name: 'Сільпо',
+    website: 'https://silpo.ua',
+    countryCode: 'UA',
+    currency: 'UAH',
+    scrapeEnabled: true,
+    status: 'ACTIVE',
+    onlinePrices: true,
+    notes: null,
+  };
+
+  function setup() {
+    const prisma = {
+      listing: { count: jest.fn(() => Promise.resolve(7)) },
+      priceSnapshot: { count: jest.fn(() => Promise.resolve(70)) },
+      storeChain: {
+        count: jest.fn(() => Promise.resolve(3)),
+        findMany: jest.fn(() => Promise.resolve([chain])),
+      },
+      scrapeRun: {
+        findFirst: jest.fn(() => Promise.resolve(null)),
+        findMany: jest.fn(() => Promise.resolve([])),
+      },
+      $queryRaw: jest.fn(() =>
+        Promise.resolve([{ chainId: 'c1', listings: 500, promo: 12 }]),
+      ),
+    };
+    const heavy = () =>
+      prisma.listing.count.mock.calls.length +
+      prisma.priceSnapshot.count.mock.calls.length +
+      prisma.$queryRaw.mock.calls.length;
+    return {
+      prisma,
+      heavy,
+      service: new MonitoringService(prisma as unknown as PrismaService),
+    };
+  }
+
+  it('повторне оновлення Огляду не чіпає listings і price_snapshots', async () => {
+    const { service, heavy } = setup();
+
+    await Promise.all([service.getStats(), service.getChains()]);
+    // 5 лічильників у getStats + один прохід по listings у getChains
+    expect(heavy()).toBe(6);
+
+    await Promise.all([service.getStats(), service.getChains()]);
+    expect(heavy()).toBe(6);
+  });
+
+  it('дешеві дані лишаються живими: мережі й останній запуск читаються щоразу', async () => {
+    const { service, prisma } = setup();
+    await service.getStats();
+    await service.getStats();
+    expect(prisma.storeChain.count).toHaveBeenCalledTimes(4);
+    expect(prisma.scrapeRun.findFirst).toHaveBeenCalledTimes(2);
+  });
+
+  it('віддає кількості мереж із кешу, а мережі без товарів — з нулями', async () => {
+    const { service, prisma } = setup();
+    prisma.storeChain.findMany.mockResolvedValue([
+      chain,
+      { ...chain, id: 'c2', slug: 'novus' },
+    ] as never);
+    const chains = await service.getChains();
+    expect(chains.map((c) => [c.listingsCount, c.promoCount])).toEqual([
+      [500, 12],
+      [0, 0],
+    ]);
+  });
+});
