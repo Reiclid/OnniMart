@@ -9,6 +9,7 @@ import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { listingInclude, toListingDto } from '../../common/listing.mapper';
 import { clampPageSize, isTrue, pageOf, toNumber } from '../../common/query';
+import { ttlCached } from '../../common/ttl-cache';
 import {
   BarcodeLookupDto,
   MatchingStatusDto,
@@ -47,6 +48,8 @@ import { freshOrAll } from '../quality/freshness';
 
 const SIMILAR_LIMIT = 8;
 const SUGGESTIONS_LIMIT = 6;
+/** Як довго тримаються лічильники зіставлення (див. getMatchingStatus) */
+const COUNTS_TTL_MS = 30_000;
 import { conceptLabels, normalizeGtin, queryConcept } from '@repo/matching';
 
 /** Каталог для клієнтів і адмінки: товари, фасування, пропозиції мереж, черга модерації */
@@ -458,15 +461,9 @@ export class CatalogService {
     return [...found.values()];
   }
 
-  async getMatchingStatus(): Promise<MatchingStatusDto> {
-    const [
-      products,
-      unmatched,
-      inReview,
-      byMethod,
-      [{ count: multiChainVariants }],
-      state,
-    ] = await Promise.all([
+  /** Лічильники зіставлення: сторінки Огляд і Зіставлення оновлюються під час запуску, а кожен підрахунок скановує listings */
+  private readonly matchingCounts = ttlCached(COUNTS_TTL_MS, () =>
+    Promise.all([
       this.prisma.product.count(),
       this.prisma.listing.count({
         where: {
@@ -490,8 +487,20 @@ export class CatalogService {
             SELECT "variantId" FROM listings WHERE "variantId" IS NOT NULL AND "delistedAt" IS NULL
             GROUP BY "variantId" HAVING count(DISTINCT "chainId") >= 2
           ) AS t`,
-      this.matching.state(),
-    ]);
+    ]),
+  );
+
+  async getMatchingStatus(): Promise<MatchingStatusDto> {
+    const [
+      [
+        products,
+        unmatched,
+        inReview,
+        byMethod,
+        [{ count: multiChainVariants }],
+      ],
+      state,
+    ] = await Promise.all([this.matchingCounts(), this.matching.state()]);
 
     return {
       running: state.running,

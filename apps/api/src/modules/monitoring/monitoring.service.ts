@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeGtin } from '@repo/matching';
 import { listingInclude, toListingDto } from '../../common/listing.mapper';
 import { clampPageSize, isTrue, pageOf, toNumber } from '../../common/query';
+import { ttlCached } from '../../common/ttl-cache';
 import {
   ChainStatus,
   ChainSummaryDto,
@@ -19,24 +20,15 @@ type RunWithChain = Prisma.ScrapeRunGetPayload<{
   include: { chain: { select: { slug: true; name: true } } };
 }>;
 
+/** Як довго Огляд тримає важкі лічильники (count(*) по listings і price_snapshots) */
+const COUNTS_TTL_MS = 30_000;
+
 /** Дані для сторінок перевірки: що зібрано, коли й з якими помилками */
 @Injectable()
 export class MonitoringService {
-  constructor(private readonly prisma: PrismaService) {}
-
-  async getStats(): Promise<StatsDto> {
-    const [
-      chains,
-      enabledChains,
-      listings,
-      matchedListings,
-      promoListings,
-      priceSnapshots,
-      listingsWithBarcode,
-      lastRun,
-    ] = await Promise.all([
-      this.prisma.storeChain.count(),
-      this.prisma.storeChain.count({ where: { scrapeEnabled: true } }),
+  /** Підрахунки по великих таблицях: сторінка Огляд оновлюється під час парсингу, а ці лічильники не потребують точності до секунди */
+  private readonly bigCounts = ttlCached(COUNTS_TTL_MS, () =>
+    Promise.all([
       this.prisma.listing.count(),
       this.prisma.listing.count({ where: { variantId: { not: null } } }),
       this.prisma.listing.count({
@@ -44,6 +36,39 @@ export class MonitoringService {
       }),
       this.prisma.priceSnapshot.count(),
       this.prisma.listing.count({ where: { barcodes: { isEmpty: false } } }),
+    ]),
+  );
+
+  /** Товари й акції кожної мережі одним проходом по listings */
+  private readonly chainCounts = ttlCached(COUNTS_TTL_MS, async () => {
+    const rows = await this.prisma.$queryRaw<
+      { chainId: string; listings: number; promo: number }[]
+    >`
+      SELECT "chainId",
+             count(*)::int AS listings,
+             (count(*) FILTER (WHERE "isOnPromo" AND "delistedAt" IS NULL))::int AS promo
+      FROM listings GROUP BY "chainId"`;
+    return new Map(rows.map((row) => [row.chainId, row]));
+  });
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  async getStats(): Promise<StatsDto> {
+    const [
+      [
+        listings,
+        matchedListings,
+        promoListings,
+        priceSnapshots,
+        listingsWithBarcode,
+      ],
+      chains,
+      enabledChains,
+      lastRun,
+    ] = await Promise.all([
+      this.bigCounts(),
+      this.prisma.storeChain.count(),
+      this.prisma.storeChain.count({ where: { scrapeEnabled: true } }),
       this.prisma.scrapeRun.findFirst({ orderBy: { startedAt: 'desc' } }),
     ]);
 
@@ -63,20 +88,15 @@ export class MonitoringService {
     statuses?: ChainStatus[],
     country?: string,
   ): Promise<ChainSummaryDto[]> {
-    const [chains, promoCounts, lastRuns] = await Promise.all([
+    const [chains, counts, lastRuns] = await Promise.all([
       this.prisma.storeChain.findMany({
         where: {
           ...(statuses && { status: { in: statuses } }),
           ...(country && { countryCode: country.toUpperCase() }),
         },
         orderBy: [{ countryCode: 'desc' }, { name: 'asc' }],
-        include: { _count: { select: { listings: true } } },
       }),
-      this.prisma.listing.groupBy({
-        by: ['chainId'],
-        where: { isOnPromo: true, delistedAt: null },
-        _count: { _all: true },
-      }),
+      this.chainCounts(),
       // distinct + orderBy: останній запуск кожної мережі
       this.prisma.scrapeRun.findMany({
         distinct: ['chainId'],
@@ -85,9 +105,6 @@ export class MonitoringService {
       }),
     ]);
 
-    const promoByChain = new Map(
-      promoCounts.map((row) => [row.chainId, row._count._all]),
-    );
     const runByChain = new Map(lastRuns.map((run) => [run.chainId, run]));
 
     return chains.map((chain) => {
@@ -103,8 +120,8 @@ export class MonitoringService {
         status: chain.status,
         onlinePrices: chain.onlinePrices,
         notes: chain.notes,
-        listingsCount: chain._count.listings,
-        promoCount: promoByChain.get(chain.id) ?? 0,
+        listingsCount: counts.get(chain.id)?.listings ?? 0,
+        promoCount: counts.get(chain.id)?.promo ?? 0,
         lastRun: run ? toRunDto(run) : null,
       };
     });
