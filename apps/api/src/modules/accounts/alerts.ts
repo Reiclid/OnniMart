@@ -1,5 +1,6 @@
 /** Рішення про сповіщення за підпискою — без БД, щоб перевірити тестами */
 import { QUALITY_LIMITS } from '../quality/checks';
+import { isStale } from '../quality/freshness';
 import { convert } from '../rates/rates';
 
 export interface AlertOffer {
@@ -16,6 +17,8 @@ export interface AlertOffer {
   priceSince?: Date;
   /** Ціна попереднього знімка картки */
   previousPrice?: number;
+  /** Коли картку востаннє бачили на сайті */
+  lastSeenAt?: Date;
 }
 
 /** Як порівнювати ціни підписки: її валюта, країна покупця й курси за 1 EUR */
@@ -135,9 +138,11 @@ export function decideAlert(
   offers: AlertOffer[],
   minDiscount: number,
   ctx?: PriceContext,
+  now: Date = new Date(),
 ): Alert | null {
   const relevant = relevantOffers(
-    offers.filter((o) => !isSuspicious(o)),
+    // Давно не бачена ціна могла вже змінитись: не сповіщаємо про неї
+    offers.filter((o) => !isSuspicious(o) && !isStale(o.lastSeenAt, now)),
     subscription.chainIds,
     ctx,
   );

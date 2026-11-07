@@ -43,6 +43,7 @@ import {
   searchProductIds,
   withoutBrand,
 } from './search/search';
+import { freshOrAll } from '../quality/freshness';
 
 const SIMILAR_LIMIT = 8;
 const SUGGESTIONS_LIMIT = 6;
@@ -201,6 +202,7 @@ export class CatalogService {
                 regularPrice: true,
                 isOnPromo: true,
                 inStock: true,
+                lastSeenAt: true,
                 chain: { select: { name: true, currency: true } },
               },
             },
@@ -209,6 +211,7 @@ export class CatalogService {
       },
     });
     const byId = new Map(products.map((p) => [p.id, p]));
+    const now = new Date();
 
     return ids
       .map((id) => byId.get(id))
@@ -217,7 +220,10 @@ export class CatalogService {
         const listings = product.variants.flatMap((v) => v.listings);
         const chains = [...new Set(listings.map((l) => l.chain.name))].sort();
         // Ціни й акції — лише того, що є в наявності
-        const available = listings.filter((l) => l.inStock);
+        const available = freshOrAll(
+          listings.filter((l) => l.inStock),
+          now,
+        );
         return {
           id: product.id,
           name: product.name,

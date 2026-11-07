@@ -478,12 +478,24 @@ describe('IngestionService.delistMissing', () => {
     expect(prisma.listing.updateMany).not.toHaveBeenCalled();
   });
 
-  it('обхід побачив підозріло мало — нічого не знімає', async () => {
+  it('обхід побачив мало (акційна мережа) — знімає лише давно не бачені', async () => {
     const { service, prisma } = setup(
       { chainId: 'chain-atb', maxPages: null },
       100,
     );
-    await expect(service.delistMissing(RUN_ID, 10, AT)).resolves.toBe(0);
+    await expect(service.delistMissing(RUN_ID, 10, AT)).resolves.toBe(7);
+    const args = prisma.listing.updateMany.mock.calls[0][0];
+    expect(args.where.lastSeenAt).toEqual({
+      lt: new Date('2026-10-04T12:00:00Z'),
+    });
+  });
+
+  it('обхід нічого не побачив — нічого не знімає', async () => {
+    const { service, prisma } = setup(
+      { chainId: 'chain-atb', maxPages: null },
+      100,
+    );
+    await expect(service.delistMissing(RUN_ID, 0, AT)).resolves.toBe(0);
     expect(prisma.listing.updateMany).not.toHaveBeenCalled();
   });
 });

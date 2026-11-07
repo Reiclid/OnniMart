@@ -28,6 +28,7 @@ const LISTINGS = {
     currentPrice: true,
     regularPrice: true,
     isOnPromo: true,
+    lastSeenAt: true,
     chain: { select: { name: true, currency: true, countryCode: true } },
     // Історія пишеться лише при зміні ціни: останній знімок — початок поточної ціни,
     // передостанній — попередня ціна (стрибок утричі — підозра на помилку, isSuspicious)
@@ -76,6 +77,7 @@ export function offersOf(sub: SubscriptionWithOffers): AlertOffer[] {
     price: Number(l.currentPrice),
     regularPrice: l.regularPrice === null ? null : Number(l.regularPrice),
     isOnPromo: l.isOnPromo,
+    lastSeenAt: l.lastSeenAt,
     priceSince: l.priceSnapshots[0]?.capturedAt,
     ...(l.priceSnapshots[1] && {
       previousPrice: Number(l.priceSnapshots[1].price),

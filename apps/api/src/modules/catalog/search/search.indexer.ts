@@ -51,6 +51,7 @@ export class SearchIndexer {
                 currentPrice: true,
                 isOnPromo: true,
                 inStock: true,
+                lastSeenAt: true,
                 chain: {
                   select: { slug: true, currency: true, countryCode: true },
                 },

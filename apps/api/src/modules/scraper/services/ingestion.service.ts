@@ -10,6 +10,7 @@ import {
 } from '@repo/matching';
 import { RunEventMessage, ScrapedProductMessage } from '@repo/contracts';
 import { withFields } from '../../../logger';
+import { FRESHNESS_LIMITS } from '../../quality/freshness';
 
 export type IngestResult = 'skipped' | 'unchanged' | 'changed';
 
@@ -17,7 +18,8 @@ export type IngestResult = 'skipped' | 'unchanged' | 'changed';
  * Повний обхід, що побачив менше цієї частки активних карток мережі, підозрілий
  * (зламався парсер, сайт змінив верстку) — зниклі картки за ним не знімаємо.
  */
-export const MIN_SEEN_SHARE_TO_DELIST = 0.5;
+export const MIN_SEEN_SHARE_TO_DELIST = FRESHNESS_LIMITS.delistShare;
+const DAY = 24 * 60 * 60 * 1000;
 
 /**
  * Дата закінчення акції — останній день її дії (YYYY-MM-DD → 00:00 UTC), тож знімаємо
@@ -273,25 +275,32 @@ export class IngestionService {
       where: { id: runId },
       select: { chainId: true, maxPages: true },
     });
-    if (!run || run.maxPages !== null) return 0;
+    if (!run || run.maxPages !== null || itemsSeen === 0) return 0;
     const active = await this.prisma.listing.count({
       where: { chainId: run.chainId, delistedAt: null },
     });
-    if (itemsSeen < active * MIN_SEEN_SHARE_TO_DELIST) {
+    // Акційні мережі показують лише частину карток: без цього старі ціни не знімались би ніколи.
+    // Обхід міг бути збоєм, тож знімаємо лише давно не бачені; повернуться наступним обходом.
+    const tooFew = itemsSeen < active * MIN_SEEN_SHARE_TO_DELIST;
+    if (tooFew) {
       this.logger.warn(
-        withFields('Обхід побачив замало карток — зниклі не знімаємо', {
+        withFields('Обхід побачив замало карток — знімаємо лише старі', {
           run_id: runId,
           seen: itemsSeen,
           active,
         }),
       );
-      return 0;
     }
     const { count } = await this.prisma.listing.updateMany({
       where: {
         chainId: run.chainId,
         delistedAt: null,
         OR: [{ lastRunId: null }, { lastRunId: { not: runId } }],
+        ...(tooFew && {
+          lastSeenAt: {
+            lt: new Date(at.getTime() - FRESHNESS_LIMITS.staleDays * DAY),
+          },
+        }),
       },
       data: { delistedAt: at, isOnPromo: false },
     });
