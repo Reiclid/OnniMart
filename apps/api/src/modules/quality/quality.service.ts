@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUALITY_LIMITS, QualityRow } from './checks';
+import { assessChain, ChainFreshnessRow, FRESHNESS_LIMITS } from './freshness';
 import type { QualityReportDto } from './quality.dto';
 import { buildReport } from './report';
 
@@ -20,17 +21,19 @@ export class QualityService {
   }): Promise<QualityReportDto> {
     const country = filter.country?.toUpperCase() || null;
     const chain = filter.chain || null;
-    const [rows, categories, chains, jumps, duplicates] = await Promise.all([
-      this.rows(country),
-      this.prisma.category.findMany({ select: { slug: true, name: true } }),
-      this.prisma.storeChain.findMany({
-        where: { listings: { some: { delistedAt: null } } },
-        select: { slug: true, name: true, countryCode: true },
-        orderBy: [{ countryCode: 'asc' }, { name: 'asc' }],
-      }),
-      this.jumps(country, chain),
-      this.duplicates(country, chain),
-    ]);
+    const [rows, categories, chains, jumps, duplicates, freshness] =
+      await Promise.all([
+        this.rows(country),
+        this.prisma.category.findMany({ select: { slug: true, name: true } }),
+        this.prisma.storeChain.findMany({
+          where: { listings: { some: { delistedAt: null } } },
+          select: { slug: true, name: true, countryCode: true },
+          orderBy: [{ countryCode: 'asc' }, { name: 'asc' }],
+        }),
+        this.jumps(country, chain),
+        this.duplicates(country, chain),
+        this.freshness(country, chain),
+      ]);
     return {
       generatedAt: new Date().toISOString(),
       chains: chains.map((c) => ({
@@ -45,7 +48,44 @@ export class QualityService {
       }),
       jumps,
       duplicates,
+      freshness,
     };
+  }
+
+  /** AUD-05: коли мережу обходили востаннє й скільки її карток застаріло */
+  private async freshness(country: string | null, chain: string | null) {
+    const rows = await this.prisma.$queryRaw<ChainFreshnessRow[]>(Prisma.sql`
+      SELECT c.slug AS chain, c.name, c."countryCode" AS country,
+        count(*)::int AS active,
+        (count(*) FILTER (WHERE l."lastSeenAt" < now() - interval '2 days'))::int AS "older2d",
+        (count(*) FILTER (WHERE l."lastSeenAt" < now() - interval '7 days'))::int AS "older7d",
+        (count(*) FILTER (WHERE l."lastSeenAt" < now() - make_interval(days => ${FRESHNESS_LIMITS.staleDays}::int)))::int AS stale,
+        last_run."startedAt" AS "lastRunAt", last_run.status::text AS "lastRunStatus",
+        last_run.error AS "lastRunError",
+        last_full."finishedAt" AS "lastFullAt", last_full."itemsSeen" AS "lastFullSeen"
+      FROM listings l
+      JOIN store_chains c ON c.id = l."chainId"
+      LEFT JOIN LATERAL (
+        SELECT r."startedAt", r.status, r.error FROM scrape_runs r
+        WHERE r."chainId" = c.id ORDER BY r."startedAt" DESC LIMIT 1
+      ) last_run ON true
+      LEFT JOIN LATERAL (
+        SELECT r."finishedAt", r."itemsSeen" FROM scrape_runs r
+        WHERE r."chainId" = c.id AND r."maxPages" IS NULL AND r.status IN ('SUCCESS', 'PARTIAL')
+        ORDER BY r."startedAt" DESC LIMIT 1
+      ) last_full ON true
+      WHERE l."delistedAt" IS NULL
+        ${country ? Prisma.sql`AND c."countryCode" = ${country}` : Prisma.empty}
+        ${chain ? Prisma.sql`AND c.slug = ${chain}` : Prisma.empty}
+      GROUP BY c.id, last_run."startedAt", last_run.status, last_run.error,
+        last_full."finishedAt", last_full."itemsSeen"
+      ORDER BY stale DESC, active DESC`);
+    const now = new Date();
+    return rows.map((row) => ({
+      ...assessChain(row, now),
+      lastRunAt: row.lastRunAt?.toISOString() ?? null,
+      lastFullAt: row.lastFullAt?.toISOString() ?? null,
+    }));
   }
 
   /** Активні картки в наявності з ціною (як у quality:research) */
