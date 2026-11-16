@@ -45,6 +45,9 @@ describe('toSearchDoc', () => {
       barcodes: ['04820017000277'],
       minPrice: 21.7,
       currency: 'UAH',
+      // ціни за валютами: "до 1 євро" шукає серед євро, навіть якщо товар є й в Україні
+      priceUah: 21.7,
+      priceEur: 0.39,
       indexedAt: 42,
     });
   });
@@ -188,6 +191,30 @@ describe('searchFilter', () => {
     expect(searchFilter({ chain: 'a" OR id = "x' })).toEqual([
       'chains = "a\\" OR id = \\"x"',
     ]);
+  });
+
+  it('ціна, поняття й категорії розбору запиту (PRD-21)', () => {
+    expect(
+      searchFilter({
+        maxPrice: 1.5,
+        minPrice: 0.5,
+        currency: 'EUR',
+        concepts: ['snacks', 'cheese'],
+        categories: ['frozen'],
+      }),
+    ).toEqual([
+      'categorySlug IN ["frozen"]',
+      'concepts IN ["snacks","cheese"]',
+      'priceEur <= 1.5',
+      'priceEur >= 0.5',
+    ]);
+    expect(searchFilter({ maxPrice: 40, currency: 'UAH' })).toEqual([
+      'priceUah <= 40',
+    ]);
+    // без валюти ціна не фільтрує, порожні списки пропускаються
+    expect(
+      searchFilter({ maxPrice: 40, concepts: [], categories: [] }),
+    ).toEqual([]);
   });
 
   it('акції: будь-де, у вибраній мережі або в країні', () => {
