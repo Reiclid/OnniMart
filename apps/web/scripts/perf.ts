@@ -4,11 +4,16 @@
 // Код виходу 1, якщо бюджет перевищено.
 //   API на :3001, сайт: cd apps/web && bun run build && bun run start
 //   bun run perf                (PERF_CHANNEL=msedge — Edge замість Chrome)
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+// /alerts і /profile відкриваються лише після входу: PERF_SESSION — токен сесії в cookie
+// (його створює bun run perf:seed в API; нічний прогін — .github/workflows/perf.yml).
+// Попередній запуск береться з .perf/last.json; у CI його відновлює кеш, а підсумок іде в GITHUB_STEP_SUMMARY.
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chromium, type Browser, type Page } from 'playwright-core';
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
 const API = process.env.API_URL ?? 'http://localhost:3001';
+const SESSION = process.env.PERF_SESSION;
+if (!SESSION) throw new Error('PERF_SESSION: потрібен токен сесії покупця (bun run perf:seed у apps/api)');
 const ROUNDS = 3; // разом із запитами до API — у межах 120 запитів/хв throttler'а
 const API_SAMPLES = 20;
 
@@ -59,7 +64,7 @@ async function navigate(page: Page, go: () => Promise<unknown>) {
 /** Телефон (більшість відкриває сайт з мобільного, docs/05-user-research.md) зі свіжим кешем; онбординг пройдено, інакше головна веде на /welcome */
 async function phone(browser: Browser) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-  await context.addCookies(['onnimart_onboarded=1', 'onnimart_country=UA'].map((c) => ({ name: c.split('=')[0], value: c.split('=')[1], url: WEB })));
+  await context.addCookies(['onnimart_onboarded=1', 'onnimart_country=UA', `onnimart_session=${SESSION}`].map((c) => ({ name: c.split('=')[0], value: c.split('=')[1], url: WEB })));
   await context.addInitScript(OBSERVERS);
   return context.newPage();
 }
@@ -150,12 +155,16 @@ writeFileSync('.perf/last.json', JSON.stringify(results, null, 2));
 
 const format = (name: string, value: number) => (name.startsWith('cls ') ? value.toFixed(3) : `${Math.round(value)} мс`);
 let failed = 0;
+const summary = ['| Метрика | Зараз | Бюджет | Було |', '|---|---:|---:|---:|'];
 for (const [name, value] of Object.entries(results)) {
   const budget = budgetOf(name);
   const over = value > budget;
   if (over) failed++;
-  const delta = previous[name] === undefined ? '' : ` (було ${format(name, previous[name])})`;
+  const before = previous[name];
+  const delta = before === undefined ? '' : ` (було ${format(name, before)})`;
   console.log(`${over ? '✗' : '✓'} ${name.padEnd(26)} ${format(name, value).padStart(8)} / ${format(name, budget)}${delta}`);
+  summary.push(`| ${over ? '❌' : '✅'} ${name} | ${format(name, value)} | ${format(name, budget)} | ${before === undefined ? '—' : format(name, before)} |`);
 }
+if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary.join('\n')}\n`);
 console.log(failed ? `\nПеревищено бюджетів: ${failed}` : '\nУсі бюджети дотримано');
 process.exit(failed ? 1 : 0);
