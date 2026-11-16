@@ -95,10 +95,49 @@ const RELEVANT: Record<string, { is: string; not?: string }> = {
     is: `морозиво|${L}eis${END}|eiscreme|${L}eis-|sorbet`,
     not: 'eistee|eisberg',
   },
+  // Непродуктові (PRD-19): релевантність — за назвою, незалежно від conceptOf
+  laundry: {
+    is: 'пральн|для прання|waschmittel|waschpulver|waschgel|laundry|persil|ariel',
+    not: 'посуд|spül|spul|wäscheständer',
+  },
+  dishwashing: {
+    is: 'для миття посуду|для посуду|spülmittel|geschirrspülmittel|handspül|dish',
+    not: 'посудомийн|maschin',
+  },
+  'toilet-paper': { is: 'туалетн\\p{L}* папір|toilettenpapier|klopapier' },
+  shampoo: {
+    is: `${L}шампун|shampoo`,
+    not: 'для собак|для котів|hund|katze|dog|cat|pet',
+  },
+  toothpaste: { is: 'зубна паста|паста зубна|zahnpasta|zahncreme|toothpaste' },
+  deodorant: {
+    is: `дезодорант|антиперспірант|${L}deo${END}|deodorant|transpirant`,
+  },
+  diapers: { is: 'підгузк|підгузник|windel|diaper|pampers' },
+  'cat-food': {
+    is: '^(?=.*(?:корм|futter|food|ласощі|snack|leckerli))(?=.*(?:кот|кіш|katze|cat))',
+    not: 'наповнювач|streu|litter|іграшка|spielzeug',
+  },
+  'dog-food': {
+    is: '^(?=.*(?:корм|futter|food|ласощі|snack|leckerli))(?=.*(?:собак|цуценят|hund|dog))',
+    not: 'наповнювач|іграшка|spielzeug|shampoo|шампунь',
+  },
+  'cat-litter': { is: 'наповнювач|katzenstreu|streu|litter|katzentoilette' },
+  soap: { is: `${L}мило|крем-мило|seife`, not: 'олівець' },
+  wipes: {
+    is: 'серветки вологі|вологі серветки|feuchttücher|feuchte tücher|wet wipes',
+  },
+  'shower-gel': { is: 'гель для душу|гель-душ|duschgel|dusche|shower' },
 };
 
 /** Запит, країна і що має знайтись (+ додаткова умова на назву для запитів із брендом / видом) */
-const QUERIES: { q: string; country: string; want: string; also?: string }[] = [
+const QUERIES: {
+  q: string;
+  country: string;
+  want: string;
+  also?: string;
+  group?: 'non-food';
+}[] = [
   ...[
     ['молоко', 'milk'],
     ['milk', 'milk'],
@@ -169,6 +208,53 @@ const QUERIES: { q: string; country: string; want: string; also?: string }[] = [
     ['saft', 'juice'],
     ['kartoffeln', 'potatoes'],
   ].map(([q, want]) => ({ q, want, country: 'DE' })),
+  // Непродуктові запити (PRD-19): окрема група у підсумку
+  ...[
+    ['пральний порошок', 'laundry'],
+    ['засіб для миття посуду', 'dishwashing'],
+    ['туалетний папір', 'toilet-paper'],
+    ['шампунь', 'shampoo'],
+    ['зубна паста', 'toothpaste'],
+    ['дезодорант', 'deodorant'],
+    ['підгузки', 'diapers'],
+    ['корм для котів', 'cat-food'],
+    ['корм для собак', 'dog-food'],
+    ['наповнювач для котів', 'cat-litter'],
+    ['мило', 'soap'],
+    ['вологі серветки', 'wipes'],
+    ['гель для душу', 'shower-gel'],
+  ].map(([q, want]) => ({ q, want, country: 'UA', group: 'non-food' })),
+  ...[
+    ['waschmittel', 'laundry'],
+    ['spülmittel', 'dishwashing'],
+    ['toilettenpapier', 'toilet-paper'],
+    ['shampoo', 'shampoo'],
+    ['zahnpasta', 'toothpaste'],
+    ['deo', 'deodorant'],
+    ['windeln', 'diapers'],
+    ['katzenfutter', 'cat-food'],
+    ['hundefutter', 'dog-food'],
+    ['seife', 'soap'],
+    ['feuchttücher', 'wipes'],
+    ['duschgel', 'shower-gel'],
+  ].map(([q, want]) => ({ q, want, country: 'DE', group: 'non-food' })),
+  // Запит однією мовою, країна з іншою — це і є різниця від простого тексту
+  ...[
+    ['windeln', 'diapers'],
+    ['katzenfutter', 'cat-food'],
+    ['zahnpasta', 'toothpaste'],
+    ['waschmittel', 'laundry'],
+    ['seife', 'soap'],
+    ['shampoo', 'shampoo'],
+  ].map(([q, want]) => ({ q, want, country: 'UA', group: 'non-food' })),
+  ...[
+    ['підгузки', 'diapers'],
+    ['корм для котів', 'cat-food'],
+    ['зубна паста', 'toothpaste'],
+    ['пральний порошок', 'laundry'],
+    ['мило', 'soap'],
+    ['шампунь', 'shampoo'],
+  ].map(([q, want]) => ({ q, want, country: 'DE', group: 'non-food' })),
 ];
 
 /** Скільки перших результатів оцінюється для повноти */
@@ -188,9 +274,10 @@ async function main() {
     p10: number;
     p50: number;
     recall: number | null;
+    group?: 'non-food';
   }[] = [];
   try {
-    for (const { q, country, want, also } of QUERIES) {
+    for (const { q, country, want, also, group } of QUERIES) {
       const { ids, total } = await catalog.findProductIds(
         { q, country },
         0,
@@ -226,6 +313,7 @@ async function main() {
       };
       const all = new Set([...ids, ...text].filter(relevant));
       rows.push({
+        group,
         q,
         country,
         total,
@@ -262,12 +350,24 @@ ${country} «${q}» — ${total}`);
     console.log(
       `${r.country.padEnd(7)} ${r.q.padEnd(21)} ${String(r.total).padStart(8)} ${pct(r.p10)} ${pct(r.p50)} ${r.recall === null ? '     —' : pct(r.recall)}`,
     );
-  const recalls = rows.flatMap((r) => (r.recall === null ? [] : [r.recall]));
-  const mean = (f: (r: (typeof rows)[number]) => number) =>
-    rows.reduce((s, r) => s + f(r), 0) / rows.length;
-  console.log(
-    `\nЗапитів: ${rows.length} (${process.env.MEILI_URL ? 'Meilisearch' : 'SQL'}) · P@10 ${pct(mean((r) => r.p10)).trim()} · P@50 ${pct(mean((r) => r.p50)).trim()} · порожніх: ${rows.filter((r) => r.total === 0).length}${recalls.length ? ` · повнота ${pct(recalls.reduce((a, b) => a + b, 0) / recalls.length).trim()}` : ''}`,
+  const summary = (label: string, part: typeof rows) => {
+    const recalls = part.flatMap((r) => (r.recall === null ? [] : [r.recall]));
+    const mean = (f: (r: (typeof rows)[number]) => number) =>
+      part.reduce((s, r) => s + f(r), 0) / part.length;
+    console.log(
+      `${label}: запитів ${part.length} (${process.env.MEILI_URL ? 'Meilisearch' : 'SQL'}) · P@10 ${pct(mean((r) => r.p10)).trim()} · P@50 ${pct(mean((r) => r.p50)).trim()} · порожніх: ${part.filter((r) => r.total === 0).length}${recalls.length ? ` · повнота ${pct(recalls.reduce((a, b) => a + b, 0) / recalls.length).trim()}` : ''}`,
+    );
+  };
+  console.log('');
+  summary(
+    'Продуктові',
+    rows.filter((r) => !r.group),
   );
+  summary(
+    'Непродуктові',
+    rows.filter((r) => r.group),
+  );
+  summary('Разом', rows);
 }
 
 void main();

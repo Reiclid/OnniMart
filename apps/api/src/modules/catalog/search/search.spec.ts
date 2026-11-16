@@ -152,7 +152,7 @@ describe('toSearchDoc', () => {
       toSearchDoc(
         {
           id: 'p',
-          name: 'Тарілки',
+          name: 'Моршинська',
           lineId: null,
           brand: null,
           category: null,

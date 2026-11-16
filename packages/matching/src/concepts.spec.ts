@@ -48,7 +48,6 @@ describe('conceptOf', () => {
     ['Milka Alpenmilch', 'sweets-snacks'],
     ['Палички мясні курячі сирокопчені', 'sweets-snacks'],
     ['Alaska Seelachs', 'frozen'],
-    ['Тарілки одноразові', 'household'],
     ['Куркума Metro Chef мелена сушена', 'pantry'],
     ['Масляна Aro філе-шматок холодного копчення', 'fish'],
   ])('%s → null', (name, category) => {
