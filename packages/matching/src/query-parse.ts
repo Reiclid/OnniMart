@@ -13,11 +13,7 @@ import { queryConcept } from './concepts';
 export type Currency = 'UAH' | 'EUR';
 
 export type Diet =
-  | 'vegan'
-  | 'vegetarian'
-  | 'lactose-free'
-  | 'gluten-free'
-  | 'sugar-free';
+  'vegan' | 'vegetarian' | 'lactose-free' | 'gluten-free' | 'sugar-free';
 
 export type Sort = 'price-asc';
 
@@ -25,14 +21,59 @@ export type Sort = 'price-asc';
 export const OCCASIONS = {
   beer: ['snacks', 'cheese'],
   wine: ['cheese', 'nuts', 'ham', 'crackers', 'chocolate'],
-  tea: ['cookies', 'cake', 'muffin', 'wafers', 'candy', 'gingerbread', 'chocolate'],
+  tea: [
+    'cookies',
+    'cake',
+    'muffin',
+    'wafers',
+    'candy',
+    'gingerbread',
+    'chocolate',
+  ],
   coffee: ['cookies', 'cake', 'croissant', 'muffin', 'wafers', 'chocolate'],
-  breakfast: ['oats', 'yogurt', 'bread', 'rolls', 'eggs', 'milk', 'butter', 'cheese', 'cottage-cheese', 'coffee', 'tea'],
-  lunch: ['pasta', 'rice', 'buckwheat', 'potatoes', 'chicken', 'pork', 'beef', 'vegetables'],
+  breakfast: [
+    'oats',
+    'yogurt',
+    'bread',
+    'rolls',
+    'eggs',
+    'milk',
+    'butter',
+    'cheese',
+    'cottage-cheese',
+    'coffee',
+    'tea',
+  ],
+  lunch: [
+    'pasta',
+    'rice',
+    'buckwheat',
+    'potatoes',
+    'chicken',
+    'pork',
+    'beef',
+    'vegetables',
+  ],
   dinner: ['meat', 'fish', 'potatoes', 'pasta', 'rice', 'vegetables'],
   barbecue: ['pork', 'chicken', 'beef', 'sausage', 'wieners', 'vegetables'],
-  party: ['snacks', 'soda', 'juice', 'beer', 'wine', 'sparkling-wine', 'sweets'],
-  picnic: ['sausage', 'bread', 'cheese', 'fruit', 'vegetables', 'water', 'juice'],
+  party: [
+    'snacks',
+    'soda',
+    'juice',
+    'beer',
+    'wine',
+    'sparkling-wine',
+    'sweets',
+  ],
+  picnic: [
+    'sausage',
+    'bread',
+    'cheese',
+    'fruit',
+    'vegetables',
+    'water',
+    'juice',
+  ],
   dessert: ['ice-cream', 'cake', 'chocolate', 'yogurt', 'fruit', 'cookies'],
   movie: ['popcorn', 'chips', 'soda', 'candy'],
   sandwich: ['bread', 'ham', 'sausage', 'cheese', 'butter'],
@@ -109,10 +150,7 @@ const AT_LEAST = [
 ].join('|');
 
 const price = (limit: string) =>
-  new RegExp(
-    `${L}(?:${limit})\\s*(?:${CUR}\\s*)?${NUM}\\s*${CUR}?${R}`,
-    'gu',
-  );
+  new RegExp(`${L}(?:${limit})\\s*(?:${CUR}\\s*)?${NUM}\\s*${CUR}?${R}`, 'gu');
 const RANGE = new RegExp(
   `${L}(?:від|ab|from|between|zwischen)\\s*${NUM}\\s*${CUR}?\\s*(?:до|bis|to|and|und|-|–|—)\\s*${NUM}\\s*${CUR}?${R}`,
   'gu',
@@ -132,38 +170,132 @@ const SORT_CHEAP = word(
 const DIETS: [Diet, RegExp][] = [
   ['vegan', word('веган\\p{L}*|vegan\\p{L}*')],
   ['vegetarian', word('вегетаріан\\p{L}*|vegetari\\p{L}*')],
-  ['lactose-free', word('безлактоз\\p{L}*|без\\s+лактози|lactose[\\s-]?free|laktose[\\s-]?frei\\p{L}*|ohne\\s+laktose')],
-  ['gluten-free', word('безглютен\\p{L}*|без\\s+глютену|gluten[\\s-]?free|glutenfrei\\p{L}*|ohne\\s+gluten')],
-  ['sugar-free', word('без\\s+цукр\\p{L}*|zuckerfrei\\p{L}*|ohne\\s+zucker|sugar[\\s-]?free|no\\s+sugar')],
+  [
+    'lactose-free',
+    word(
+      'безлактоз\\p{L}*|без\\s+лактози|lactose[\\s-]?free|laktose[\\s-]?frei\\p{L}*|ohne\\s+laktose',
+    ),
+  ],
+  [
+    'gluten-free',
+    word(
+      'безглютен\\p{L}*|без\\s+глютену|gluten[\\s-]?free|glutenfrei\\p{L}*|ohne\\s+gluten',
+    ),
+  ],
+  [
+    'sugar-free',
+    word(
+      'без\\s+цукр\\p{L}*|zuckerfrei\\p{L}*|ohne\\s+zucker|sugar[\\s-]?free|no\\s+sugar',
+    ),
+  ],
 ];
 
 /** Категорії, для яких немає власного поняття (поняття — "молоко", "напої", "алкоголь" — шукає пошук) */
 const CATEGORY_WORDS: [CategorySlug, RegExp][] = [
-  ['frozen', new RegExp(`${L}(?:заморожен\\p{L}*(?:\\s+продукт\\p{L}*)?|frozen(?:\\s+food)?${R}|tiefk(?:ü|u)hl(?:kost|produkte?|waren)?)`, 'gu')],
-  ['ready-meals', word('готов\\p{L}*\\s+(?:страв\\p{L}*|їж\\p{L}*|обід\\p{L}*)|fertiggericht\\p{L}*|fertigessen|ready[\\s-]?meals?|ready[\\s-]?made')],
-  ['baby', word('дитяч\\p{L}*\\s+(?:товар\\p{L}*|харчуван\\p{L}*|їж\\p{L}*)|товар\\p{L}*\\s+для\\s+дітей|babyprodukt\\p{L}*|babyartikel|baby\\s+(?:products|food|stuff)')],
-  ['pets', word('товар\\p{L}*\\s+для\\s+(?:тварин|котів|собак)|зоотовар\\p{L}*|tierbedarf|haustier\\p{L}*|pet\\s+(?:supplies|products)')],
-  ['household', word('побутов\\p{L}*\\s+(?:хімі\\p{L}*|товар\\p{L}*)|господарськ\\p{L}*\\s+товар\\p{L}*|haushalts(?:waren|artikel|produkte)|haushalt|household(?:\\s+(?:goods|products))?')],
-  ['beauty', word('косметик\\p{L}*|краса|гігієн\\p{L}*|kosmetik|k(?:ö|o)rperpflege|beauty|cosmetics|personal\\s+care|hygiene')],
+  [
+    'frozen',
+    new RegExp(
+      `${L}(?:заморожен\\p{L}*(?:\\s+продукт\\p{L}*)?|frozen(?:\\s+food)?${R}|tiefk(?:ü|u)hl(?:kost|produkte?|waren)?)`,
+      'gu',
+    ),
+  ],
+  [
+    'ready-meals',
+    word(
+      'готов\\p{L}*\\s+(?:страв\\p{L}*|їж\\p{L}*|обід\\p{L}*)|fertiggericht\\p{L}*|fertigessen|ready[\\s-]?meals?|ready[\\s-]?made',
+    ),
+  ],
+  [
+    'baby',
+    word(
+      'дитяч\\p{L}*\\s+(?:товар\\p{L}*|харчуван\\p{L}*|їж\\p{L}*)|товар\\p{L}*\\s+для\\s+дітей|babyprodukt\\p{L}*|babyartikel|baby\\s+(?:products|food|stuff)',
+    ),
+  ],
+  [
+    'pets',
+    word(
+      'товар\\p{L}*\\s+для\\s+(?:тварин|котів|собак)|зоотовар\\p{L}*|tierbedarf|haustier\\p{L}*|pet\\s+(?:supplies|products)',
+    ),
+  ],
+  [
+    'household',
+    word(
+      'побутов\\p{L}*\\s+(?:хімі\\p{L}*|товар\\p{L}*)|господарськ\\p{L}*\\s+товар\\p{L}*|haushalts(?:waren|artikel|produkte)|haushalt|household(?:\\s+(?:goods|products))?',
+    ),
+  ],
+  [
+    'beauty',
+    word(
+      'косметик\\p{L}*|краса|гігієн\\p{L}*|kosmetik|k(?:ö|o)rperpflege|beauty|cosmetics|personal\\s+care|hygiene',
+    ),
+  ],
   ['pantry', word('бакалі\\p{L}*|vorratskammer|pantry')],
 ];
 
 const WITH = '(?:до|під|на|для|zu(?:m|r)?|mit|for|with|to)';
 const OCCASION_WORDS: [Occasion, RegExp][] = [
-  ['beer', word(`${WITH}\\s+(?:пив(?:о|а|у|ом)?|bier\\p{L}*|beers?)|(?:beer|bier)[\\s-]?snacks?`)],
+  [
+    'beer',
+    word(
+      `${WITH}\\s+(?:пив(?:о|а|у|ом)?|bier\\p{L}*|beers?)|(?:beer|bier)[\\s-]?snacks?`,
+    ),
+  ],
   ['wine', word(`${WITH}\\s+(?:вин(?:о|а|у|ом)?|wein\\p{L}*|wine)`)],
   ['tea', word(`${WITH}\\s+(?:чаю|чай|чаєм|tee|tea)`)],
   ['coffee', word(`${WITH}\\s+(?:кав(?:а|и|у|ою)|kaffee|coffee)`)],
-  ['breakfast', word('на\\s+сніданок|на\\s+сніданку|до\\s+сніданку|сніданок|zum\\s+fr(?:ü|u)hst(?:ü|u)ck|fr(?:ü|u)hst(?:ü|u)ck|for\\s+breakfast|breakfast')],
-  ['lunch', word('на\\s+обід|обід|zum\\s+mittagessen|mittagessen|for\\s+lunch|lunch')],
-  ['dinner', word('на\\s+вечерю|вечер(?:я|ю)|zum\\s+abendessen|abendessen|for\\s+dinner|dinner')],
-  ['barbecue', word('на\\s+шашлик\\p{L}*|шашлик\\p{L}*|на\\s+гриль|для\\s+гриля|на\\s+барбекю|барбекю|zum\\s+grillen|grillen|for\\s+(?:a\\s+)?(?:bbq|barbecue|grill)|bbq|barbecue')],
-  ['party', word('на\\s+вечірк\\p{L}*|для\\s+вечірк\\p{L}*|вечірк\\p{L}*|на\\s+свято|zur\\s+party|f(?:ü|u)r\\s+(?:die|eine)\\s+party|for\\s+(?:a\\s+)?party|party|feier')],
+  [
+    'breakfast',
+    word(
+      'на\\s+сніданок|на\\s+сніданку|до\\s+сніданку|сніданок|zum\\s+fr(?:ü|u)hst(?:ü|u)ck|fr(?:ü|u)hst(?:ü|u)ck|for\\s+breakfast|breakfast',
+    ),
+  ],
+  [
+    'lunch',
+    word('на\\s+обід|обід|zum\\s+mittagessen|mittagessen|for\\s+lunch|lunch'),
+  ],
+  [
+    'dinner',
+    word(
+      'на\\s+вечерю|вечер(?:я|ю)|zum\\s+abendessen|abendessen|for\\s+dinner|dinner',
+    ),
+  ],
+  [
+    'barbecue',
+    word(
+      'на\\s+шашлик\\p{L}*|шашлик\\p{L}*|на\\s+гриль|для\\s+гриля|на\\s+барбекю|барбекю|zum\\s+grillen|grillen|for\\s+(?:a\\s+)?(?:bbq|barbecue|grill)|bbq|barbecue',
+    ),
+  ],
+  [
+    'party',
+    word(
+      'на\\s+вечірк\\p{L}*|для\\s+вечірк\\p{L}*|вечірк\\p{L}*|на\\s+свято|zur\\s+party|f(?:ü|u)r\\s+(?:die|eine)\\s+party|for\\s+(?:a\\s+)?party|party|feier',
+    ),
+  ],
   ['picnic', word('на\\s+пікнік|пікнік|zum\\s+picknick|picknick|picnic')],
-  ['dessert', word('на\\s+десерт|десерт|zum\\s+nachtisch|nachtisch|for\\s+dessert|dessert')],
-  ['movie', word('до\\s+фільму|під\\s+фільм|на\\s+кіно|для\\s+кіно|zum\\s+film|filmabend|movie\\s+night|for\\s+(?:a\\s+)?(?:movie|film)')],
-  ['sandwich', word('на\\s+бутерброд\\p{L}*|для\\s+бутербродів|бутерброд\\p{L}*|f(?:ü|u)r\\s+(?:belegte\\s+)?brote|belegte\\s+brote|for\\s+sandwiches|sandwiches')],
-  ['birthday', word('на\\s+день\\s+народження|день\\s+народження|zum\\s+geburtstag|geburtstag|for\\s+(?:a\\s+)?birthday|birthday')],
+  [
+    'dessert',
+    word(
+      'на\\s+десерт|десерт|zum\\s+nachtisch|nachtisch|for\\s+dessert|dessert',
+    ),
+  ],
+  [
+    'movie',
+    word(
+      'до\\s+фільму|під\\s+фільм|на\\s+кіно|для\\s+кіно|zum\\s+film|filmabend|movie\\s+night|for\\s+(?:a\\s+)?(?:movie|film)',
+    ),
+  ],
+  [
+    'sandwich',
+    word(
+      'на\\s+бутерброд\\p{L}*|для\\s+бутербродів|бутерброд\\p{L}*|f(?:ü|u)r\\s+(?:belegte\\s+)?brote|belegte\\s+brote|for\\s+sandwiches|sandwiches',
+    ),
+  ],
+  [
+    'birthday',
+    word(
+      'на\\s+день\\s+народження|день\\s+народження|zum\\s+geburtstag|geburtstag|for\\s+(?:a\\s+)?birthday|birthday',
+    ),
+  ],
 ];
 
 /** Слова-прохання: "що купити", "ich suche"; прибираються, лише коли в запиті є щось розібране */
@@ -177,7 +309,8 @@ const OCCASION_FILLER = word(
 );
 
 /** "молоко і хліб", "Milch und Brot", "milk, bread" */
-const CONJUNCTION = /\s*(?:[,;+&/]|(?<![\p{L}\p{N}])(?:і|та|й|и|und|and)(?![\p{L}\p{N}]))\s*/u;
+const CONJUNCTION =
+  /\s*(?:[,;+&/]|(?<![\p{L}\p{N}])(?:і|та|й|и|und|and)(?![\p{L}\p{N}]))\s*/u;
 
 const cut = (text: string, rule: RegExp) => text.replace(rule, ' ');
 

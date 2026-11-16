@@ -19,14 +19,38 @@ const QUERIES: [string, Partial<ParsedQuery>][] = [
   ['менше 20 ₴', { maxPrice: 20, ...UAH }],
   ['до 2€', { maxPrice: 2, ...EUR }],
   ['до 1,5 євро', { maxPrice: 1.5, ...EUR }],
-  ['печиво до 1.5 євро', { concepts: ['cookies'], text: 'печиво', maxPrice: 1.5, ...EUR }],
-  ['молоко до 40 грн', { concepts: ['milk'], text: 'молоко', maxPrice: 40, ...UAH }],
-  ['хліб дешевше за 25 грн', { concepts: ['bread'], text: 'хліб', maxPrice: 25, ...UAH }],
-  ['сир до 100 гривень', { concepts: ['cheese'], text: 'сир', maxPrice: 100, ...UAH }],
-  ['кава не дорожче 200 грн', { concepts: ['coffee'], text: 'кава', maxPrice: 200, ...UAH }],
-  ['шоколад milka до 2 євро', { concepts: ['chocolate'], text: 'шоколад milka', maxPrice: 2, ...EUR }],
-  ['вода 1.5 л до 30 грн', { concepts: ['water'], text: 'вода 1.5 л', maxPrice: 30, ...UAH }],
-  ['масло вершкове не більше 90 грн', { concepts: ['butter'], text: 'масло вершкове', maxPrice: 90, ...UAH }],
+  [
+    'печиво до 1.5 євро',
+    { concepts: ['cookies'], text: 'печиво', maxPrice: 1.5, ...EUR },
+  ],
+  [
+    'молоко до 40 грн',
+    { concepts: ['milk'], text: 'молоко', maxPrice: 40, ...UAH },
+  ],
+  [
+    'хліб дешевше за 25 грн',
+    { concepts: ['bread'], text: 'хліб', maxPrice: 25, ...UAH },
+  ],
+  [
+    'сир до 100 гривень',
+    { concepts: ['cheese'], text: 'сир', maxPrice: 100, ...UAH },
+  ],
+  [
+    'кава не дорожче 200 грн',
+    { concepts: ['coffee'], text: 'кава', maxPrice: 200, ...UAH },
+  ],
+  [
+    'шоколад milka до 2 євро',
+    { concepts: ['chocolate'], text: 'шоколад milka', maxPrice: 2, ...EUR },
+  ],
+  [
+    'вода 1.5 л до 30 грн',
+    { concepts: ['water'], text: 'вода 1.5 л', maxPrice: 30, ...UAH },
+  ],
+  [
+    'масло вершкове не більше 90 грн',
+    { concepts: ['butter'], text: 'масло вершкове', maxPrice: 90, ...UAH },
+  ],
   ['від 20 до 50 грн', { minPrice: 20, maxPrice: 50, ...UAH }],
   ['від 30 грн', { minPrice: 30, ...UAH }],
   ['дорожче 100 грн', { minPrice: 100, ...UAH }],
@@ -38,21 +62,36 @@ const QUERIES: [string, Partial<ParsedQuery>][] = [
 
   // ── ціна: німецька ──────────────────────────────────────────────────────
   ['unter 2 €', { maxPrice: 2, ...EUR }],
-  ['unter 2 € Käse', { concepts: ['cheese'], text: 'käse', maxPrice: 2, ...EUR }],
+  [
+    'unter 2 € Käse',
+    { concepts: ['cheese'], text: 'käse', maxPrice: 2, ...EUR },
+  ],
   ['bis 5 Euro', { maxPrice: 5, ...EUR }],
   ['günstiger als 3 Euro', { maxPrice: 3, ...EUR }],
   ['weniger als 2 €', { maxPrice: 2, ...EUR }],
   ['höchstens 4 EUR', { maxPrice: 4, ...EUR }],
   ['max 10 €', { maxPrice: 10, ...EUR }],
   ['max. 10 €', { maxPrice: 10, ...EUR }],
-  ['Milch unter 1 Euro', { concepts: ['milk'], text: 'milch', maxPrice: 1, ...EUR }],
-  ['Brot unter 2,50 €', { concepts: ['bread'], text: 'brot', maxPrice: 2.5, ...EUR }],
-  ['Wein bis 8 Euro', { concepts: ['wine'], text: 'wein', maxPrice: 8, ...EUR }],
+  [
+    'Milch unter 1 Euro',
+    { concepts: ['milk'], text: 'milch', maxPrice: 1, ...EUR },
+  ],
+  [
+    'Brot unter 2,50 €',
+    { concepts: ['bread'], text: 'brot', maxPrice: 2.5, ...EUR },
+  ],
+  [
+    'Wein bis 8 Euro',
+    { concepts: ['wine'], text: 'wein', maxPrice: 8, ...EUR },
+  ],
   ['ab 5 Euro', { minPrice: 5, ...EUR }],
   ['mindestens 3 €', { minPrice: 3, ...EUR }],
   ['zwischen 2 und 5 Euro', { minPrice: 2, maxPrice: 5, ...EUR }],
   ['unter 2 kg', { text: 'unter 2 kg' }],
-  ['Nudeln unter 1 € pro Packung', { concepts: ['pasta'], text: 'nudeln pro packung', maxPrice: 1, ...EUR }],
+  [
+    'Nudeln unter 1 € pro Packung',
+    { concepts: ['pasta'], text: 'nudeln pro packung', maxPrice: 1, ...EUR },
+  ],
 
   // ── ціна: англійська ────────────────────────────────────────────────────
   ['under 2 euros', { maxPrice: 2, ...EUR }],
@@ -62,9 +101,18 @@ const QUERIES: [string, Partial<ParsedQuery>][] = [
   ['cheaper than 2 €', { maxPrice: 2, ...EUR }],
   ['up to 10 eur', { maxPrice: 10, ...EUR }],
   ['max 5 eur', { maxPrice: 5, ...EUR }],
-  ['milk under 1 euro', { concepts: ['milk'], text: 'milk', maxPrice: 1, ...EUR }],
-  ['bread under 2 euros', { concepts: ['bread'], text: 'bread', maxPrice: 2, ...EUR }],
-  ['cheese up to 3 €', { concepts: ['cheese'], text: 'cheese', maxPrice: 3, ...EUR }],
+  [
+    'milk under 1 euro',
+    { concepts: ['milk'], text: 'milk', maxPrice: 1, ...EUR },
+  ],
+  [
+    'bread under 2 euros',
+    { concepts: ['bread'], text: 'bread', maxPrice: 2, ...EUR },
+  ],
+  [
+    'cheese up to 3 €',
+    { concepts: ['cheese'], text: 'cheese', maxPrice: 3, ...EUR },
+  ],
   ['from 5 euros', { minPrice: 5, ...EUR }],
   ['over 10 eur', { minPrice: 10, ...EUR }],
   ['between 2 and 5 euros', { minPrice: 2, maxPrice: 5, ...EUR }],
@@ -77,10 +125,25 @@ const QUERIES: [string, Partial<ParsedQuery>][] = [
   ['недорогий сир', { concepts: ['cheese'], text: 'сир', sort: 'price-asc' }],
   ['бюджетна кава', { concepts: ['coffee'], text: 'кава', sort: 'price-asc' }],
   ['günstiger Käse', { concepts: ['cheese'], text: 'käse', sort: 'price-asc' }],
-  ['billige Nudeln', { concepts: ['pasta'], text: 'nudeln', sort: 'price-asc' }],
+  [
+    'billige Nudeln',
+    { concepts: ['pasta'], text: 'nudeln', sort: 'price-asc' },
+  ],
   ['cheap wine', { concepts: ['wine'], text: 'wine', sort: 'price-asc' }],
-  ['cheapest coffee', { concepts: ['coffee'], text: 'coffee', sort: 'price-asc' }],
-  ['дешеве молоко до 40 грн', { concepts: ['milk'], text: 'молоко', sort: 'price-asc', maxPrice: 40, ...UAH }],
+  [
+    'cheapest coffee',
+    { concepts: ['coffee'], text: 'coffee', sort: 'price-asc' },
+  ],
+  [
+    'дешеве молоко до 40 грн',
+    {
+      concepts: ['milk'],
+      text: 'молоко',
+      sort: 'price-asc',
+      maxPrice: 40,
+      ...UAH,
+    },
+  ],
 
   // ── нагоди ──────────────────────────────────────────────────────────────
   ['до пива', { occasion: 'beer' }],
@@ -126,10 +189,34 @@ const QUERIES: [string, Partial<ParsedQuery>][] = [
 
   // ── нагода + поняття + ціна ─────────────────────────────────────────────
   ['сир до вина', { concepts: ['cheese'], text: 'сир', occasion: 'wine' }],
-  ['ковбаса на шашлик', { concepts: ['sausage'], text: 'ковбаса', occasion: 'barbecue' }],
-  ['печиво до чаю до 50 грн', { concepts: ['cookies'], text: 'печиво', occasion: 'tea', maxPrice: 50, ...UAH }],
-  ['Käse zum Wein unter 5 €', { concepts: ['cheese'], text: 'käse', occasion: 'wine', maxPrice: 5, ...EUR }],
-  ['something for breakfast under 3 euros', { occasion: 'breakfast', maxPrice: 3, ...EUR }],
+  [
+    'ковбаса на шашлик',
+    { concepts: ['sausage'], text: 'ковбаса', occasion: 'barbecue' },
+  ],
+  [
+    'печиво до чаю до 50 грн',
+    {
+      concepts: ['cookies'],
+      text: 'печиво',
+      occasion: 'tea',
+      maxPrice: 50,
+      ...UAH,
+    },
+  ],
+  [
+    'Käse zum Wein unter 5 €',
+    {
+      concepts: ['cheese'],
+      text: 'käse',
+      occasion: 'wine',
+      maxPrice: 5,
+      ...EUR,
+    },
+  ],
+  [
+    'something for breakfast under 3 euros',
+    { occasion: 'breakfast', maxPrice: 3, ...EUR },
+  ],
   ['щось до пива дешевше 100 грн', { occasion: 'beer', maxPrice: 100, ...UAH }],
   ['дешеві закуски до пива', { occasion: 'beer', sort: 'price-asc' }],
   ['на сніданок до 2 євро', { occasion: 'breakfast', maxPrice: 2, ...EUR }],
@@ -137,34 +224,110 @@ const QUERIES: [string, Partial<ParsedQuery>][] = [
   // ── кілька понять ───────────────────────────────────────────────────────
   ['молоко і хліб', { concepts: ['milk', 'bread'], text: 'молоко і хліб' }],
   ['Milch und Brot', { concepts: ['milk', 'bread'], text: 'milch und brot' }],
-  ['milk, bread and cheese', { concepts: ['milk', 'bread', 'cheese'], text: 'milk, bread and cheese' }],
+  [
+    'milk, bread and cheese',
+    { concepts: ['milk', 'bread', 'cheese'], text: 'milk, bread and cheese' },
+  ],
   ['сир, ковбаса', { concepts: ['cheese', 'sausage'], text: 'сир, ковбаса' }],
   ['молоко галичина', { concepts: ['milk'], text: 'молоко галичина' }],
   ['хліб з маслом', { concepts: ['bread'], text: 'хліб з маслом' }],
   ['кава з молоком', { concepts: ['coffee'], text: 'кава з молоком' }],
-  ['Joghurt mit Erdbeeren', { concepts: ['yogurt'], text: 'joghurt mit erdbeeren' }],
+  [
+    'Joghurt mit Erdbeeren',
+    { concepts: ['yogurt'], text: 'joghurt mit erdbeeren' },
+  ],
   ['bio milch', { concepts: ['milk'], text: 'bio milch' }],
-  ['молоко і хліб до 60 грн', { concepts: ['milk', 'bread'], text: 'молоко і хліб', maxPrice: 60, ...UAH }],
+  [
+    'молоко і хліб до 60 грн',
+    {
+      concepts: ['milk', 'bread'],
+      text: 'молоко і хліб',
+      maxPrice: 60,
+      ...UAH,
+    },
+  ],
 
   // ── дієта ───────────────────────────────────────────────────────────────
-  ['веганський сир', { concepts: ['cheese'], text: 'веганський сир', diet: 'vegan' }],
-  ['безлактозне молоко', { concepts: ['milk'], text: 'безлактозне молоко', diet: 'lactose-free' }],
-  ['laktosefreie Milch', { concepts: ['milk'], text: 'laktosefreie milch', diet: 'lactose-free' }],
-  ['lactose free milk', { concepts: ['milk'], text: 'lactose free milk', diet: 'lactose-free' }],
-  ['glutenfreies Brot', { concepts: ['bread'], text: 'glutenfreies brot', diet: 'gluten-free' }],
-  ['без глютену макарони', { concepts: ['pasta'], text: 'без глютену макарони', diet: 'gluten-free' }],
-  ['sugar free chocolate', { concepts: ['chocolate'], text: 'sugar free chocolate', diet: 'sugar-free' }],
-  ['шоколад без цукру', { concepts: ['chocolate'], text: 'шоколад без цукру', diet: 'sugar-free' }],
-  ['zuckerfreie Schokolade', { concepts: ['chocolate'], text: 'zuckerfreie schokolade', diet: 'sugar-free' }],
-  ['vegetarische Wurst', { concepts: ['sausage'], text: 'vegetarische wurst', diet: 'vegetarian' }],
-  ['вегетаріанська піца', { concepts: ['pizza'], text: 'вегетаріанська піца', diet: 'vegetarian' }],
-  ['vegan pizza до 5 €', { concepts: ['pizza'], text: 'vegan pizza', diet: 'vegan', maxPrice: 5, ...EUR }],
+  [
+    'веганський сир',
+    { concepts: ['cheese'], text: 'веганський сир', diet: 'vegan' },
+  ],
+  [
+    'безлактозне молоко',
+    { concepts: ['milk'], text: 'безлактозне молоко', diet: 'lactose-free' },
+  ],
+  [
+    'laktosefreie Milch',
+    { concepts: ['milk'], text: 'laktosefreie milch', diet: 'lactose-free' },
+  ],
+  [
+    'lactose free milk',
+    { concepts: ['milk'], text: 'lactose free milk', diet: 'lactose-free' },
+  ],
+  [
+    'glutenfreies Brot',
+    { concepts: ['bread'], text: 'glutenfreies brot', diet: 'gluten-free' },
+  ],
+  [
+    'без глютену макарони',
+    { concepts: ['pasta'], text: 'без глютену макарони', diet: 'gluten-free' },
+  ],
+  [
+    'sugar free chocolate',
+    {
+      concepts: ['chocolate'],
+      text: 'sugar free chocolate',
+      diet: 'sugar-free',
+    },
+  ],
+  [
+    'шоколад без цукру',
+    { concepts: ['chocolate'], text: 'шоколад без цукру', diet: 'sugar-free' },
+  ],
+  [
+    'zuckerfreie Schokolade',
+    {
+      concepts: ['chocolate'],
+      text: 'zuckerfreie schokolade',
+      diet: 'sugar-free',
+    },
+  ],
+  [
+    'vegetarische Wurst',
+    { concepts: ['sausage'], text: 'vegetarische wurst', diet: 'vegetarian' },
+  ],
+  [
+    'вегетаріанська піца',
+    { concepts: ['pizza'], text: 'вегетаріанська піца', diet: 'vegetarian' },
+  ],
+  [
+    'vegan pizza до 5 €',
+    {
+      concepts: ['pizza'],
+      text: 'vegan pizza',
+      diet: 'vegan',
+      maxPrice: 5,
+      ...EUR,
+    },
+  ],
 
   // ── категорії без поняття ───────────────────────────────────────────────
-  ['заморожена піца', { categories: ['frozen'], concepts: ['pizza'], text: 'піца' }],
-  ['frozen pizza', { categories: ['frozen'], concepts: ['pizza'], text: 'pizza' }],
-  ['Tiefkühlpizza', { categories: ['frozen'], concepts: ['pizza'], text: 'pizza' }],
-  ['заморожені овочі', { categories: ['frozen'], concepts: ['vegetables'], text: 'овочі' }],
+  [
+    'заморожена піца',
+    { categories: ['frozen'], concepts: ['pizza'], text: 'піца' },
+  ],
+  [
+    'frozen pizza',
+    { categories: ['frozen'], concepts: ['pizza'], text: 'pizza' },
+  ],
+  [
+    'Tiefkühlpizza',
+    { categories: ['frozen'], concepts: ['pizza'], text: 'pizza' },
+  ],
+  [
+    'заморожені овочі',
+    { categories: ['frozen'], concepts: ['vegetables'], text: 'овочі' },
+  ],
   ['готові страви', { categories: ['ready-meals'] }],
   ['Fertiggerichte', { categories: ['ready-meals'] }],
   ['побутова хімія', { categories: ['household'] }],
@@ -177,7 +340,10 @@ const QUERIES: [string, Partial<ParsedQuery>][] = [
   ['дитяче харчування', { categories: ['baby'] }],
   ['Babyprodukte', { categories: ['baby'] }],
   ['бакалія', { categories: ['pantry'] }],
-  ['заморожені продукти до 100 грн', { categories: ['frozen'], maxPrice: 100, ...UAH }],
+  [
+    'заморожені продукти до 100 грн',
+    { categories: ['frozen'], maxPrice: 100, ...UAH },
+  ],
 
   // ── звичайні запити лишаються текстом ──────────────────────────────────
   ['молоко', { concepts: ['milk'], text: 'молоко' }],
