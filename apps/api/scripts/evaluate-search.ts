@@ -6,10 +6,14 @@
 // Лише читає БД і Meilisearch.
 //   bun run search:evaluate
 //   bun run search:evaluate -- --sql        (SQL-запасний шлях, без Meilisearch)
+//   bun run search:evaluate -- --legacy     (без розбору запиту: ціна й нагода як слова)
 //   bun run search:evaluate -- --verbose    (перші 10 назв кожного запиту)
 import 'dotenv/config';
 import { CatalogService } from '../src/modules/catalog/catalog.service';
+import { queryConcept } from '@repo/matching';
 import {
+  meili,
+  PRODUCTS_INDEX,
   searchEnabled,
   searchFilter,
   searchProductIds,
@@ -127,6 +131,19 @@ const RELEVANT: Record<string, { is: string; not?: string }> = {
   wipes: {
     is: 'серветки вологі|вологі серветки|feuchttücher|feuchte tücher|wet wipes',
   },
+  // Нагоди (PRD-21)
+  'beer-snacks': {
+    is: 'чипс|chips|горіх|горішк|арахіс|nuss|nüsse|nuts|peanut|крекер|cracker|сухарик|сир|käse|cheese|снек|snack|попкорн|popcorn|brezel|pretzel',
+    not: 'шоколад|schoko|pudding|йогурт|joghurt|морозив|eis|milchschnitte',
+  },
+  breakfast: {
+    is: 'вівсян|haferflocken|müsli|мюслі|йогурт|joghurt|хліб|brot|brötchen|яйц|eier|молоко|milch|масло|butter|сир|käse|кава|kaffee|чай|tee|булочк|круасан|croissant|пластівці|cereal|oat',
+    not: 'шоколад|schoko|морозив|eis|бульйон|суп',
+  },
+  'tea-snacks': {
+    is: 'печив|keks|cookie|biscuit|торт|kuchen|кекс|muffin|вафл|waffel|цукерк|bonbon|пряник|lebkuchen|шоколад|schokolade|cake',
+    not: 'корм|futter',
+  },
   'shower-gel': { is: 'гель для душу|гель-душ|duschgel|dusche|shower' },
 };
 
@@ -136,7 +153,10 @@ const QUERIES: {
   country: string;
   want: string;
   also?: string;
-  group?: 'non-food';
+  group?: 'non-food' | 'intent';
+  /** Запит з ціною (PRD-21): релевантний товар ще й коштує не більше */
+  maxPrice?: number;
+  currency?: 'UAH' | 'EUR';
 }[] = [
   ...[
     ['молоко', 'milk'],
@@ -238,6 +258,35 @@ const QUERIES: {
     ['feuchttücher', 'wipes'],
     ['duschgel', 'shower-gel'],
   ].map(([q, want]) => ({ q, want, country: 'DE', group: 'non-food' })),
+  // Запити з ціною й нагодою (PRD-21): релевантний товар ще й коштує не більше межі
+  ...(
+    [
+      ['молоко до 40 грн', 'milk', 'UA', 40, 'UAH'],
+      ['хліб до 30 грн', 'bread', 'UA', 30, 'UAH'],
+      ['сир до 100 гривень', 'cheese', 'UA', 100, 'UAH'],
+      ['кава до 150 грн', 'coffee', 'UA', 150, 'UAH'],
+      ['пиво до 40 грн', 'beer', 'UA', 40, 'UAH'],
+      ['шоколад дешевше 50 грн', 'chocolate', 'UA', 50, 'UAH'],
+      ['milch unter 1 €', 'milk', 'DE', 1, 'EUR'],
+      ['brot unter 2 €', 'bread', 'DE', 2, 'EUR'],
+      ['käse unter 3 €', 'cheese', 'DE', 3, 'EUR'],
+      ['milk under 1 euro', 'milk', 'DE', 1, 'EUR'],
+      ['до пива', 'beer-snacks', 'UA'],
+      ['закуски до пива до 60 грн', 'beer-snacks', 'UA', 60, 'UAH'],
+      ['на сніданок', 'breakfast', 'UA'],
+      ['до чаю', 'tea-snacks', 'UA'],
+      ['zum Bier', 'beer-snacks', 'DE'],
+      ['zum Frühstück', 'breakfast', 'DE'],
+      ['for breakfast', 'breakfast', 'DE'],
+    ] as [string, string, string, number?, ('UAH' | 'EUR')?][]
+  ).map(([q, want, country, maxPrice, currency]) => ({
+    q,
+    want,
+    country,
+    maxPrice,
+    currency,
+    group: 'intent' as const,
+  })),
   // Запит однією мовою, країна з іншою — це і є різниця від простого тексту
   ...[
     ['windeln', 'diapers'],
@@ -262,6 +311,37 @@ const POOL = 300;
 
 const has = (flag: string) => process.argv.includes(`--${flag}`);
 
+/** Пошук, як було до розбору запиту: увесь текст, поняття цілого запиту, країна — порядок */
+async function legacySearch(q: string, country: string) {
+  return searchProductIds(
+    q,
+    [],
+    0,
+    POOL,
+    undefined,
+    queryConcept(q),
+    searchFilter({ country })[0],
+  );
+}
+
+/** Найнижча ціна товарів у валюті запиту (з індексу) */
+async function priceOf(ids: string[], currency: 'UAH' | 'EUR' = 'UAH') {
+  const field = currency === 'EUR' ? 'priceEur' : 'priceUah';
+  const { results } = await meili<{
+    results: ({ id: string } & Record<string, number | null | string>)[];
+  }>(`/indexes/${PRODUCTS_INDEX}/documents/fetch`, {
+    method: 'POST',
+    body: JSON.stringify({
+      filter: [`id IN ${JSON.stringify(ids)}`],
+      fields: ['id', field],
+      limit: ids.length,
+    }),
+  });
+  return new Map(
+    results.map((r) => [r.id, r[field] as number | null] as const),
+  );
+}
+
 async function main() {
   if (has('sql')) delete process.env.MEILI_URL;
   const prisma = new PrismaService();
@@ -274,20 +354,31 @@ async function main() {
     p10: number;
     p50: number;
     recall: number | null;
-    group?: 'non-food';
+    group?: 'non-food' | 'intent';
   }[] = [];
   try {
-    for (const { q, country, want, also, group } of QUERIES) {
-      const { ids, total } = await catalog.findProductIds(
-        { q, country },
-        0,
-        POOL,
-      );
+    for (const {
+      q,
+      country,
+      want,
+      also,
+      group,
+      maxPrice,
+      currency,
+    } of QUERIES) {
+      // --legacy: пошук без розбору запиту (як до PRD-21) — для порівняння
+      const { ids, total } = has('legacy')
+        ? await legacySearch(q, country)
+        : await catalog.findProductIds({ q, country }, 0, POOL);
+      const prices = maxPrice
+        ? await priceOf(ids.slice(0, 50), currency)
+        : null;
       // Повнота: релевантні з перших POOL проти релевантних у них і в простому текстовому
       // пошуку (без поняття) — чи фільтр поняття не губить товари без поняття
-      const text = searchEnabled()
-        ? (await searchProductIds(q, searchFilter({ country }), 0, POOL)).ids
-        : [];
+      const text =
+        searchEnabled() && group !== 'intent'
+          ? (await searchProductIds(q, searchFilter({ country }), 0, POOL)).ids
+          : [];
       const names = new Map(
         (
           await prisma.product.findMany({
@@ -302,8 +393,12 @@ async function main() {
       const extra = also ? new RegExp(also, 'iu') : null;
       const relevant = (id: string) => {
         const name = names.get(id) ?? '';
+        const price = prices?.get(id);
         return (
-          is.test(name) && !not?.test(name) && (!extra || extra.test(name))
+          is.test(name) &&
+          !not?.test(name) &&
+          (!extra || extra.test(name)) &&
+          (!maxPrice || (price != null && price <= maxPrice))
         );
       };
       const ok = ids.map(relevant);
@@ -365,7 +460,11 @@ ${country} «${q}» — ${total}`);
   );
   summary(
     'Непродуктові',
-    rows.filter((r) => r.group),
+    rows.filter((r) => r.group === 'non-food'),
+  );
+  summary(
+    'Ціна й нагода',
+    rows.filter((r) => r.group === 'intent'),
   );
   summary('Разом', rows);
 }
