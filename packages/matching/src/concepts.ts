@@ -89,7 +89,7 @@ export const CONCEPTS: Concept[] = [
   { slug: 'chips', parent: 'snacks', categories: ['sweets-snacks'], names: { uk: ['чипси'], de: ['Chips'], en: ['crisps', 'chips'] },
     stems: ['^чипс', 'chips', 'crisps'] },
   { slug: 'nuts', parent: 'snacks', categories: ['sweets-snacks', 'fruit-veg', 'pantry'], names: { uk: ['горіхи'], de: ['Nüsse'], en: ['nuts'] },
-    stems: ['^горіх', '^горішк', '^арахіс', '^мигдал', '^кеш[юь]', '^фундук', 'nuss', 'mandel', 'cashew', '^nuts?(?!\\p{L})', 'peanut'] },
+    stems: ['^горіх', '^горішк', '^арахіс', '^мигдал', '^кеш[юь]', '^фундук', '(?<!ge)nuss(?!klasse)', '(?<!bitter)mandel', 'cashew', '^nuts?(?!\\p{L})', 'peanut'] },
   { slug: 'crackers', parent: 'snacks', categories: ['sweets-snacks', 'bakery', 'pantry'], names: { uk: ['крекери'], de: ['Cracker'], en: ['crackers'] },
     stems: ['^крекер', 'cracker'] },
   { slug: 'popcorn', parent: 'snacks', categories: ['sweets-snacks'], names: { uk: ['попкорн'], de: ['Popcorn'], en: ['popcorn'] },

@@ -38,6 +38,9 @@ export interface SearchDoc {
   barcodes: string[];
   minPrice: number | null;
   currency: string | null;
+  /** Мінімальна ціна за валютами: фільтр і сортування "до 1 євро" (PRD-21); null — не продається */
+  priceUah: number | null;
+  priceEur: number | null;
   /** Мітка переіндексації: старіші документи видаляються */
   indexedAt: number;
 }
@@ -89,8 +92,10 @@ export const INDEX_SETTINGS = {
     'chainsCount',
     'lineId',
     'indexedAt',
+    'priceUah',
+    'priceEur',
   ],
-  sortableAttributes: ['chainsCount', 'minPrice'],
+  sortableAttributes: ['chainsCount', 'minPrice', 'priceUah', 'priceEur'],
   // Стандартні правила, а за рівних — товари, що є в більшій кількості мереж
   rankingRules: [
     'words',
@@ -138,12 +143,13 @@ export function toSearchDoc(
   const currency = listings.some((l) => l.chain.currency === 'UAH')
     ? 'UAH'
     : (listings[0]?.chain.currency ?? null);
-  const prices = freshOrAll(
-    listings.filter(
-      (l) => l.chain.currency === currency && l.inStock !== false,
-    ),
-    new Date(indexedAt),
-  ).map((l) => Number(l.currentPrice));
+  const minPriceIn = (code: string | null) => {
+    const prices = freshOrAll(
+      listings.filter((l) => l.chain.currency === code && l.inStock !== false),
+      new Date(indexedAt),
+    ).map((l) => Number(l.currentPrice));
+    return prices.length ? Math.min(...prices) : null;
+  };
   const chains = [...new Set(listings.map((l) => l.chain.slug))];
   const promos = listings.filter((l) => l.isOnPromo && l.inStock !== false);
   const concept = conceptOf(product.name, product.category?.slug);
@@ -166,8 +172,10 @@ export function toSearchDoc(
     promoCountries: [...new Set(promos.map((l) => l.chain.countryCode))],
     chainsCount: chains.length,
     barcodes: product.variants.flatMap((v) => v.barcodes.map((b) => b.gtin)),
-    minPrice: prices.length ? Math.min(...prices) : null,
+    minPrice: minPriceIn(currency),
     currency,
+    priceUah: minPriceIn('UAH'),
+    priceEur: minPriceIn('EUR'),
     indexedAt,
   };
 }
@@ -175,6 +183,14 @@ export function toSearchDoc(
 /** Фільтр Meilisearch (умови через AND); значення — у лапках JSON, без ін'єкції в синтаксис */
 export function searchFilter(f: {
   category?: string;
+  /** Категорії з розбору запиту (PRD-21) */
+  categories?: string[];
+  /** Товар має хоч одне з понять (нагода: "до пива" — снеки й сир) */
+  concepts?: string[];
+  /** Ціна в `currency` — найнижча серед мереж, де товар є в наявності */
+  maxPrice?: number;
+  minPrice?: number;
+  currency?: 'UAH' | 'EUR';
   chain?: string;
   country?: string;
   minChains?: number;
@@ -183,8 +199,17 @@ export function searchFilter(f: {
   excludeLineId?: string | null;
 }): string[] {
   const q = JSON.stringify;
+  const priceField = f.currency === 'EUR' ? 'priceEur' : 'priceUah';
   return [
     f.category && `categorySlug = ${q(f.category)}`,
+    f.categories?.length && `categorySlug IN ${q(f.categories)}`,
+    f.concepts?.length && `concepts IN ${q(f.concepts)}`,
+    f.currency &&
+      f.maxPrice !== undefined &&
+      `${priceField} <= ${Number(f.maxPrice)}`,
+    f.currency &&
+      f.minPrice !== undefined &&
+      `${priceField} >= ${Number(f.minPrice)}`,
     f.chain && `chains = ${q(f.chain)}`,
     f.country && `countries = ${q(f.country)}`,
     f.minChains && f.minChains > 1 && `chainsCount >= ${f.minChains}`,
@@ -243,7 +268,8 @@ type Strategy = 'all' | 'last';
  * "молоко", "Milch"), спершу шукає лише серед товарів цього поняття всіма мовами — без
  * солодощів "Milch-Mäuse" і без спорідненого кефіру; порожньо — так само без фільтра поняття.
  * `first` (умова фільтра, напр. країна покупця) — її товари йдуть першими, далі решта;
- * сторінки проходять крізь обидві частини.
+ * сторінки проходять крізь обидві частини. `sort` — правила сортування Meilisearch
+ * ("priceEur:asc"): замінює порядок релевантності.
  */
 export async function searchProductIds(
   q: string,
@@ -253,6 +279,7 @@ export async function searchProductIds(
   strategies: Strategy[] = ['all', 'last'],
   concept: string | null = null,
   first: string | null = null,
+  sort: string[] = [],
 ): Promise<{ ids: string[]; scores: number[]; total: number }> {
   const conceptFilter = concept && [
     ...filter,
@@ -285,6 +312,7 @@ export async function searchProductIds(
         matchingStrategy,
         attributesToRetrieve: ['id'],
         showRankingScore: true,
+        ...(sort.length && { sort }),
       }),
     });
   let found = { ids: [] as string[], scores: [] as number[], total: 0 };

@@ -21,6 +21,9 @@ describe('conceptOf', () => {
     ['Чай чорний Lovare Assorted', 'coffee-tea', 'tea'],
     // німецька та англійська: головне слово — останнє
     ['Vollmilchschokolade', 'sweets-snacks', 'chocolate'],
+    ['Tafelschokolade Nussklasse', 'sweets-snacks', 'chocolate'],
+    ['Haselnuss in Caramel', 'sweets-snacks', 'nuts'],
+    ['Quark Genuss, Erdbeere', 'dairy-eggs', 'cottage-cheese'],
     ['Butterkekse', 'sweets-snacks', 'cookies'],
     ['Nuss-Rosinen-Schwarzbrot', 'bakery', 'bread'],
     ['Hamburger-Brötchen', 'bakery', 'rolls'],

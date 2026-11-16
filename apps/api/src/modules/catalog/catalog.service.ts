@@ -50,7 +50,14 @@ const SIMILAR_LIMIT = 8;
 const SUGGESTIONS_LIMIT = 6;
 /** Як довго тримаються лічильники зіставлення (див. getMatchingStatus) */
 const COUNTS_TTL_MS = 30_000;
-import { conceptLabels, normalizeGtin, queryConcept } from '@repo/matching';
+import {
+  CONCEPTS,
+  conceptLabels,
+  conceptPath,
+  normalizeGtin,
+  queryConcept,
+} from '@repo/matching';
+import { searchIntent, type SearchIntent } from './search/search-intent';
 
 /** Каталог для клієнтів і адмінки: товари, фасування, пропозиції мереж, черга модерації */
 @Injectable()
@@ -78,6 +85,9 @@ export class CatalogService {
    * id товарів у базовому порядку: релевантність Meilisearch (з оцінкою 0..1) або популярність
    * (SQL). Країна в каталозі — фільтр, а в пошуку (є `q`) — порядок: спершу товари її мереж,
    * далі решти країн ("хліб" у DE знаходить і український хліб).
+   *
+   * Запит із ціною, нагодою чи кількома поняттями ("молоко до 40 грн", "до пива") розбирається
+   * на фільтри (PRD-21); якщо за ними нічого немає — той самий запит шукається дослівно.
    */
   async findProductIds(
     query: Pick<
@@ -87,29 +97,56 @@ export class CatalogService {
     offset: number,
     limit: number,
   ): Promise<{ ids: string[]; total: number; scores?: number[] }> {
+    const q = query.q?.trim();
+    const intent =
+      q && !/^\d{8,14}$/.test(q) ? searchIntent(q, query.country) : null;
+    const found = await this.searchIds(query, offset, limit, intent);
+    return intent && found.total === 0
+      ? this.searchIds(query, offset, limit, null)
+      : found;
+  }
+
+  private async searchIds(
+    query: Pick<
+      ProductsQueryDto,
+      'q' | 'category' | 'chain' | 'country' | 'multiChain' | 'onPromo'
+    >,
+    offset: number,
+    limit: number,
+    intent: SearchIntent | null,
+  ): Promise<{ ids: string[]; total: number; scores?: number[] }> {
     const minChains = isTrue(query.multiChain) ? 2 : 1;
     const onPromo = isTrue(query.onPromo);
-    const q = query.q?.trim();
-    const gtin = q && /^\d{8,14}$/.test(q) ? normalizeGtin(q) : null;
-    const countryFirst = q ? query.country : undefined;
-    const country = q ? undefined : query.country;
+    const raw = query.q?.trim();
+    const q = intent ? intent.text : raw;
+    const gtin = raw && /^\d{8,14}$/.test(raw) ? normalizeGtin(raw) : null;
+    const countryFirst = raw ? query.country : undefined;
+    const country = raw ? undefined : query.country;
 
     // Текстовий запит — у Meilisearch (помилки в словах, синоніми, латиниця); при збої — SQL
-    if (q && !gtin && searchEnabled()) {
+    if (raw && !gtin && searchEnabled()) {
       const found = await searchProductIds(
-        q,
+        q ?? '',
         searchFilter({
           category: query.category,
           chain: query.chain,
           country,
           minChains,
           onPromo,
+          ...(intent && {
+            categories: intent.categories,
+            concepts: intent.concepts,
+            maxPrice: intent.maxPrice,
+            minPrice: intent.minPrice,
+            currency: intent.currency,
+          }),
         }),
         offset,
         limit,
         undefined,
-        queryConcept(q),
+        intent ? intent.concept : queryConcept(raw),
         countryFirst ? searchFilter({ country: countryFirst })[0] : null,
+        intent?.sort,
       ).catch((error: unknown) => {
         this.logger.warn(
           `Meilisearch недоступний, пошук через SQL: ${errorText(error)}`,
@@ -124,10 +161,10 @@ export class CatalogService {
       filters.push(
         Prisma.sql`EXISTS (SELECT 1 FROM barcodes bc JOIN product_variants bv ON bv.id = bc."variantId" WHERE bv."productId" = p.id AND bc.gtin = ${gtin})`,
       );
-    } else if (q) {
+    } else if (raw) {
       // Кожне слово — у назві чи бренді (не підряд: "молоко галичина"); слово-поняття —
       // будь-якою мовою: "молоко" знаходить і Vollmilch
-      for (const word of q.split(/\s+/).slice(0, 8)) {
+      for (const word of (q ?? '').split(/\s+/).filter(Boolean).slice(0, 8)) {
         const concept = queryConcept(word);
         const likes = [word, ...(concept ? conceptLabels(concept) : [])].map(
           (w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`,
@@ -143,6 +180,7 @@ export class CatalogService {
         );
       }
     }
+    if (intent) filters.push(...intentFilters(intent));
     if (query.category) {
       filters.push(
         Prisma.sql`p."categoryId" = (SELECT id FROM categories WHERE slug = ${query.category})`,
@@ -638,4 +676,43 @@ const CURRENCY_ORDER = ['UAH', 'EUR', 'PLN', 'USD'];
 function currencyRank(currency: string): number {
   const rank = CURRENCY_ORDER.indexOf(currency);
   return rank === -1 ? CURRENCY_ORDER.length : rank;
+}
+
+/**
+ * Розібраний запит (PRD-21) у SQL, коли Meilisearch недоступний: ціна — найнижча в мережах
+ * цієї валюти, нагода чи кілька понять — назви понять і їхніх нащадків у назві товару.
+ */
+function intentFilters(intent: SearchIntent): Prisma.Sql[] {
+  const filters: Prisma.Sql[] = [];
+  if (intent.categories.length) {
+    filters.push(
+      Prisma.sql`p."categoryId" IN (SELECT id FROM categories WHERE slug IN (${Prisma.join(intent.categories)}))`,
+    );
+  }
+  if (intent.currency) {
+    for (const [limit, op] of [
+      [intent.maxPrice, Prisma.sql`<=`],
+      [intent.minPrice, Prisma.sql`>=`],
+    ] as const) {
+      if (limit === undefined) continue;
+      filters.push(
+        Prisma.sql`EXISTS (SELECT 1 FROM listings xl JOIN product_variants xv ON xv.id = xl."variantId" JOIN store_chains xc ON xc.id = xl."chainId" WHERE xv."productId" = p.id AND xl."delistedAt" IS NULL AND xl."inStock" AND xc.currency = ${intent.currency} AND xl."currentPrice" ${op} ${limit})`,
+      );
+    }
+  }
+  if (intent.concepts.length) {
+    const labels = CONCEPTS.filter((c) =>
+      conceptPath(c.slug).some((slug) => intent.concepts.includes(slug)),
+    ).flatMap((c) => conceptLabels(c.slug));
+    const likes = [...new Set(labels)].map(
+      (w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`,
+    );
+    filters.push(
+      Prisma.sql`(${Prisma.join(
+        likes.map((like) => Prisma.sql`p.name ILIKE ${like}`),
+        ' OR ',
+      )})`,
+    );
+  }
+  return filters;
 }
