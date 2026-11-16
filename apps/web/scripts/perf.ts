@@ -33,11 +33,15 @@ const quantile = (values: number[], q: number) => {
 
 // Спостерігачі ставляться до завантаження сторінки й живуть між клієнтськими переходами
 const OBSERVERS = () => {
-  const perf = { tap: 0, lcp: 0, cls: 0 };
+  const perf = { tap: 0, lcp: 0, cls: 0, tapWho: '' };
   Object.assign(window, { __perf: perf });
   new PerformanceObserver((list) => {
-    for (const e of list.getEntries())
-      if (['pointerdown', 'pointerup', 'click'].includes(e.name)) perf.tap = Math.max(perf.tap, e.duration);
+    for (const e of list.getEntries() as (PerformanceEntry & { target: Element | null })[])
+      if (['pointerdown', 'pointerup', 'click'].includes(e.name) && e.duration > perf.tap) {
+        perf.tap = e.duration;
+        // Хто саме найповільніший: для розбору перевищення бюджету
+        perf.tapWho = `${e.name} на ${e.target?.tagName.toLowerCase()} ${e.target?.getAttribute('href') ?? ''} (${location.pathname})`;
+      }
   }).observe({ type: 'event', durationThreshold: 16, buffered: true } as PerformanceObserverInit);
   new PerformanceObserver((list) => {
     for (const e of list.getEntries()) perf.lcp = Math.max(perf.lcp, e.startTime);
@@ -48,7 +52,7 @@ const OBSERVERS = () => {
   }).observe({ type: 'layout-shift', buffered: true });
 };
 const readObservers = (page: Page) =>
-  page.evaluate(() => (window as unknown as { __perf: { tap: number; lcp: number; cls: number } }).__perf);
+  page.evaluate(() => (window as unknown as { __perf: { tap: number; lcp: number; cls: number; tapWho: string } }).__perf);
 const nextFrame = (page: Page) =>
   page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
@@ -90,7 +94,9 @@ async function measureWeb(): Promise<Results> {
     await page.waitForLoadState('networkidle');
   }
   for (const [name, values] of Object.entries(navigations)) results[`nav ${name} p75`] = quantile(values, 0.75);
-  results.tap = (await readObservers(page)).tap;
+  const taps = await readObservers(page);
+  results.tap = taps.tap;
+  console.log(`Найповільніший дотик: ${taps.tapWho}`);
 
   // LCP і CLS — на холодному завантаженні сторінок, які відкривають найчастіше
   const product = await link('main a[href^="/products/"]').getAttribute('href');
