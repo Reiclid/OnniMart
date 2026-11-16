@@ -1,0 +1,126 @@
+# Нічний прогін бюджетів продуктивності (PRD-22): production-збірки API й вебу на синтетичному
+# каталозі (apps/api/scripts/seed-perf.ts), потім bun run perf (Chrome, Playwright).
+# Таймінги шумні, тому прогін падає лише через перевищення бюджету, а не від будь-якого
+# погіршення: порівняння з попереднім прогоном (кеш .perf/last.json) іде в підсумок запуску.
+# На pull request не запускається: перевірки PR — ci.yml.
+name: Perf
+
+on:
+  schedule:
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: perf
+  cancel-in-progress: false
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16.15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: onnimart_perf
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:8.10.2-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+      meilisearch:
+        image: getmeili/meilisearch:v1.54.3
+        env:
+          MEILI_MASTER_KEY: perf-meili-master-key
+          MEILI_ENV: development
+        ports: ['7700:7700']
+    env:
+      # Значення лише для цього тимчасового раннера: сервіси й дані живуть до кінця прогону
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/onnimart_perf
+      REDIS_URL: redis://localhost:6379
+      MEILI_URL: http://localhost:7700
+      MEILI_MASTER_KEY: perf-meili-master-key
+      ADMIN_TOKEN: perf-admin-token
+      PERF_SESSION: perf-session-token
+      # Явні 127.0.0.1: localhost на раннері може вказувати на ::1, а web слухає лише IPv4
+      API_URL: http://127.0.0.1:3001
+      WEB_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Prisma Client, міграції, довідники
+        working-directory: apps/api
+        run: bun x prisma generate && bun x prisma migrate deploy && bun x prisma db seed
+      - name: Чекаємо Meilisearch
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf "$MEILI_URL/health" && exit 0
+            sleep 2
+          done
+          echo 'Meilisearch не відповів' >&2
+          exit 1
+      - name: Синтетичний каталог (фіксований seed)
+        working-directory: apps/api
+        run: bun run perf:seed
+      - name: Збірка пакетів і API
+        run: bun run build:packages && bun --filter api build
+      - name: API (production)
+        working-directory: apps/api
+        env:
+          NODE_ENV: production
+          HOST: 127.0.0.1
+          PORT: '3001'
+        run: |
+          nohup node dist/main > "$RUNNER_TEMP/api.log" 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf "$API_URL/api/v1/products?pageSize=1" > /dev/null && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/api.log"
+          exit 1
+      - name: Web (production)
+        working-directory: apps/web
+        run: |
+          bun x next build
+          nohup bun x next start --hostname 127.0.0.1 --port 3000 > "$RUNNER_TEMP/web.log" 2>&1 &
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null "$WEB_URL/" && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/web.log"
+          exit 1
+      - name: Попередній прогін (для порівняння)
+        uses: actions/cache/restore@v4
+        with:
+          path: apps/web/.perf
+          key: perf-last-${{ github.run_id }}
+          restore-keys: perf-last-
+      - name: Бюджети
+        id: perf
+        working-directory: apps/web
+        run: bun run perf
+      # Результат зберігаємо й після перевищення бюджету: наступний прогін порівнюється з ним
+      - name: Зберегти результат для наступного прогону
+        if: always() && hashFiles('apps/web/.perf/last.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: apps/web/.perf
+          key: perf-last-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Результат і логи серверів
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf
+          path: |
+            apps/web/.perf/last.json
+            ${{ runner.temp }}/api.log
+            ${{ runner.temp }}/web.log
+          if-no-files-found: ignore
