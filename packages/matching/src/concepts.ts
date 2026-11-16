@@ -1,4 +1,5 @@
 import type { CategorySlug } from './categories';
+import { NONFOOD_CONCEPTS } from './concepts-nonfood';
 import { fold } from './normalization/text';
 
 /**
@@ -20,6 +21,11 @@ export interface Concept {
    * "^" — початок слова (українські основи); без нього — будь-де (німецькі складні слова).
    */
   stems?: string[];
+  /**
+   * Вирази, які дивляться на всю назву разом із тим, що після прийменника: "Засіб для прання",
+   * "Корм сухий … для котів". Перевіряються раніше за основи; "^" — початок слова, як у stems.
+   */
+  phrases?: string[];
 }
 
 export const CONCEPTS: Concept[] = [
@@ -205,8 +211,13 @@ export const CONCEPTS: Concept[] = [
     stems: ['^пельмен', 'pelmeni'] },
   { slug: 'pizza', categories: ['frozen', 'ready-meals'], names: { uk: ['піца'], de: ['Pizza'], en: ['pizza'] },
     stems: ['^піц', 'pizza'] },
+
+  // Побутова хімія, краса, тварини, діти
+  ...NONFOOD_CONCEPTS,
 ];
 
+/** Непродуктові поняття не переносяться з хибної категорії мережі (див. conceptOf) */
+const NONFOOD = new Set(NONFOOD_CONCEPTS.map((c) => c.slug));
 const BY_SLUG = new Map(CONCEPTS.map((c) => [c.slug, c]));
 
 const CYRILLIC = /\p{Script=Cyrillic}/u;
@@ -224,6 +235,32 @@ const RULES = CONCEPTS.filter((c) => c.stems).map((c) => ({
   ),
 }));
 
+const PHRASE_RULES = CONCEPTS.filter((c) => c.phrases).map((c) => ({
+  concept: c,
+  rule: new RegExp(
+    c.phrases!.map((s) => s.replace(/\^/g, '(?<!\\p{L})')).join('|'),
+    'gu',
+  ),
+}));
+
+/** Вираз, що починається найраніше (за рівних — найдовший); поняття має підходити категорії */
+function phraseMatch(
+  text: string,
+  category: string | null | undefined,
+): string | null {
+  let best: { slug: string; start: number; end: number } | null = null;
+  for (const { concept, rule } of PHRASE_RULES) {
+    if (category && !concept.categories.includes(category as CategorySlug))
+      continue;
+    for (const m of text.matchAll(rule)) {
+      const hit = { slug: concept.slug, start: m.index, end: m.index + m[0].length };
+      if (!best || hit.start < best.start || (hit.start === best.start && hit.end > best.end))
+        best = hit;
+    }
+  }
+  return best?.slug ?? null;
+}
+
 /**
  * Поняття товару за назвою. Українська назва починається з головного слова
  * ("Шоколад молочний" — шоколад), німецька й англійська ним закінчуються
@@ -233,17 +270,21 @@ const RULES = CONCEPTS.filter((c) => c.stems).map((c) => ({
  *
  * Відома категорія товару відкидає поняття інших категорій: "Milka Alpenmilch" у солодощах —
  * не молоко. Категорії мереж бувають хибні, тож кирилична назва, що починається з поняття
- * ("Молоко … безлактозне" у бакалії), лишає його.
+ * ("Молоко … безлактозне" у бакалії), лишає його; непродуктові поняття цього не мають.
+ * Вирази (`phrases`) читають усю назву, а не лише частину до прийменника.
  */
 export function conceptOf(
   name: string,
   category?: CategorySlug | string | null,
 ): string | null {
-  const text = fold(name).split(PREPOSITION)[0];
+  const full = fold(name);
+  const phrase = phraseMatch(full, category);
+  if (phrase) return phrase;
+  const text = full.split(PREPOSITION)[0];
   const headFirst = CYRILLIC.test(name);
   const fits = bestMatch(text, headFirst, category);
   if (fits || !category || !headFirst) return fits?.slug ?? null;
-  const head = bestMatch(text, headFirst, null);
+  const head = bestMatch(text, headFirst, null, true);
   return head?.start === 0 ? head.slug : null;
 }
 
@@ -251,9 +292,11 @@ function bestMatch(
   text: string,
   headFirst: boolean,
   category: string | null | undefined,
+  foodOnly = false,
 ): { slug: string; start: number; end: number } | null {
   let best: { slug: string; start: number; end: number } | null = null;
   for (const { concept, rule } of RULES) {
+    if (foodOnly && NONFOOD.has(concept.slug)) continue;
     if (category && !concept.categories.includes(category as CategorySlug))
       continue;
     for (const m of text.matchAll(rule)) {
